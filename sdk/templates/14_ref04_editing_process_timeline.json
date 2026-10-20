@@ -1,0 +1,181 @@
+{
+ "_ref": "ref04 — the same clip goes through the edit steps: raw (flat grade, noisy audio) → enhanced audio → colour correction (grade_keys) → text animation (pops) → sound effects; a segment timeline with a red playhead shows the step, IG outro.",
+ "meta": {
+  "style": "swiss",
+  "palette": "mono",
+  "bg": "#9ab3b4",
+  "bloom": 0,
+  "grain": 0,
+  "vignette": 0,
+  "duration": 15.0
+ },
+ "hud": {
+  "header": {
+   "show": false
+  },
+  "dots": {
+   "show": false
+  },
+  "subs": {
+   "show": false
+  }
+ },
+ "audio": {
+  "ambient": false
+ },
+ "chapters": [
+  {
+   "t": 0,
+   "title": "process",
+   "elements": [
+    {
+     "type": "backdrop",
+     "kind": "paper",
+     "t": 0,
+     "enter": "none"
+    },
+    {
+     "type": "device_frame",
+     "id": "phone",
+     "x": 470,
+     "y": 760,
+     "w": 560,
+     "h": 996,
+     "t": 0,
+     "children": [
+      {
+       "type": "footage",
+       "id": "clip",
+       "src": "../examples/media/host.mp4",
+       "x": 540,
+       "y": 960,
+       "w": 1080,
+       "h": 1920,
+       "loop": true,
+       "grade_keys": [
+        [
+         0,
+         "flat"
+        ],
+        [
+         6.0,
+         "vivid",
+         0.6
+        ]
+       ],
+       "audio": true,
+       "audio_enhance": false
+      },
+      {
+       "type": "kinetic",
+       "id": "k1",
+       "mode": "slam",
+       "text": "سه تا کاری که **هرگز** انجام نمیدم",
+       "x": 540,
+       "y": 1250,
+       "size": 110,
+       "t": 9.0,
+       "out": 12.0,
+       "color": "#ffffff",
+       "accent": "#ffd23f",
+       "shadow": {
+        "blur": 18,
+        "alpha": 0.6
+       }
+      },
+      {
+       "type": "icon_grid",
+       "id": "nums",
+       "names": [
+        "check",
+        "check",
+        "check"
+       ],
+       "rows": 1,
+       "cols": 3,
+       "x": 540,
+       "y": 1000,
+       "size": 120,
+       "gap": 40,
+       "t": 9.2,
+       "out": 12.0
+      }
+     ]
+    },
+    {
+     "type": "pill",
+     "id": "tag_vid",
+     "text": "ویدیو",
+     "x": 860,
+     "y": 330,
+     "size": 40,
+     "t": 0.3,
+     "color": "#ffffff",
+     "filled": true
+    },
+    {
+     "type": "pill",
+     "id": "tag_edit",
+     "text": "تدوین",
+     "x": 900,
+     "y": 450,
+     "size": 40,
+     "t": 0.5,
+     "color": "#ffffff",
+     "filled": true
+    },
+    {
+     "type": "nle_timeline",
+     "id": "steps",
+     "mode": "segments",
+     "x": 540,
+     "y": 1560,
+     "w": 1000,
+     "label_size": 26,
+     "t": 0,
+     "items": [
+      {
+       "label": "Raw video",
+       "t": 0,
+       "text_color": "#1d2a2a"
+      },
+      {
+       "label": "Enhance audio",
+       "t": 3.0,
+       "text_color": "#1d2a2a"
+      },
+      {
+       "label": "Color correction",
+       "t": 6.0,
+       "text_color": "#1d2a2a"
+      },
+      {
+       "label": "Text animation",
+       "t": 9.0,
+       "text_color": "#1d2a2a"
+      },
+      {
+       "label": "Sound effect",
+       "t": 12.0,
+       "text_color": "#1d2a2a"
+      }
+     ]
+    },
+    {
+     "type": "handle_tag",
+     "handle": "yourhandle",
+     "x": 540,
+     "y": 1700,
+     "size": 32,
+     "color": "#2b3a3a",
+     "t": 0.5
+    },
+    {
+     "type": "social_outro",
+     "handle": "@YOURHANDLE",
+     "t": 13.6
+    }
+   ]
+  }
+ ]
+}

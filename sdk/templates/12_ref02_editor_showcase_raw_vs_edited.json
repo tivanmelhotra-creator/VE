@@ -1,0 +1,234 @@
+{
+ "_ref": "ref02 — editor portfolio reel: teal paper, small 'Raw' phone + big 'Edited' phone, edited side = talking head with word behind the speaker, then a light infographic (alert pulse, 24h counter), 3D button 'ادیت ویدیو', handle, IG outro.",
+ "meta": {
+  "style": "swiss",
+  "palette": "mono",
+  "bg": "#9ab3b4",
+  "bloom": 0,
+  "grain": 0,
+  "vignette": 0,
+  "duration": 11.0
+ },
+ "hud": {
+  "header": {
+   "show": false
+  },
+  "dots": {
+   "show": false
+  },
+  "subs": {
+   "show": true,
+   "y": 0.72,
+   "size": 40,
+   "box": {
+    "color": "#ffffff"
+   }
+  }
+ },
+ "subtitles": [
+  {
+   "t": 0.3,
+   "end": 2.9,
+   "text": "مراقبت بعد از **ایمپلنت**"
+  },
+  {
+   "t": 3.2,
+   "end": 6.3,
+   "text": "یه نکته که **همه** ازش خبر ندارن"
+  },
+  {
+   "t": 6.5,
+   "end": 9.4,
+   "text": "تا **۲۴ ساعت** اول این کارو نکنید"
+  }
+ ],
+ "chapters": [
+  {
+   "t": 0,
+   "title": "showcase",
+   "elements": [
+    {
+     "type": "backdrop",
+     "kind": "paper",
+     "t": 0,
+     "enter": "none"
+    },
+    {
+     "type": "device_frame",
+     "id": "raw",
+     "x": 230,
+     "y": 900,
+     "w": 300,
+     "h": 534,
+     "label": "Raw",
+     "label_color": "#1d2a2a",
+     "t": 0,
+     "children": [
+      {
+       "type": "footage",
+       "id": "raw_clip",
+       "src": "../examples/media/host.mp4",
+       "x": 540,
+       "y": 960,
+       "w": 1080,
+       "h": 1920,
+       "grade": "flat",
+       "audio": true,
+       "audio_gain": 0.0
+      }
+     ]
+    },
+    {
+     "type": "device_frame",
+     "id": "edited",
+     "x": 680,
+     "y": 820,
+     "w": 520,
+     "h": 924,
+     "label": "Edited",
+     "label_color": "#1d2a2a",
+     "t": 0.15,
+     "fill": "#efeee8",
+     "children": [
+      {
+       "type": "footage",
+       "id": "ed",
+       "src": "../examples/media/host.mp4",
+       "x": 540,
+       "y": 960,
+       "w": 1080,
+       "h": 1920,
+       "t": 0,
+       "out": 3.0,
+       "grade": "vivid",
+       "zooms": [
+        {
+         "t": 1.2,
+         "dur": 0.5,
+         "to": 1.15
+        }
+       ]
+      },
+      {
+       "type": "text",
+       "id": "ed_word",
+       "behind": "ed",
+       "text": "ایمپلنت",
+       "x": 540,
+       "y": 560,
+       "size": 210,
+       "font": "title",
+       "color": "#ffffff",
+       "t": 0.4,
+       "out": 3.0,
+       "enter": "rise"
+      },
+      {
+       "type": "backdrop",
+       "id": "ed_paper",
+       "kind": "studio",
+       "color": "#efeee8",
+       "color2": "#d8d6cc",
+       "t": 3.0,
+       "enter": "fade",
+       "dur": 0.25
+      },
+      {
+       "type": "icon",
+       "id": "ed_skull",
+       "name": "brain",
+       "x": 540,
+       "y": 900,
+       "size": 520,
+       "t": 3.2,
+       "out": 6.4,
+       "color": "#2d2e2d",
+       "width": 5
+      },
+      {
+       "type": "flash_pulse",
+       "id": "ed_alert",
+       "x": 300,
+       "y": 600,
+       "r": 160,
+       "color": "#d63230",
+       "t": 3.8
+      },
+      {
+       "type": "text",
+       "id": "ed_t1",
+       "text": "که همه **ازش خبر ندارن!**",
+       "x": 540,
+       "y": 400,
+       "size": 70,
+       "font": "title",
+       "color": "#2d2e2d",
+       "base_color": "#2d2e2d",
+       "emph_color": "#d63230",
+       "t": 3.4,
+       "out": 6.4,
+       "enter": "words"
+      },
+      {
+       "type": "disc",
+       "id": "ed_24",
+       "x": 540,
+       "y": 760,
+       "r": 150,
+       "color": "#2d2e2d",
+       "t": 6.5,
+       "dur": 0.4
+      },
+      {
+       "type": "counter",
+       "id": "ed_24n",
+       "from": 0,
+       "to": 24,
+       "x": 540,
+       "y": 750,
+       "size": 150,
+       "color": "#ffffff",
+       "t": 6.6,
+       "dur": 0.8,
+       "fa": true
+      },
+      {
+       "type": "text",
+       "id": "ed_24c",
+       "text": "ساعت اول",
+       "x": 540,
+       "y": 1000,
+       "size": 64,
+       "font": "title",
+       "color": "#2d2e2d",
+       "t": 6.9
+      }
+     ]
+    },
+    {
+     "type": "badge_button",
+     "text": "ادیت ویدیو",
+     "x": 540,
+     "y": 1470,
+     "size": 54,
+     "t": 0.4,
+     "press_at": 2.8
+    },
+    {
+     "type": "handle_tag",
+     "handle": "yourhandle",
+     "x": 540,
+     "y": 1585,
+     "size": 32,
+     "color": "#2b3a3a",
+     "t": 0.5
+    },
+    {
+     "type": "social_outro",
+     "handle": "@YOURHANDLE",
+     "t": 9.6
+    }
+   ]
+  }
+ ]
+}

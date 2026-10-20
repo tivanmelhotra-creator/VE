@@ -1,0 +1,230 @@
+{
+ "_ref": "ref07 — @ENSAN.BESHAM noir line-art essay: white strokes on black, figures on podiums, bars that grow, dashed callouts, a pulsing 'AI eye', phone scroll, chain-of-envy camera pan; karaoke subtitles at the bottom. (Core lineart style — see templates 03/04 for more widgets.)",
+ "meta": {
+  "style": "lineart",
+  "palette": "noir",
+  "bloom": 0.45,
+  "vignette": 0.35,
+  "grain": 0.02,
+  "duration": 13.0
+ },
+ "hud": {
+  "header": {
+   "show": false
+  },
+  "dots": {
+   "show": false
+  },
+  "subs": {
+   "show": true
+  },
+  "handle": "@YOURHANDLE"
+ },
+ "subtitles": [
+  {
+   "t": 0.3,
+   "end": 3.8,
+   "text": "از بین این دو گزینه **فقط یکیش** رو می‌تونی"
+  },
+  {
+   "t": 4.0,
+   "end": 7.6,
+   "text": "توی دانشگاه **هاروارد** همین سؤال رو پرسیدن"
+  },
+  {
+   "t": 7.8,
+   "end": 12.6,
+   "text": "عدد معنی نداره؛ **فاصله** معنی داره"
+  }
+ ],
+ "chapters": [
+  {
+   "t": 0,
+   "title": "choice",
+   "elements": [
+    {
+     "type": "box",
+     "id": "optA",
+     "x": 300,
+     "y": 800,
+     "w": 400,
+     "h": 760,
+     "r": 18,
+     "t": 0.2
+    },
+    {
+     "type": "box",
+     "id": "optB",
+     "x": 780,
+     "y": 800,
+     "w": 400,
+     "h": 760,
+     "r": 18,
+     "t": 0.4
+    },
+    {
+     "type": "bars",
+     "id": "barsA",
+     "values": [
+      50,
+      25,
+      25
+     ],
+     "x": 300,
+     "y": 980,
+     "w": 320,
+     "h": 380,
+     "t": 0.8,
+     "fmt": "{:.0f}"
+    },
+    {
+     "type": "bars",
+     "id": "barsB",
+     "values": [
+      100,
+      200,
+      200
+     ],
+     "x": 780,
+     "y": 980,
+     "w": 320,
+     "h": 380,
+     "t": 1.4,
+     "fmt": "{:.0f}"
+    },
+    {
+     "type": "callout",
+     "id": "c_you",
+     "anchor": "barsA+-100,60",
+     "elbow": [
+      -60,
+      -260
+     ],
+     "shelf": -120,
+     "label": "تو",
+     "t": 2.2
+    }
+   ]
+  },
+  {
+   "t": 4.0,
+   "title": "هاروارد",
+   "transition": {
+    "type": "pan",
+    "dir": "down"
+   },
+   "elements": [
+    {
+     "type": "icon",
+     "id": "eye",
+     "name": "eye",
+     "x": 540,
+     "y": 520,
+     "size": 200,
+     "t": 0.3,
+     "idle": "pulse"
+    },
+    {
+     "type": "glow_ring",
+     "id": "eye_ring",
+     "x": 540,
+     "y": 520,
+     "r": 120,
+     "color": "#ffffff",
+     "t": 0.5
+    },
+    {
+     "type": "icon_grid",
+     "id": "crowd",
+     "names": "human",
+     "rows": 3,
+     "cols": 6,
+     "x": 540,
+     "y": 1050,
+     "size": 90,
+     "gap": 30,
+     "t": 1.0,
+     "highlight": [
+      7
+     ],
+     "highlight_at": 2.4
+    }
+   ]
+  },
+  {
+   "t": 7.8,
+   "title": "فاصله",
+   "transition": {
+    "type": "pan",
+    "dir": "down"
+   },
+   "elements": [
+    {
+     "type": "box",
+     "id": "pod1",
+     "x": 380,
+     "y": 1200,
+     "w": 200,
+     "h": 300,
+     "t": 0.2
+    },
+    {
+     "type": "box",
+     "id": "pod2",
+     "x": 700,
+     "y": 1100,
+     "w": 200,
+     "h": 500,
+     "t": 0.4
+    },
+    {
+     "type": "icon",
+     "id": "p1",
+     "name": "human",
+     "x": 380,
+     "y": 960,
+     "size": 160,
+     "t": 0.6
+    },
+    {
+     "type": "icon",
+     "id": "p2",
+     "name": "human",
+     "x": 700,
+     "y": 760,
+     "size": 160,
+     "t": 0.8
+    },
+    {
+     "type": "line",
+     "id": "gap",
+     "points": [
+      [
+       540,
+       1050
+      ],
+      [
+       540,
+       850
+      ]
+     ],
+     "arrow": "both",
+     "dashed": [
+      10,
+      8
+     ],
+     "t": 1.6
+    },
+    {
+     "type": "text",
+     "id": "gap_l",
+     "text": "فاصله",
+     "x": 540,
+     "y": 780,
+     "size": 52,
+     "t": 1.9
+    }
+   ]
+  }
+ ]
+}

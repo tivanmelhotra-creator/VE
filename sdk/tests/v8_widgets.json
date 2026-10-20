@@ -1,0 +1,201 @@
+{
+ "meta": {
+  "w": 1080,
+  "h": 1920,
+  "fps": 30,
+  "style": "swiss",
+  "palette": "red"
+ },
+ "subtitles": [
+  {
+   "t": 0.3,
+   "end": 3.0,
+   "text": "یک **درصد** از مردم"
+  },
+  {
+   "t": 3.2,
+   "end": 6.0,
+   "text": "سهم نفت از بودجه"
+  },
+  {
+   "t": 6.2,
+   "end": 9.5,
+   "text": "ادعا یارانه بود واقعیت **تورم**"
+  }
+ ],
+ "chapters": [
+  {
+   "t": 0,
+   "title": "waffle",
+   "elements": [
+    {
+     "type": "headline",
+     "text": "یک درصد\n**همه‌چیز**",
+     "col": [
+      1,
+      6
+     ],
+     "row": 2,
+     "size": 140,
+     "t": 0.1
+    },
+    {
+     "type": "waffle_grid",
+     "col": [
+      1,
+      6
+     ],
+     "row": 6.8,
+     "value": 1,
+     "total": 100,
+     "t": 0.4,
+     "fill_at": "w:درصد",
+     "accent_label": "۱٪ ثروتمندترین",
+     "base_label": "۹۹٪ بقیه مردم",
+     "side": 560
+    },
+    {
+     "type": "big_number",
+     "col": [
+      1,
+      6
+     ],
+     "row": 11.6,
+     "size": 150,
+     "t": 0.5,
+     "roll": true,
+     "unit": "تومان",
+     "tracks": {
+      "value": [
+       [
+        0.5,
+        1500
+       ],
+       [
+        1.2,
+        1500
+       ],
+       [
+        2.6,
+        3000,
+        "in_out"
+       ]
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "t": 3.1,
+   "title": "bars",
+   "transition": {
+    "type": "wipe",
+    "dir": "left"
+   },
+   "elements": [
+    {
+     "type": "swiss_bars",
+     "col": [
+      1,
+      6
+     ],
+     "row": 5,
+     "t": 0.2,
+     "max": 100,
+     "suffix": "٪",
+     "highlight": 0,
+     "items": [
+      {
+       "label": "نفت",
+       "value": 72
+      },
+      {
+       "label": "مالیات",
+       "value": 21
+      },
+      {
+       "label": "سایر",
+       "value": 7
+      }
+     ]
+    },
+    {
+     "type": "swiss_bars",
+     "col": [
+      1,
+      6
+     ],
+     "row": 9.5,
+     "h": 420,
+     "orient": "v",
+     "t": 0.5,
+     "max": 100,
+     "suffix": "٪",
+     "items": [
+      {
+       "label": "۱۳۹۰",
+       "value": 40
+      },
+      {
+       "label": "۱۴۰۰",
+       "value": 65
+      },
+      {
+       "label": "۱۴۰۳",
+       "value": 90,
+       "accent": true
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "t": 6.1,
+   "title": "versus",
+   "transition": {
+    "type": "portal",
+    "x": 540,
+    "y": 960
+   },
+   "palette": "blue",
+   "elements": [
+    {
+     "type": "versus_table",
+     "col": [
+      1,
+      6
+     ],
+     "row": 3,
+     "t": 0.2,
+     "right_title": "ادعای رسمی",
+     "left_title": "واقعیت آماری",
+     "rows": [
+      {
+       "right": "یارانه به همه",
+       "left": "تورم ۳ برابری",
+       "t": 0.8
+      },
+      {
+       "right": "رشد اقتصادی",
+       "left": "فقر ۳۰٪",
+       "t": 1.4
+      },
+      {
+       "right": "اشتغال",
+       "left": "بیکاری پنهان",
+       "t": 2.0
+      }
+     ]
+    },
+    {
+     "type": "waveform",
+     "x": 540,
+     "y": 1320,
+     "w": 700,
+     "h": 150,
+     "t": 0.3
+    }
+   ]
+  }
+ ]
+}

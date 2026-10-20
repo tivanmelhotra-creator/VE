@@ -1,0 +1,7 @@
+{"meta": {"w": 1080, "h": 1920, "fps": 30, "duration": 5, "bg": "#15171c", "bloom": 0.2},
+ "chapters": [{"t": 0, "title": "pbr3d",
+   "elements": [
+     {"type": "pbr3d", "t": 0.1, "x": 540, "y": 560, "w": 640, "model": "croissant", "motion": "spin_360", "yaw_speed": 72, "pitch": 18},
+     {"type": "pbr3d", "t": 0.5, "x": 300, "y": 1300, "w": 380, "model": "food_apple_01", "motion": "hover", "pitch": 12},
+     {"type": "pbr3d", "t": 0.9, "x": 780, "y": 1300, "w": 420, "model": "lemon", "motion": "turntable_osc", "pitch": 20}
+   ]}]}

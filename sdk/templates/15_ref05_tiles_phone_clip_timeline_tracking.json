@@ -1,0 +1,204 @@
+{
+ "_ref": "ref05 — dark diamond tiles, framed phone with a talking head; a coloured clip timeline (Raw/Color/Music/Text/Motion) slides under an I-beam as each edit layer is added; words follow the hands (hand tracker), a speed ramp on the gesture, a grid + kinetic words behind the speaker, B&W ending.",
+ "meta": {
+  "style": "promo",
+  "palette": "silver",
+  "bg": "#2b2b2d",
+  "bloom": 0.15,
+  "grain": 0.01,
+  "vignette": 0.2,
+  "duration": 6.0
+ },
+ "hud": {
+  "header": {
+   "show": false
+  },
+  "dots": {
+   "show": false
+  },
+  "subs": {
+   "show": true,
+   "y": 0.62,
+   "size": 44,
+   "box": {
+    "color": "#000000",
+    "alpha": 0.9
+   }
+  }
+ },
+ "subtitles": [
+  {
+   "t": 0.2,
+   "end": 2.6,
+   "text": "و ادیت **حرفه‌ای** تر"
+  },
+  {
+   "t": 2.8,
+   "end": 5.6,
+   "text": "محصولتو **لوکس‌تر** نشون میده"
+  }
+ ],
+ "chapters": [
+  {
+   "t": 0,
+   "title": "phone",
+   "elements": [
+    {
+     "type": "backdrop",
+     "kind": "tiles",
+     "t": 0,
+     "enter": "none"
+    },
+    {
+     "type": "device_frame",
+     "id": "phone",
+     "x": 540,
+     "y": 860,
+     "w": 700,
+     "h": 1240,
+     "t": 0,
+     "border": "#e6e6e6",
+     "children": [
+      {
+       "type": "footage",
+       "id": "clip",
+       "src": "../examples/media/hands.mp4",
+       "x": 540,
+       "y": 960,
+       "w": 1080,
+       "h": 1920,
+       "trackers": {
+        "hand": {
+         "kind": "hand",
+         "point": "palm"
+        }
+       },
+       "grade_keys": [
+        [
+         0,
+         "flat"
+        ],
+        [
+         1.2,
+         "moody",
+         0.4
+        ]
+       ],
+       "ramps": [
+        {
+         "t": 3.6,
+         "dur": 0.25,
+         "speed": 0.35,
+         "hold": 0.6
+        }
+       ],
+       "looks": [
+        {
+         "t": 5.3,
+         "dur": 0.7,
+         "look": "mono"
+        }
+       ]
+      },
+      {
+       "type": "kinetic",
+       "id": "behind_k",
+       "behind": "clip",
+       "mode": "stack",
+       "text": "محصولتو **لوکس‌تر** نشون میده",
+       "x": 540,
+       "y": 520,
+       "size": 130,
+       "t": 2.8,
+       "color": "#ffffff",
+       "accent": "#ffd23f",
+       "shadow": {
+        "blur": 20,
+        "alpha": 0.8
+       }
+      },
+      {
+       "type": "pill",
+       "id": "hand_tag",
+       "text": "لوکس",
+       "x": 0,
+       "y": 0,
+       "follow": "clip.hand",
+       "follow_offset": [
+        0,
+        -120
+       ],
+       "follow_lag": 0.08,
+       "t": 3.0,
+       "out": 5.2,
+       "filled": true,
+       "size": 54,
+       "color": "#ff2d55"
+      }
+     ]
+    },
+    {
+     "type": "handle_tag",
+     "handle": "@YOURHANDLE",
+     "x": 790,
+     "y": 330,
+     "size": 26,
+     "t": 0.2
+    },
+    {
+     "type": "nle_timeline",
+     "id": "layers",
+     "mode": "clips",
+     "x": 540,
+     "y": 1380,
+     "w": 1080,
+     "h": 110,
+     "t": 0,
+     "items": [
+      {
+       "label": "ویدیو خام",
+       "sub": "Raw",
+       "color": "#c9a7d9",
+       "t": 0
+      },
+      {
+       "label": "اصلاح رنگ",
+       "sub": "Color",
+       "color": "#e48fd0",
+       "t": 1.2
+      },
+      {
+       "label": "موزیک",
+       "sub": "Music",
+       "color": "#8ea1e6",
+       "t": 2.2
+      },
+      {
+       "label": "متن",
+       "sub": "Text",
+       "color": "#8edb84",
+       "t": 2.8
+      },
+      {
+       "label": "حرکت دوربین",
+       "sub": "Motion",
+       "color": "#e9dc7c",
+       "t": 3.6
+      }
+     ]
+    },
+    {
+     "type": "text",
+     "id": "read_caption",
+     "text": "کپشن بخون",
+     "x": 540,
+     "y": 1600,
+     "size": 40,
+     "font": "handwritten",
+     "color": "#dddddd",
+     "t": 0.5
+    }
+   ]
+  }
+ ]
+}
