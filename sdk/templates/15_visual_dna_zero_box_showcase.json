@@ -1,0 +1,77 @@
+{
+  "meta": {
+    "title": "Visual-DNA Zero-Box Showcase",
+    "fps": 30,
+    "width": 1080,
+    "height": 1920,
+    "style": "visual_dna",
+    "palette": "obsidian_dna",
+    "hud": {
+      "header": {
+        "show": false
+      },
+      "dots": {
+        "show": false
+      },
+      "subs": {
+        "show": false
+      }
+    }
+  },
+  "chapters": [
+    {
+      "t": 0.0,
+      "end": 5.0,
+      "title": "دی‌ان‌ای بصری",
+      "elements": [
+        {
+          "type": "dna_stage",
+          "id": "stage1",
+          "t": 0.0,
+          "mode": "dark",
+          "accent": "#10B981"
+        },
+        {
+          "type": "dna_connector",
+          "id": "rail1",
+          "t": 0.2,
+          "from": [
+            140,
+            820
+          ],
+          "to": [
+            940,
+            820
+          ],
+          "device": "caliper_rail"
+        },
+        {
+          "type": "tactile_3d",
+          "id": "hero_lap",
+          "t": 0.35,
+          "sprite": "laptop_3d",
+          "x": 540,
+          "y": 640,
+          "size": 310,
+          "sub": "معماری بدون باکس",
+          "title": "دی‌ان‌ای بصری سه‌بعدی",
+          "accent": "#10B981"
+        },
+        {
+          "type": "hud_loading_bar",
+          "id": "load1",
+          "t": 0.6,
+          "x": 540,
+          "y": 1340,
+          "w": 640,
+          "h": 42,
+          "from": 0,
+          "to": 96,
+          "load_dur": 1.8,
+          "label": "LOADING // بارگذاری گرافیک سه‌بعدی",
+          "accent": "#10B981"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,268 @@
+{
+  "meta": {
+    "style": "lineart",
+    "palette": "noir",
+    "aspect": "9:16",
+    "duration": 20.0,
+    "fps": 30
+  },
+  "subtitles": [
+    {
+      "t": 0.2,
+      "end": 3.8,
+      "text": "سبک اول: **لاین‌آرت** مستند و کالبدشکافی دقیق."
+    },
+    {
+      "t": 4.1,
+      "end": 7.8,
+      "text": "سبک دوم: **گرید سوئیسی** و دیتاجورنالیسم تحلیلی."
+    },
+    {
+      "t": 8.1,
+      "end": 11.8,
+      "text": "سبک سوم: **تایپوگرافی کینتیک** و بنتو پوستر."
+    },
+    {
+      "t": 12.1,
+      "end": 15.8,
+      "text": "سبک چهارم: **تیزر پرومو،** سه‌بعدی و حروف کشیده."
+    },
+    {
+      "t": 16.1,
+      "end": 19.8,
+      "text": "و سبک پنجم: **فیزیک رابط کاربری** و تعامل زنده!"
+    }
+  ],
+  "chapters": [
+    {
+      "t": 0.0,
+      "title": "۱. لاین‌آرت",
+      "style": "lineart",
+      "palette": "noir",
+      "elements": [
+        {
+          "type": "text",
+          "text": "۱. سبک لاین‌آرت نوار",
+          "font": "title",
+          "x": 540,
+          "y": 420,
+          "size": 74,
+          "t": 0.1
+        },
+        {
+          "id": "c1_core",
+          "type": "icon",
+          "name": "money_core",
+          "x": 540,
+          "y": 920,
+          "size": 340,
+          "t": 0.2,
+          "idle": "vo_pulse"
+        },
+        {
+          "type": "pill",
+          "text": "کالبدشکافی مستند",
+          "x": 540,
+          "y": 1240,
+          "t": 1.8
+        }
+      ]
+    },
+    {
+      "t": 4.0,
+      "title": "۲. سوئیسی",
+      "style": "swiss",
+      "palette": "red",
+      "transition": {
+        "type": "portal",
+        "from": "c1_core",
+        "dur": 0.65
+      },
+      "elements": [
+        {
+          "type": "block",
+          "col": [
+            1,
+            6
+          ],
+          "row": 1.4,
+          "rows": 2.0,
+          "color": "@accent",
+          "t": 0.0,
+          "z": -0.25
+        },
+        {
+          "type": "headline",
+          "col": [
+            1,
+            6
+          ],
+          "row": 5.2,
+          "text": "۲. گرید\n**سوئیسی**",
+          "size": 134,
+          "t": 0.1
+        },
+        {
+          "type": "big_number",
+          "col": [
+            1,
+            6
+          ],
+          "row": 9.8,
+          "size": 176,
+          "t": 0.3,
+          "roll": true,
+          "unit": "واحد",
+          "tracks": {
+            "value": [
+              [
+                0.3,
+                100
+              ],
+              [
+                2.9,
+                1500,
+                "in_out"
+              ]
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "t": 8.0,
+      "title": "۳. کینتیک",
+      "style": "kinetic",
+      "palette": "ink",
+      "transition": {
+        "type": "wipe",
+        "dir": "left",
+        "dur": 0.5
+      },
+      "elements": [
+        {
+          "type": "kinetic",
+          "mode": "masonry",
+          "x": 540,
+          "y": 920,
+          "w": 880,
+          "t": 0.1,
+          "text": "۳. تایپوگرافی\n**کینتیک**\nپوستر **زنده**"
+        }
+      ]
+    },
+    {
+      "t": 12.0,
+      "title": "۴. پرومو",
+      "style": "promo",
+      "palette": "crimson",
+      "bg_mode": "crimson_vivid",
+      "transition": {
+        "type": "whip_pan",
+        "dir": "left",
+        "dur": 0.42
+      },
+      "elements": [
+        {
+          "type": "text",
+          "text": "۴. سبک پرومو",
+          "font": "title",
+          "x": 540,
+          "y": 460,
+          "size": 92,
+          "t": 0.1,
+          "color": "#ffffff"
+        },
+        {
+          "type": "text",
+          "text": "کش میان!",
+          "font": "title",
+          "x": 540,
+          "y": 820,
+          "size": 154,
+          "t": 0.2,
+          "kashida": {
+            "px": 250,
+            "word": "کش"
+          },
+          "kashida_at": 0.8,
+          "color": "#ffffff"
+        },
+        {
+          "type": "iso_cube",
+          "x": 540,
+          "y": 1300,
+          "s": 190,
+          "t": 0.3,
+          "label": "سه‌بعدی"
+        }
+      ]
+    },
+    {
+      "t": 16.0,
+      "title": "۵. فیزیک رابط کاربری",
+      "style": "ui_physics",
+      "palette": "apple_blue",
+      "ambient": "dot_matrix",
+      "transition": {
+        "type": "portal",
+        "dur": 0.6
+      },
+      "elements": [
+        {
+          "type": "text",
+          "text": "۵. فیزیک رابط کاربری",
+          "font": "title",
+          "x": 540,
+          "y": 320,
+          "size": 72,
+          "t": 0.1,
+          "color": "@ink"
+        },
+        {
+          "type": "ui_toggle",
+          "x": 260,
+          "y": 540,
+          "w": 154,
+          "h": 78,
+          "t": 0.1,
+          "click_at": 0.3
+        },
+        {
+          "type": "ui_slider",
+          "x": 650,
+          "y": 540,
+          "w": 460,
+          "t": 0.1,
+          "roll_at": 0.5,
+          "roll_dur": 1.4,
+          "fa": true
+        },
+        {
+          "type": "ui_notification_stack",
+          "x": 540,
+          "y": 1000,
+          "w": 680,
+          "t": 0.3,
+          "stagger": 0.3,
+          "cards": [
+            {
+              "title": "پنجمین سبک موشن",
+              "body": "تعامل فیزیکی با المان‌های رابط کاربری",
+              "icon": "slider",
+              "appear_at": 0.4,
+              "hit_at": 1.2
+            },
+            {
+              "title": "ده تمپلیت آماده",
+              "body": "آماده برای هر سناریو و پروژه‌ای",
+              "icon": "messages",
+              "appear_at": 0.8,
+              "hit_at": 1.8
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

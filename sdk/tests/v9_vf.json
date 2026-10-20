@@ -1,0 +1,6 @@
+{"meta":{"style":"promo","palette":"crimson","duration":5,"fps":30},
+ "chapters":[{"t":0,"bg_mode":"crimson_vivid","ambient":{"kind":"warp_stars","warp":0.6},"elements":[
+   {"type":"viewfinder_hud","x":540,"y":960,"w":960,"h":1600,"t":0,"tc_start":21,"label":"4K · 24FPS"},
+   {"type":"text","text":"اینو","x":540,"y":900,"size":300,"font":"title","text_style":{"kind":"extrude_3d","depth":40,"extrude":"#5e0818"},"t":0},
+   {"type":"text","text":"شوخیت گرفته؟!","x":540,"y":1250,"size":110,"font":"title","color":"#ffffff","text_style":"knockout","t":0,"enter":"whip_blur"}
+ ]}]}

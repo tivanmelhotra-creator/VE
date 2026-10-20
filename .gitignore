@@ -1,0 +1,49 @@
+# prod
+dist/
+
+# dev
+.yarn/
+!.yarn/releases
+.vscode/*
+!.vscode/launch.json
+!.vscode/*.code-snippets
+.idea/workspace.xml
+.idea/usage.statistics.xml
+.idea/shelf
+
+# deps
+node_modules/
+.wrangler
+
+# env
+.env
+.env.production
+.dev.vars
+
+# logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# misc
+.DS_Store
+
+# mograph caches / renders (regenerable)
+*.v14/
+*.matte/
+**/out/
+work/tmp/
+work/renders/*.mp4
+__pycache__/
+*.pyc
+mograph/models/modnet.onnx
+projects/*/media/*.mp4
+*.tar.gz
+
+# v14.6 pbr3d
+sdk/bin/effectcraft-cli
+sdk/mograph/pbr_assets/models/**/*.norm.gltf

@@ -1,0 +1,8 @@
+{"meta":{"w":1080,"h":1920,"fps":30,"bloom":0.45},
+ "hud":{"header":{"show":false},"dots":{"show":false},"subs":{"show":false}},
+ "chapters":[{"t":0,"elements":[
+  {"type":"quote_rig","x":540,"y":520,"w":940,"text":"حدود ۱۵۰۰ نفر همه پرونده‌ها را بررسی کردند و هیچ مدرکی پیدا نشد","source":"گزارش رسمی، ۱۴۰۲","header":"نقل‌قول","t":0,
+   "highlights":[{"word":"۱۵۰۰","t":1.5,"style":"underline"},{"word":"همه","t":1.8,"style":"circle","num":1},{"word":"هیچ","t":2.1,"style":"box","num":2}]},
+  {"type":"invoice","x":540,"y":1350,"w":820,"t":0.3,"rows":[{"item":"حمل‌ونقل","value":"۵٬۰۰۰ تومان","t":1.0},{"item":"مالیات پنهان","value":"?","t":1.4},{"item":"سود واسطه","value":"۱۲٬۰۰۰ تومان","t":1.8}],
+   "total":{"label":"جمع","value":"۱۷٬۰۰۰ تومان","t":2.2},"stamp":{"text":"صفر","t":2.6}}
+ ]}]}

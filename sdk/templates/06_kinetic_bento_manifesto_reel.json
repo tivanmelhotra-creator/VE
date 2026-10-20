@@ -1,0 +1,68 @@
+{
+  "meta": {
+    "style": "kinetic",
+    "palette": "ink",
+    "aspect": "9:16",
+    "duration": 10.0,
+    "fps": 30
+  },
+  "subtitles": [
+    {
+      "t": 0.2,
+      "end": 4.8,
+      "text": "موفقیت اتفاقی نیست نتیجه تصمیم‌های هر روز توئه"
+    },
+    {
+      "t": 5.1,
+      "end": 9.6,
+      "text": "همین امروز سیستم خودت رو از نو بساز"
+    }
+  ],
+  "chapters": [
+    {
+      "t": 0.0,
+      "title": "مانیفست ۱",
+      "elements": [
+        {
+          "type": "kinetic",
+          "mode": "masonry",
+          "x": 540,
+          "y": 880,
+          "w": 880,
+          "t": 0.2,
+          "text": "موفقیت **اتفاقی** نیست\nنتیجه **تصمیم‌های**\nهر روز **توئه**"
+        },
+        {
+          "type": "waveform",
+          "x": 540,
+          "y": 1520,
+          "w": 520,
+          "h": 90,
+          "t": 0.2,
+          "color": "@accent"
+        }
+      ]
+    },
+    {
+      "t": 5.0,
+      "title": "مانیفست ۲",
+      "transition": {
+        "type": "portal",
+        "dur": 0.6
+      },
+      "style": "swiss",
+      "palette": "yellow",
+      "elements": [
+        {
+          "type": "kinetic",
+          "mode": "highlight_sweep",
+          "x": 540,
+          "y": 920,
+          "size": 104,
+          "t": 0.2,
+          "text": "همین **امروز**\nسیستم **خودت** رو\nاز نو **بساز**"
+        }
+      ]
+    }
+  ]
+}

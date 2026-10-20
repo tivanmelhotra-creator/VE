@@ -1,0 +1,7 @@
+{"meta":{"w":1080,"h":1920,"fps":30,"style":"kinetic","palette":"ink"},
+ "subtitles":[{"t":0.3,"end":2.6,"text":"این شما بودید که **انجام** دادید."},{"t":2.8,"end":6.0,"text":"ولی من فقط **ممکنه** وسوسه کنم؛"}],
+ "chapters":[
+  {"t":0,"elements":[{"type":"kinetic","mode":"masonry","text":"این شما بودید که **انجام** دادید.","x":540,"y":900,"size":150,"t":0}]},
+  {"t":2.7,"palette":"yellow","bg":"#efece6","elements":[{"type":"kinetic","mode":"highlight_sweep","text":"ولی من فقط **ممکنه** وسوسه کنم؛","x":540,"y":900,"size":120,"t":0},
+    {"type":"waveform","x":540,"y":1350,"w":600,"h":140,"t":0.2,"mode":"bottom"}]}
+ ]}

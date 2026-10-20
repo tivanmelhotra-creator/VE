@@ -1,0 +1,3 @@
+portrait_seg.onnx — MediaPipe Selfie Segmentation (general, 256x256), ONNX export by onnx-community
+Source: https://huggingface.co/onnx-community/mediapipe_selfie_segmentation  (onnx/model.onnx)
+License: Apache-2.0 (Google MediaPipe). Input pixel_values [1,3,256,256] RGB 0..1, output alphas [1,1,256,256].

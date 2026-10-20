@@ -1,0 +1,164 @@
+{
+ "meta": {
+  "style": "lineart",
+  "palette": "noir",
+  "bg": "#05060a",
+  "bloom": 0.35,
+  "duration": 4.0,
+  "shake": [
+   {
+    "t": 2.0,
+    "dur": 0.3,
+    "amp": 16
+   }
+  ],
+  "flashes": [
+   {
+    "t": 2.0,
+    "dur": 0.2,
+    "amount": 0.5
+   }
+  ]
+ },
+ "hud": {
+  "header": {
+   "show": false
+  },
+  "dots": {
+   "show": false
+  },
+  "subs": {
+   "show": false
+  }
+ },
+ "audio": {
+  "ambient": false
+ },
+ "chapters": [
+  {
+   "t": 0,
+   "title": "fx",
+   "elements": [
+    {
+     "type": "light_rays",
+     "x": 540,
+     "y": 700,
+     "r": 800,
+     "color": "#ffe9a8",
+     "t": 0
+    },
+    {
+     "type": "text",
+     "id": "neon",
+     "text": "۹۵٪ کارهایی که میکنم",
+     "x": 540,
+     "y": 520,
+     "size": 92,
+     "font": "title",
+     "color": "#7fd8ff",
+     "glow": {
+      "color": "#1e9bff",
+      "radius": 26,
+      "strength": 1.6
+     },
+     "t": 0.2,
+     "enter": "rise"
+    },
+    {
+     "type": "icon",
+     "id": "brain",
+     "name": "human",
+     "x": 540,
+     "y": 900,
+     "size": 260,
+     "t": 0.1,
+     "shiver": 5
+    },
+    {
+     "type": "saber",
+     "target": "brain",
+     "pad": 30,
+     "color": "#ff2a4a",
+     "t": 0.4,
+     "dur": 0.8
+    },
+    {
+     "type": "orbit_trail",
+     "x": 540,
+     "y": 900,
+     "r": 260,
+     "period": 2.0,
+     "color": "#ff4b2b",
+     "t": 0
+    },
+    {
+     "type": "glow_ring",
+     "x": 300,
+     "y": 1250,
+     "r": 60,
+     "color": "#2ad1ff",
+     "t": 0.3
+    },
+    {
+     "type": "tracked_callout",
+     "anchor": [
+      300,
+      1250
+     ],
+     "box": [
+      700,
+      1180
+     ],
+     "text": "چشمک",
+     "sub": "glow ring",
+     "accent": "#2ad1ff",
+     "t": 0.6,
+     "size": 46,
+     "sub_color": "#0d6f8f"
+    },
+    {
+     "type": "flash_pulse",
+     "x": 780,
+     "y": 1400,
+     "t": 2.0,
+     "r": 180,
+     "color": "#fff0b0"
+    },
+    {
+     "type": "emitter",
+     "x": 540,
+     "y": 1300,
+     "kind": "fall",
+     "shape": "heart",
+     "n": 12,
+     "life": 2.5,
+     "colors": [
+      "#e23b4a",
+      "#b52838"
+     ],
+     "t": 0.5,
+     "area": [
+      800,
+      40
+     ]
+    },
+    {
+     "type": "box",
+     "id": "card",
+     "x": 540,
+     "y": 1600,
+     "w": 600,
+     "h": 150,
+     "r": 30,
+     "fill": "#ffffff",
+     "t": 0.3,
+     "shadow": {
+      "blur": 24,
+      "alpha": 0.6,
+      "dy": 14
+     }
+    }
+   ]
+  }
+ ]
+}

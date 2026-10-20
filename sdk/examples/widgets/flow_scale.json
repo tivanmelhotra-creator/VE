@@ -1,0 +1,9 @@
+{"meta":{"w":1080,"h":1920,"fps":30,"bloom":0.45},
+ "hud":{"header":{"show":false},"dots":{"show":false},"subs":{"show":false}},
+ "chapters":[{"t":0,"elements":[
+  {"type":"flow_loop","x":540,"y":560,"w":820,"h":760,"t":0,
+   "top":{"icon":"government","label":"دولت"},"right":{"icon":"human","label":"مردم"},"left":{"icon":"drop","label":"نفت"},
+   "arrow_labels":["مالیات","یارانه","فروش"],"flips":[[0,"«ارزون»"],[2.5,"به خودتون"]]},
+  {"type":"scale_rig","x":540,"y":1440,"w":760,"t":0,"left":{"label":"پول","item":"«یه تکه کاغذ»"},"right":{"label":"کارنامه انسان"},
+   "drops":[{"t":0.8,"label":"انسولین"},{"t":1.4,"label":"نان"},{"t":2.0,"label":"جنگل"},{"t":2.6,"label":"جنگ"}]}
+ ]}]}

@@ -1,0 +1,209 @@
+{
+ "meta": {
+  "style": "swiss",
+  "palette": "mono",
+  "bg": "#9db8b8",
+  "bloom": 0,
+  "grain": 0,
+  "vignette": 0,
+  "duration": 6.0
+ },
+ "hud": {
+  "header": {
+   "show": false
+  },
+  "dots": {
+   "show": false
+  },
+  "subs": {
+   "show": false
+  }
+ },
+ "audio": {
+  "ambient": false
+ },
+ "chapters": [
+  {
+   "t": 0,
+   "title": "showcase",
+   "elements": [
+    {
+     "type": "backdrop",
+     "kind": "paper",
+     "t": 0,
+     "enter": "none"
+    },
+    {
+     "type": "device_frame",
+     "id": "raw",
+     "x": 250,
+     "y": 760,
+     "w": 300,
+     "h": 534,
+     "label": "Raw",
+     "label_color": "#1d2a2a",
+     "t": 0,
+     "tilt": -4,
+     "children": [
+      {
+       "type": "footage",
+       "id": "raw_clip",
+       "src": "../examples/media/host.mp4",
+       "x": 540,
+       "y": 960,
+       "w": 1080,
+       "h": 1920,
+       "grade": "flat"
+      }
+     ]
+    },
+    {
+     "type": "device_frame",
+     "id": "edited",
+     "x": 680,
+     "y": 700,
+     "w": 480,
+     "h": 854,
+     "label": "Edited",
+     "t": 0.2,
+     "children": [
+      {
+       "type": "footage",
+       "id": "ed_clip",
+       "src": "../examples/media/host.mp4",
+       "x": 540,
+       "y": 960,
+       "w": 1080,
+       "h": 1920,
+       "grade": "vivid",
+       "zooms": [
+        {
+         "t": 1.0,
+         "dur": 0.4,
+         "to": 1.15
+        }
+       ]
+      },
+      {
+       "type": "text",
+       "id": "behind_txt",
+       "behind": "ed_clip",
+       "text": "۲۴ ساعت",
+       "x": 540,
+       "y": 520,
+       "size": 200,
+       "font": "title",
+       "t": 0.6,
+       "enter": "rise",
+       "color": "#ffffff"
+      },
+      {
+       "type": "handle_tag",
+       "handle": "@BAASHOKOOH",
+       "x": 900,
+       "y": 120,
+       "size": 34,
+       "t": 0.2
+      }
+     ],
+     "label_color": "#1d2a2a"
+    },
+    {
+     "type": "badge_button",
+     "text": "ادیت ویدیو",
+     "x": 540,
+     "y": 1290,
+     "size": 52,
+     "t": 0.4,
+     "press_at": 1.5
+    },
+    {
+     "type": "handle_tag",
+     "handle": "baashokooh",
+     "x": 540,
+     "y": 1400,
+     "size": 30,
+     "color": "#2b3a3a",
+     "t": 0.5
+    },
+    {
+     "type": "nle_timeline",
+     "mode": "clips",
+     "x": 540,
+     "y": 1600,
+     "w": 1080,
+     "h": 110,
+     "t": 0.3,
+     "items": [
+      {
+       "label": "ویدیو خام",
+       "sub": "Raw",
+       "color": "#c9a7d9",
+       "t": 0.3
+      },
+      {
+       "label": "اصلاح رنگ",
+       "sub": "Color",
+       "color": "#e48fd0",
+       "t": 1.5
+      },
+      {
+       "label": "موزیک",
+       "sub": "Music",
+       "color": "#8ea1e6",
+       "t": 2.5
+      },
+      {
+       "label": "متن",
+       "sub": "Text",
+       "color": "#8edb84",
+       "t": 3.5
+      },
+      {
+       "label": "حرکت دوربین",
+       "sub": "Motion",
+       "color": "#e9dc7c",
+       "t": 4.5
+      }
+     ]
+    },
+    {
+     "type": "nle_timeline",
+     "mode": "segments",
+     "x": 540,
+     "y": 1790,
+     "w": 1000,
+     "t": 0.3,
+     "label_size": 24,
+     "items": [
+      {
+       "label": "Raw video",
+       "t": 0.3,
+       "text_color": "#1d2a2a"
+      },
+      {
+       "label": "Enhance audio",
+       "t": 1.6,
+       "text_color": "#1d2a2a"
+      },
+      {
+       "label": "Color correction",
+       "t": 2.9,
+       "text_color": "#1d2a2a"
+      },
+      {
+       "label": "Text animation",
+       "t": 4.2,
+       "text_color": "#1d2a2a"
+      }
+     ]
+    },
+    {
+     "type": "social_outro",
+     "handle": "@BAASHOKOOH",
+     "t": 4.6
+    }
+   ]
+  }
+ ]
+}
