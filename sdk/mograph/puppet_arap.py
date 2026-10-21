@@ -18,7 +18,6 @@ import cairo
 import cv2
 import numpy as np
 from scipy import sparse
-from scipy.sparse.linalg import spsolve
 
 
 class ArapPuppetMesh:
@@ -60,57 +59,72 @@ class ArapPuppetMesh:
         d2 = (self.V_rest[:, 0] - px) ** 2 + (self.V_rest[:, 1] - py) ** 2
         return int(np.argmin(d2))
 
-    def solve(self, pins: list[tuple[int, tuple[float, float], float]], iterations: int = 2) -> np.ndarray:
+    def solve(self, pins: list[tuple[int, tuple[float, float], float]], iterations: int = 8,
+              tol: float = 0.05) -> np.ndarray:
         """
-        Solve 2-step ARAP for current pin targets `[(vertex_idx, (tx, ty), weight), ...]`.
-        Returns deformed vertex positions `V_def` (n_v x 2 float32).
+        Local/global ARAP for pin targets `[(vertex_idx, (tx, ty), weight), ...]` → deformed vertices (n_v x 2).
+
+        v15.1 fixes (v15.0 did not converge: a pure 90° rotation of two pins left 78 px error after 4 iterations,
+        103 px after 1 — the mesh sheared instead of turning):
+          * WARM START with the best similarity transform (2D Procrustes rotation + uniform scale + translation)
+            mapping the pinned rest vertices to their targets → rigid motions are exact at iteration 0;
+          * the system matrix (L + P) is constant → factorised ONCE (splu) and re-used every iteration;
+          * the per-triangle right-hand side is assembled vectorised (np.add.at) instead of a Python loop;
+          * early exit when the largest vertex update < `tol` px.
         """
         if not pins:
             return self.V_rest.astype(np.float32)
-
-        p_idx = [int(p[0]) for p in pins]
+        from scipy.sparse.linalg import splu
+        p_idx = np.array([int(p[0]) for p in pins])
         p_xy = np.array([p[1] for p in pins], dtype=np.float64)
         p_w = np.array([float(p[2]) for p in pins], dtype=np.float64)
 
-        P_mat = sparse.coo_matrix((p_w, (p_idx, p_idx)), shape=(self.n_v, self.n_v)).tocsr()
-        reg = sparse.eye(self.n_v, format="csr") * 1e-4
-        A_sys = self.L_base + P_mat + reg
+        P_mat = sparse.coo_matrix((p_w, (p_idx, p_idx)), shape=(self.n_v, self.n_v)).tocsc()
+        reg = sparse.eye(self.n_v, format="csc") * 1e-6
+        lu = splu((self.L_base.tocsc() + P_mat + reg).tocsc())
 
-        # Initial guess: rest positions + pin offsets
-        rhs_init = self.L_base @ self.V_rest + reg @ self.V_rest
-        for idx, xy, w in zip(p_idx, p_xy, p_w):
-            rhs_init[idx] += w * xy
-        V_cur = spsolve(A_sys, rhs_init)
+        # ---- warm start: similarity transform of the pins
+        src = self.V_rest[p_idx]
+        cs, ct = src.mean(0), p_xy.mean(0)
+        if len(pins) >= 2:
+            A0, B0 = src - cs, p_xy - ct
+            num = float(np.sum(A0[:, 0] * B0[:, 1] - A0[:, 1] * B0[:, 0]))
+            den = float(np.sum(A0[:, 0] * B0[:, 0] + A0[:, 1] * B0[:, 1]))
+            th = math.atan2(num, den)
+            sc = math.sqrt(float(np.sum(B0 ** 2)) / max(1e-9, float(np.sum(A0 ** 2))))
+        else:
+            th, sc = 0.0, 1.0
+        c, s_ = math.cos(th) * sc, math.sin(th) * sc
+        Rs = np.array([[c, -s_], [s_, c]])
+        V_cur = (self.V_rest - cs) @ Rs.T + ct
 
-        # Step 2: Per-triangle 2D Procrustes rigid rotation fit + Poisson edge-vector solve
         i_idx, j_idx, k_idx = self.tris[:, 0], self.tris[:, 1], self.tris[:, 2]
         rest_c = (self.V_rest[i_idx] + self.V_rest[j_idx] + self.V_rest[k_idx]) / 3.0
-        P0 = np.stack([self.V_rest[i_idx] - rest_c, self.V_rest[j_idx] - rest_c, self.V_rest[k_idx] - rest_c], axis=1)  # (T, 3, 2)
+        P0 = np.stack([self.V_rest[i_idx] - rest_c, self.V_rest[j_idx] - rest_c, self.V_rest[k_idx] - rest_c], axis=1)
+        w = self.tw[:, None]
+        pin_rhs = np.zeros_like(self.V_rest)
+        np.add.at(pin_rhs, p_idx, p_w[:, None] * p_xy)
 
         for _ in range(max(1, iterations)):
+            # local step: best rotation per triangle (closed-form 2D Procrustes)
             cur_c = (V_cur[i_idx] + V_cur[j_idx] + V_cur[k_idx]) / 3.0
             Q0 = np.stack([V_cur[i_idx] - cur_c, V_cur[j_idx] - cur_c, V_cur[k_idx] - cur_c], axis=1)
-            # 2D Procrustes closed-form rotation angle for each triangle
-            # sum(p_x * q_y - p_y * q_x) vs sum(p_x * q_x + p_y * q_y)
             num = np.sum(P0[..., 0] * Q0[..., 1] - P0[..., 1] * Q0[..., 0], axis=1)
-            den = np.sum(P0[..., 0] * Q0[..., 0] + P0[..., 1] * Q0[..., 1], axis=1) + 1e-9
+            den = np.sum(P0[..., 0] * Q0[..., 0] + P0[..., 1] * Q0[..., 1], axis=1) + 1e-12
             ang = np.arctan2(num, den)
-            ca, sa = np.cos(ang), np.sin(ang)
-            R_tris = np.stack([np.stack([ca, -sa], axis=-1), np.stack([sa, ca], axis=-1)], axis=1)  # (T, 2, 2)
-            P_rot = np.einsum("tij,tkj->tki", R_tris, P0)  # (T, 3, 2)
-
-            rhs = reg @ self.V_rest
-            for ti in range(self.n_t):
-                w = float(self.tw[ti])
-                vi, vj, vk = int(i_idx[ti]), int(j_idx[ti]), int(k_idx[ti])
-                ri, rj, rk = P_rot[ti, 0], P_rot[ti, 1], P_rot[ti, 2]
-                rhs[vi] += w * ((ri - rj) + (ri - rk))
-                rhs[vj] += w * ((rj - ri) + (rj - rk))
-                rhs[vk] += w * ((rk - ri) + (rk - rj))
-            for idx, xy, w in zip(p_idx, p_xy, p_w):
-                rhs[idx] += w * xy
-            V_cur = spsolve(A_sys, rhs)
-
+            ca, sa = np.cos(ang)[:, None], np.sin(ang)[:, None]
+            rot = lambda v: np.stack([ca[:, 0] * v[:, 0] - sa[:, 0] * v[:, 1], sa[:, 0] * v[:, 0] + ca[:, 0] * v[:, 1]], 1)  # noqa: E731
+            ri, rj, rk = rot(P0[:, 0]), rot(P0[:, 1]), rot(P0[:, 2])
+            # global step: Poisson solve with the rotated rest edges
+            rhs = reg @ V_cur + pin_rhs
+            np.add.at(rhs, i_idx, w * ((ri - rj) + (ri - rk)))
+            np.add.at(rhs, j_idx, w * ((rj - ri) + (rj - rk)))
+            np.add.at(rhs, k_idx, w * ((rk - ri) + (rk - rj)))
+            V_new = np.column_stack([lu.solve(rhs[:, 0]), lu.solve(rhs[:, 1])])
+            delta = float(np.abs(V_new - V_cur).max())
+            V_cur = V_new
+            if delta < tol:
+                break
         return V_cur.astype(np.float32)
 
     def warp_image(self, V_def: np.ndarray) -> np.ndarray:

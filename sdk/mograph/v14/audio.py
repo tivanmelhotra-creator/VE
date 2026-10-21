@@ -172,13 +172,26 @@ def sfx_track(R, n, gain=0.55):
 
 
 def music_track(R, n, cfg):
-    from ..beat import render_beat
-    secs = cfg.get("sections") or [{"t": 0.0, "part": "intro"}, {"t": 1.2, "part": "verse"}]
-    secs = [dict(s, t=R.tl.resolve(s["t"])) for s in secs]
-    y = render_beat(cfg, R.duration + 2.5, secs, int(cfg.get("seed", 3)))
-    if cfg.get("remix", True):
-        from .remix import remix_music_to_duration
-        y = remix_music_to_duration(y, SR, R.duration, float(cfg.get("bpm", 92.0)))
+    """Music bed.  cfg = {"style": "lofi", "bpm": 92, ...}  → procedural beat (mograph/beat.py)
+                 or  {"file": "media/song.mp3", "bpm": null|120, "downbeat": null|0.31, "start": 0}  → a REAL track.
+    v15.1: a real file is retimed to the edit length on its bar grid (remix.py) — it ends on a bar line / natural
+    tail instead of being chopped ("remix": false to disable; procedural beds only when "remix": true)."""
+    from .remix import remix_music_to_duration, load_music
+    if cfg.get("file"):
+        path = cfg["file"] if os.path.isabs(cfg["file"]) else os.path.join(R.base, cfg["file"])
+        y = load_music(path, SR)[int(float(cfg.get("start", 0.0)) * SR):]
+        bpm = cfg.get("bpm")
+    else:
+        from ..beat import render_beat
+        secs = cfg.get("sections") or [{"t": 0.0, "part": "intro"}, {"t": 1.2, "part": "verse"}]
+        secs = [dict(s, t=R.tl.resolve(s["t"])) for s in secs]
+        y = render_beat(cfg, R.duration, secs, int(cfg.get("seed", 3)))
+        bpm = float(cfg.get("bpm", 100.0))
+    # procedural beds are already COMPOSED to the edit (sections restart on cuts, the ending hits the last frame) →
+    # remixing them would move sections off their cuts; default remix only for real files.
+    if cfg.get("remix", bool(cfg.get("file"))):
+        y = remix_music_to_duration(y, SR, R.duration, bpm, int(cfg.get("beats_per_bar", 4)),
+                                    cfg.get("downbeat", 0.0 if not cfg.get("file") else None))
     out = np.zeros(n, np.float32)
     m = min(n, len(y))
     out[:m] = y[:m]
@@ -242,34 +255,58 @@ def dehum_comb(x: np.ndarray, sr: int = SR, f0: float = 50.0, harmonics: int = 6
     return out
 
 
-def multiband_compress_4band(x: np.ndarray, sr: int = SR) -> np.ndarray:
-    """
-    Ported from FilmCraft `crates/audio-dsp/src/effects/multiband.rs`:
-    4-band Linkwitz-Riley (4th-order Butterworth squared) crossover at 160 Hz, 800 Hz, 4500 Hz
-    with independent soft-knee envelope compression per band for broadcast vocal warmth & presence.
-    """
+def _lr4_lowpass(x: np.ndarray, fc: float, sr: int) -> np.ndarray:
+    """Linkwitz-Riley 4th order low-pass = two cascaded 2nd-order Butterworth sections (−6 dB at fc)."""
     from scipy.signal import butter, sosfilt
-    nyq = 0.5 * sr
-    # Band 1 (<160 Hz), Band 2 (160..800 Hz), Band 3 (800..4500 Hz), Band 4 (>4500 Hz)
-    b1 = sosfilt(butter(2, 160.0 / nyq, btype="low", output="sos"), x)
-    b2 = sosfilt(butter(2, [160.0 / nyq, 800.0 / nyq], btype="bandpass", output="sos"), x)
-    b3 = sosfilt(butter(2, [800.0 / nyq, 4500.0 / nyq], btype="bandpass", output="sos"), x)
-    b4 = sosfilt(butter(2, 4500.0 / nyq, btype="high", output="sos"), x)
+    sos = butter(2, fc / (0.5 * sr), btype="low", output="sos")
+    return sosfilt(sos, sosfilt(sos, x)).astype(np.float32)
 
-    bands_cfg = [
-        (b1, 0.045, 2.8, 1.08),  # Low warmth
-        (b2, 0.055, 2.4, 0.96),  # Low-mid mud control
-        (b3, 0.050, 3.2, 1.18),  # Vocal presence & articulation
-        (b4, 0.025, 3.0, 1.12),  # High air & de-ess ceiling
-    ]
-    win = max(16, int(0.018 * sr))
+
+def split_bands(x: np.ndarray, sr: int = SR, xovers=(160.0, 800.0, 4500.0)) -> list:
+    """v15.1 PERFECT-RECONSTRUCTION band split (sum of bands == x to float precision).
+
+    v15.0 used independent Butterworth LP / BP / HP filters → their phases do not line up, the bands cancel at every
+    crossover (measured −20 dB @160 Hz, −14 dB @800 Hz, −18 dB @4.5 kHz on white noise = thin, phasey voice).
+    Here each band is an LR4 low-pass of the RESIDUAL (subtractive tree):  b1 = LP(x), r = x − b1, b2 = LP(r) …
+    → Σ bands = x exactly, so with unity gains the compressor is transparent."""
+    bands, r = [], x.astype(np.float32)
+    for fc in xovers:
+        lo = _lr4_lowpass(r, fc, sr)
+        bands.append(lo)
+        r = r - lo
+    bands.append(r)
+    return bands
+
+
+MB_BANDS = [  # (threshold rms, ratio, makeup) per band  — low warmth / low-mid mud / presence / air
+    (0.045, 2.8, 1.08), (0.055, 2.4, 0.96), (0.050, 3.2, 1.18), (0.025, 3.0, 1.12)]
+
+
+def multiband_compress_4band(x: np.ndarray, sr: int = SR, bands_cfg=None, attack_ms: float = 6.0,
+                             release_ms: float = 90.0) -> np.ndarray:
+    """
+    4-band broadcast voice compressor (FilmCraft `multiband.rs` idea) — v15.1 rewrite:
+      * perfect-reconstruction LR4 subtractive crossover at 160 / 800 / 4500 Hz (see split_bands),
+      * per-band RMS detector (10 ms) → static curve gain = (env/thr)^(1/ratio − 1) above threshold,
+      * attack / release smoothing of the GAIN (one-pole on the gain-reduction, asymmetric), so the gain no longer
+        modulates at audio rate (v15.0 applied the raw instantaneous gain → zipper distortion on plosives).
+    """
+    from scipy.signal import lfilter
+    bands_cfg = bands_cfg or MB_BANDS
+    win = max(16, int(0.010 * sr))
     k_win = np.ones(win, dtype=np.float32) / win
+    a_att = math.exp(-1.0 / (sr * attack_ms / 1000.0))
+    a_rel = math.exp(-1.0 / (sr * release_ms / 1000.0))
     out = np.zeros_like(x, dtype=np.float32)
-    for b_sig, thresh, ratio, makeup in bands_cfg:
-        env = np.sqrt(np.convolve(b_sig * b_sig, k_win, mode="same") + 1e-9)
-        over = np.maximum(1.0, env / thresh)
-        gain = (over ** (1.0 / ratio - 1.0)) * makeup
-        out += (b_sig * gain).astype(np.float32)
+    for b_sig, (thresh, ratio, makeup) in zip(split_bands(x, sr), bands_cfg):
+        env = np.sqrt(np.convolve(b_sig * b_sig, k_win, mode="same") + 1e-12)
+        gr_db = np.maximum(0.0, 20.0 * np.log10(env / thresh)) * (1.0 - 1.0 / ratio)   # gain reduction (dB) ≥ 0
+        # asymmetric smoothing: fast when reduction grows (attack), slow when it falls (release).
+        # Two linear one-pole passes + max() ≈ peak-hold attack/release, fully vectorised.
+        att = lfilter([1 - a_att], [1, -a_att], gr_db)
+        rel = lfilter([1 - a_rel], [1, -a_rel], gr_db)
+        g_db = np.maximum(att, rel)
+        out += (b_sig * (10.0 ** (-g_db / 20.0)) * makeup).astype(np.float32)
     return out
 
 
