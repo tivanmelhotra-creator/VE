@@ -1,0 +1,13 @@
+{"_about": "Measured medians from 447 studied reference shape elements (AE .aep parsed with py_aep, tools/import_aep.py). Numbers only — no vendor shapes, scripts or media are shipped. p10/p90 in brackets. influence in % (AE), times in s at 30 fps, widths in px at a 1100 px comp.",
+ "Arcs":        {"dur": [1.533, 0.967, 2.0], "trim_end_dur": [1.089, 0.771, 1.353], "inf_out": 33.3, "inf_in": [33.3, 16.7, 91.2], "stroke": 10, "features": "ellipse + trim, merge, polystar 3/100/200 pts"},
+ "Arrows":      {"dur": [1.333, 1.0, 1.7], "inf_out": [30.3, 16.7, 77.0], "stroke": 15, "head_size": 40, "features": "triangle head rides a trace path (pointOnPath/tangentOnPath), round corners"},
+ "Blow_Ups":    {"dur": [1.0, 1.0, 1.0], "trim_end_dur": [0.8, 0.384, 0.933], "inf_out": 33.3, "stroke": [7, 10], "features": "repeater 2-4 copies, twist, polystar 30 pts"},
+ "Explosions":  {"dur": [1.0, 1.0, 1.0], "trim_end_dur": [0.591, 0.405, 0.827], "inf_out": 16.7, "linear_keys_pct": 14, "stroke": [5, 15], "features": "repeater 4/8 copies, trim, zigzag, twist, mixed polystars"},
+ "Simple_Elements": {"dur": [1.0, 1.0, 1.0], "inf_out": 16.7, "stroke": 50, "features": "filled polystars, merge subtract rings, pucker/bloat, gradient stroke"},
+ "Simple_Elements_Looped": {"dur": 8.0, "rotation_speed_deg_s": 180, "anim_speed": 360, "features": "loopOut cycle, time*k rotation, repeater 12 copies"},
+ "Slides":      {"dur": [1.317, 1.133, 1.633], "trim_end_dur": [0.767, 0.567, 1.078], "inf": [33.3, 70.3, 96.8], "stroke": [5, 15], "features": "lines with End leading Start by ~0.17 s"},
+ "Transitions": {"dur": [1.267, 1.0, 2.0], "trim_end_dur": [0.512, 0.362, 0.733], "inf": [33.3, 91.2], "features": "filled rect/ellipse wipes, zigzag edges, merge"},
+ "Complicated_Elements": {"dur": [1.667, 1.333, 2.1], "inf_out": 25.0, "features": "repeater 4/8/20, merges"},
+ "Lower_Thirds": {"comp_dur": 10.03, "fps": 30, "title_in": [0.44, 0.70], "role_delay": 0.31, "out": 0.62, "title_role_size": 2.6, "animators": "Range Selector offset 0→100 % (square/ramp shapes) + track mattes"},
+ "Titles": {"note": "194 title projects studied: text layers 729, shape 557; dominant effects Minimax/Set Matte/Drop Shadow/Venetian Blinds; text animators with per-character delay expressions (delay≈0.02-0.09 s × textIndex)."}
+}

@@ -1,0 +1,12 @@
+{"meta": {"style": "lineart", "palette": "noir", "bg": "#07080d", "bloom": 0.2, "duration": 4.0},
+ "hud": {"header": {"show": false}, "dots": {"show": false}, "subs": {"show": false}}, "audio": {"ambient": false},
+ "chapters": [{"t": 0, "title": "aefx", "elements": [
+  {"type": "text", "id": "t_in", "text": "پریست ورود", "x": 540, "y": 380, "size": 110, "font": "title", "color": "#ffffff", "t": 0.0,
+   "fx": [{"motion": "scale_rotation_03_in"}, {"motion": "blur_02_out", "at": 3.6}]},
+  {"type": "text", "id": "t_glow", "text": "نئون عمیق", "x": 540, "y": 760, "size": 120, "font": "title", "color": "#7fd8ff", "t": 0.2,
+   "fx": [{"motion": "position_l_to_r_01_in"}, {"glow": {"radius": 140, "exposure": 0.7, "threshold": 0.0, "tint": "#1e9bff", "aberration": 0.4}}]},
+  {"type": "icon", "id": "brain", "name": "human", "x": 540, "y": 1160, "size": 300, "t": 0.1,
+   "fx": [{"motion": "3d_rotation_02_in"}, {"motion": "shake_03", "at": 2.0}]},
+  {"type": "box", "id": "card", "x": 540, "y": 1560, "w": 640, "h": 160, "r": 34, "fill": "#ff3b5c", "t": 0.4,
+   "fx": [{"motion": "glitch_04_in"}, {"path_blur": {"path": [[120, 1700], [540, 1560], [960, 1420]], "start_blur": 0, "end_blur": 90, "bidirectional": false}, "t": 2.4, "dur": 0.6}]}
+ ]}]}

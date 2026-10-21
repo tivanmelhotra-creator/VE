@@ -42,6 +42,7 @@ from . import promo as _promo  # noqa: F401
 from . import uiphysics as _uiphysics  # noqa: F401  (v9 promo / 3D / UI mockup widgets)
 from . import fx as _fx  # noqa: F401  (v11 footage editing / tracking / compositing)
 from . import glowfx as _glowfx  # noqa: F401  (v11 saber / flash / glow ring / tracked callout / emitter …)
+from .aecomp import bridge as _aecomp  # noqa: F401  (v17 AE-Comp shape elements / lower thirds)
 from . import showcase as _showcase  # noqa: F401  (v11 device_frame / backdrop / timeline / formula …)
 from . import genimage as _genimage  # noqa: F401  (v11 auto_trace / depth_plate / sprite_rig)
 from . import reelfx as _reelfx

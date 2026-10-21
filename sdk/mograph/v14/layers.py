@@ -188,8 +188,29 @@ def _glyph_motion(L, F, b, k, lt, out_lt):
     t = F.t
     pal = L["_pal"]
 
+    # ---- v16 AE-FX text presets (mograph.aefx.textanim): "preset" = entrance, "preset_out" = exit (played back)
+    _pin = _pout = None
+    if L.get("preset") or L.get("animators"):
+        _pin = _text_anim(L, "in").frame(b, lt, size=None)
+    if L.get("preset_out") and L.get("_t1") is not None:
+        _po = _text_anim(L, "out")
+        _pout = _po.frame(b, (t - (L["_t1"] - _po.dur)), size=None) if t > L["_t1"] - _po.dur else None
+    if _pin is not None or _pout is not None:
+        enter = "preset"
+
     def m(g):
         s = G.GS()
+        if enter == "preset":
+            if lt < 0:
+                s.visible = False
+                return s
+            if _pin is not None:
+                _pin.apply(g, s)
+            if _pout is not None:
+                _pout.apply(g, s)
+            if idle == "float" and L.get("preset_idle", False):
+                s.ty += ph.osc(t, 0.35, g.size * 0.03, g.word * 1.3 + g.line)
+            return s
         # ---- per-glyph local time (RTL order = reading order)
         if words_at and g.word < len(words_at):
             gt = t - words_at[g.word]
@@ -322,6 +343,20 @@ def _glyph_motion(L, F, b, k, lt, out_lt):
                     s.alpha *= max(0, 1 - ot / 0.25)
         return s
     return m
+
+
+def _text_anim(L, which):
+    """cached mograph.aefx.textanim.Animator for a layer ("in" = preset/animators, "out" = preset_out reversed)."""
+    key = "_aefx_" + which
+    if key not in L:
+        from ..aefx import textanim as TA
+        if which == "in":
+            src = L.get("animators") or L["preset"]
+            L[key] = TA.Animator(src, dur=L.get("preset_dur"), px=float(L.get("preset_px", 100.0)))
+        else:
+            L[key] = TA.Animator(L["preset_out"], dur=L.get("preset_out_dur", 0.6),
+                                 px=float(L.get("preset_px", 100.0)), reverse=True)
+    return L[key]
 
 
 def _out_lt(L, F):
@@ -1341,3 +1376,7 @@ DRAW["god_rays"] = draw_god_rays
 # v15.1 spec-level Craft layers (shatter_text / puppet_sticker / morph_shape)
 from .craftlayers import register as _reg_craft  # noqa: E402
 _reg_craft(DRAW)
+
+# v17 AE-Comp: shape elements / lower thirds / any aecomp JSON as a v14 layer ({"type": "aecomp", ...})
+from ..aecomp.bridge import register_v14 as _reg_aecomp  # noqa: E402
+_reg_aecomp(DRAW)

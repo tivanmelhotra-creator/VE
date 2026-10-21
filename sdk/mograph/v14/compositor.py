@@ -626,6 +626,9 @@ class Renderer:
         bl_u8 = cv2.resize(np.clip(bl_q * 255.0, 0, 255).astype(np.uint8), (W, H), interpolation=cv2.INTER_LINEAR)
         out_u8 = cv2.add(out_u8, bl_u8)
 
+        # ---------------- v16 AE-FX frame stack: post.aefx (glow / path_blur / motion presets on the whole frame)
+        if self.post.get("aefx") or self.spec["source"].get("cut_presets"):
+            out_u8 = self._aefx_post(out_u8, t)
         fade = self.post.get("fade")
         if fade:
             fi, fo = float(fade[0]), float(fade[1])
@@ -633,6 +636,21 @@ class Renderer:
             if fk < 0.999:
                 out_u8 = (out_u8.astype(np.uint16) * int(fk * 256) >> 8).astype(np.uint8)
         return out_u8, F
+
+    def _aefx_post(self, img, t):
+        from ..aefx import bridge as AB
+        cp = self.spec["source"].get("cut_presets")
+        if cp and self.tl.cuts:
+            r = AB.cut_transition(lambda _t: img, self.tl.cuts, cp, t, self.fps)
+            if r is not None:
+                img = r
+        if self.post.get("aefx"):
+            if not hasattr(self, "_aefx_items"):
+                self._aefx_items = AB.resolve_items(self.post["aefx"], self.tl.resolve, 0.0, self.duration)
+            act = AB.active(self._aefx_items, t)
+            if act:
+                img = AB.apply_items(img, act, t, self.fps)
+        return np.ascontiguousarray(img)
 
     def _vignette(self, W, H, amt):
         key = (W, H, amt)
@@ -674,6 +692,12 @@ class Renderer:
         for L in items:
             ctx.save()
             try:
+                if L.get("fx") and not getattr(F, "prepass", False):      # v16 AE-FX layer stack (aefx/bridge.py)
+                    from ..aefx import bridge as AB
+                    if "_fx" not in L:
+                        L["_fx"] = AB.resolve_items(L["fx"], self.tl.resolve, L["_t0"], L["_t1"])
+                    if AB.draw_with_fx(ctx, lambda c, _L=L: self.LY.draw(c, _L, F), L["_fx"], F.t, self.fps):
+                        continue
                 self.LY.draw(ctx, L, F)
             finally:
                 ctx.restore()

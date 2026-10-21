@@ -15,6 +15,34 @@ Then: `cd /home/user/webapp/projects/maghale && PYTHONPATH=/home/user/webapp/sdk
 - `projects/maghale/edit_v14.json` = the edit of the user's raw video (words.json = transcript, edited time 16.02 s)
 - `work/input/` = raw.mp4, ref_novadent.mp4, brief_v14.md (the user's inputs)
 
+## v17 — AE-Comp (mograph/aecomp) — see sdk/AECOMP_GUIDE.md
+- FIRST after any reset: `cd sdk && python3 -m mograph.aecomp selftest` → 12/12 (keyframes, ellipse, trim, fill, merge,
+  merge_line, repeater, trim_anim, matte, generators, lower3rds, titles)
+- spec: `{"type": "aecomp", "gen": NAME}` / `{"type": "aecomp", "lower_third": STYLE, "title", "role"}` / `{"type": "aecomp", "title_style": STYLE, "hero", "kicker"}` / `{"comp": json}`
+  in v5–13 scenes (elements registry) and v14 (layers.DRAW).  Test: `python3 -m mograph frame tests/v17_aecomp.json --t 1`
+- LOOK: `python3 -m mograph.aecomp sheet` · `lt-sheet --title …` · `title-sheet --title …` · gallery tab shape/lower_third (`tools/build_aefx_gallery.py --only aecomp`)
+- dev only (reference packs NOT in repo; re-download to /home/user/refs if needed, password www.bitgraph.ir):
+  `pip install py_aep shapely` → `tools/import_aep.py x.aep -o x.json` → `tools/validate_aecomp.py x.json preview.mp4 --sheet s.jpg`
+  RAR5 needs 7-Zip ≥ 21: `curl -sL -o 7z.tar.xz https://github.com/ip7z/7zip/releases/download/24.08/7z2408-linux-x64.tar.xz
+  && tar xf 7z.tar.xz 7zz` → `./7zz x -pwww.bitgraph.ir pack.rar`  (apt p7zip/unrar-free FAIL on RAR5)
+  whole pack: `tools/batch_validate_aecomp.py <NM_Library_Shapes_AE> -o /tmp/b.jsonl` (resumable) → `--report /tmp/b.jsonl`
+- fixed with the batch (v17.1): Repeater + operators below (Trim on every copy; Explosions_49 F3 0.21→0.97), exact
+  Merge Paths outline (shapely), content("…").prop expression refs (Arcs_43 0.25→0.79), Twist strongest at centre
+- measured numbers: `sdk/mograph/aecomp/presets/aecomp_stats.json`
+- fidelity v17.1 (all 452 elements, numbers only): `sdk/tests/aecomp_validation_report.txt` → F3 median 0.916,
+  397/452 ≥ 0.6; weakest = Slides 0.68, Blow_Ups 0.82 (see "worst" list there for the next fixes)
+- next: AE effects on shape layers (turbulent displace / radial wipe), text animators on imported comps, more
+  generators per category (titles from Titles Factory study: per-char delay, venetian blinds, minimax "outspace")
+
+## v16 — AE-FX (mograph/aefx) — see sdk/AEFX_GUIDE.md
+- FIRST after any reset: `cd sdk && python3 -m mograph.aefx selftest` → 9/9 (keyframes, prproj fit, libraries, selector,
+  textanim, cursive, deepglow, pathblur, bridge)
+- presets: aefx/presets/{motion_presets,text_presets,catalog}.json + CATALOG.md (measured).  Pick with
+  `python3 -m mograph.aefx suggest …` / `sheet …`; apply with `"fx": [{"motion": KEY}]`, `"preset": KEY` (v14 titles),
+  `post.aefx`, `source.cut_presets`.  Demo spec: sdk/tests/v16_aefx.json
+- gallery: `python3 sdk/tools/build_aefx_gallery.py` → public/aefx/index.html (media git-ignored)
+- ⚠ sandbox RAM: v14.track (MediaPipe+MODNet) takes ~55 % RAM → do NOT run builds/renders in parallel with it.
+
 ## v15.1 — Craft-Omni (audited merge of the v15.0 patch) — see sdk/V15_REVIEW.md + sdk/V14_GUIDE.md "v15.1 additions"
 - FIRST after any reset: `cd sdk && python3 -m mograph.v14 selftest` → 9/9 pass (multiband, remix, ARAP, morph, Oklab,
   decontam, path text, varstroke, selectors)

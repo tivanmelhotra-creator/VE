@@ -54,3 +54,6 @@ sdk/mograph/models/modnet.onnx
 **/.dl_*/
 # v14.2 archives → GitHub Release v14.2-deliverables (`python3 -m mograph.fetch_assets --deliverables`)
 work/deliver/
+
+# v16 AE-FX gallery previews (regenerate: python3 sdk/tools/build_aefx_gallery.py)
+public/aefx/media/
