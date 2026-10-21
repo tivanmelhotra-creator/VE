@@ -154,6 +154,11 @@ WEAK = {"back", "نور", "نرم", "تند", "کند", "سرعت", "speed", "gl
         "energy", "انرژی", "برق", "mouth", "دهان", "rig", "ریگ", "puppet", "curve", "منحنی", "اسلو", "mask", "ماسک"}
 
 
+# words that show the user talks about an EFFECT on something (then weak words count): "آتش بزن به متن", "glow آبی"
+CONTEXT = ("متن", "تیتر", "لوگو", "شکل", "افکت", "text", "title", "logo", "shape", "effect", "انیمیشن", "animation",
+           "ویدیو", "video", "کلیپ", "clip", "بزن", "بده", "اضافه", "add", "make", "بساز")
+
+
 def resolve(text: str, strict=True):
     """free text → list of {canonical, matched, **params} (merged per canonical, order of first appearance)."""
     if "p" not in _CACHE:
@@ -177,7 +182,8 @@ def resolve(text: str, strict=True):
     hits.sort()
     if strict:                                    # drop weak words whose concept has no strong word in the text
         strong = {can for _, can, p, _ in hits if p not in WEAK}
-        hits = [h for h in hits if h[2] not in WEAK or h[1] in strong]
+        ctx = any(" " + w + " " in s for w in COLOURS) or any(w in s for w in CONTEXT)
+        hits = [h for h in hits if h[2] not in WEAK or h[1] in strong or ctx]
     merged, order, best = {}, [], {}
     for i, can, p, params in hits:
         if can not in merged:
