@@ -1,0 +1,90 @@
+{
+  "meta": {
+    "style": "promo",
+    "palette": "crimson",
+    "aspect": "9:16",
+    "duration": 8.0,
+    "fps": 30
+  },
+  "subtitles": [
+    {
+      "t": 0.2,
+      "end": 3.8,
+      "text": "فکر می‌کنی این ویدیو با افترافکت **ساخته** شده؟"
+    },
+    {
+      "t": 4.0,
+      "end": 7.7,
+      "text": "نه! کل این صحنه فقط با یک **فایل** جیسون رندر شده."
+    }
+  ],
+  "chapters": [
+    {
+      "t": 0.0,
+      "title": "گوینده و موشن",
+      "ambient": "bokeh",
+      "elements": [
+        {
+          "type": "talking_head",
+          "src": "../examples/media/host.mp4",
+          "x": 540,
+          "y": 980,
+          "w": 1080,
+          "h": 1440,
+          "bg": "world",
+          "rim": "#ff1e42",
+          "t": 0.0,
+          "pip_at": 4.0,
+          "pip": {
+            "x": 820,
+            "y": 1420,
+            "r": 160
+          },
+          "behind": [
+            {
+              "type": "starburst",
+              "x": 540,
+              "y": 470,
+              "r": 300,
+              "points": 16,
+              "t": 0.05
+            },
+            {
+              "type": "text",
+              "text": "شوخیت؟!",
+              "x": 540,
+              "y": 470,
+              "size": 130,
+              "font": "title",
+              "color": "#ffffff",
+              "t": 0.1,
+              "enter": "pop",
+              "text_style": {
+                "kind": "extrude_3d",
+                "depth": 14,
+                "extrude": "#5e0818"
+              }
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "font": "ui",
+          "text": "فقط یه فایل { JSON }",
+          "x": 440,
+          "y": 900,
+          "size": 84,
+          "color": "#ff1e42",
+          "t": 4.3,
+          "enter": "pop",
+          "text_style": "knockout"
+        }
+      ]
+    }
+  ],
+  "hud": {
+    "subs": {
+      "show": false
+    }
+  }
+}

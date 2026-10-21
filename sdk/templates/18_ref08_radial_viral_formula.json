@@ -1,0 +1,318 @@
+{
+ "_ref": "ref08 — light grey studio, a black octagon hub 'فرمول محتوای وایرال' with 8 nodes; the wheel rotates node by node, red progress arc, a big ghost step number top-right, redacted keyword reveals, two dark 'open loop' interludes with a red dot orbiting, final zoom-out under a REC viewfinder.",
+ "meta": {
+  "style": "swiss",
+  "palette": "red",
+  "bg": "#efefec",
+  "bloom": 0,
+  "grain": 0,
+  "vignette": 0.12,
+  "duration": 19.0
+ },
+ "hud": {
+  "header": {
+   "show": false
+  },
+  "dots": {
+   "show": false
+  },
+  "subs": {
+   "show": false
+  }
+ },
+ "chapters": [
+  {
+   "t": 0,
+   "title": "formula",
+   "camera": [
+    [
+     0,
+     [
+      540,
+      960,
+      0.6
+     ]
+    ],
+    [
+     1.0,
+     [
+      540,
+      1250,
+      1.0
+     ],
+     "smooth"
+    ],
+    [
+     16.6,
+     [
+      540,
+      1250,
+      1.0
+     ]
+    ],
+    [
+     17.4,
+     [
+      540,
+      960,
+      0.62
+     ],
+     "smooth"
+    ]
+   ],
+   "elements": [
+    {
+     "type": "backdrop",
+     "kind": "studio",
+     "t": 0,
+     "enter": "none"
+    },
+    {
+     "type": "radial_formula",
+     "id": "wheel",
+     "x": 540,
+     "y": 1500,
+     "r": 470,
+     "hub_r": 250,
+     "nodes": [
+      {
+       "label": "هوک",
+       "icon": "target",
+       "t": 1.0
+      },
+      {
+       "label": "وعده",
+       "icon": "handshake",
+       "t": 3.0
+      },
+      {
+       "label": "ارزش",
+       "icon": "star",
+       "t": 5.0
+      },
+      {
+       "label": "حلقه‌ی باز ۱",
+       "icon": "question",
+       "t": 7.0
+      },
+      {
+       "label": "ارزش",
+       "icon": "star",
+       "t": 9.0
+      },
+      {
+       "label": "حلقه‌ی باز ۲",
+       "icon": "question",
+       "t": 11.0
+      },
+      {
+       "label": "آخرین ارزش",
+       "icon": "trophy",
+       "t": 13.0
+      },
+      {
+       "label": "دعوت به اقدام",
+       "icon": "megaphone",
+       "t": 15.0
+      }
+     ],
+     "hub_title": "محتوای وایرال",
+     "hub_sub": "فرمولِ",
+     "accent": "#ff4b2b",
+     "t": 0.1,
+     "label_size": 56
+    },
+    {
+     "type": "redact_text",
+     "id": "r1",
+     "text": "اول، **هوک**:",
+     "x": 600,
+     "y": 620,
+     "size": 70,
+     "t": 1.0,
+     "reveal_at": 0.5,
+     "out": 2.9
+    },
+    {
+     "type": "redact_text",
+     "id": "r2",
+     "text": "قراره چی یاد بگیرن",
+     "x": 600,
+     "y": 620,
+     "size": 60,
+     "t": 3.0,
+     "reveal_at": 0.5,
+     "out": 4.9
+    },
+    {
+     "type": "big_number",
+     "id": "ghost",
+     "x": 860,
+     "y": 420,
+     "size": 260,
+     "color": "#e2e2df",
+     "t": 1.0,
+     "decor": true,
+     "tracks": {
+      "value": [
+       [
+        1.0,
+        1
+       ],
+       [
+        3.0,
+        2
+       ],
+       [
+        5.0,
+        3
+       ],
+       [
+        7.0,
+        4
+       ],
+       [
+        9.0,
+        5
+       ],
+       [
+        11.0,
+        6
+       ],
+       [
+        13.0,
+        7
+       ],
+       [
+        15.0,
+        8
+       ]
+      ]
+     },
+     "fmt": "{:02.0f}",
+     "roll": true
+    },
+    {
+     "type": "viewfinder_hud",
+     "id": "rec",
+     "x": 540,
+     "y": 960,
+     "w": 980,
+     "h": 1700,
+     "t": 5.6,
+     "out": 7.4,
+     "label": "REC"
+    }
+   ]
+  },
+  {
+   "t": 7.4,
+   "title": "open loop",
+   "transition": {
+    "type": "cut"
+   },
+   "bg": "#0b0b0c",
+   "elements": [
+    {
+     "type": "orbit_trail",
+     "id": "loop1",
+     "x": 540,
+     "y": 900,
+     "r": 330,
+     "period": 2.2,
+     "color": "#ff4b2b",
+     "t": 0,
+     "ring_alpha": 0.15
+    },
+    {
+     "type": "text",
+     "id": "loop_t",
+     "text": "ولی به نکته‌ی **مهم‌تر**",
+     "x": 540,
+     "y": 900,
+     "size": 80,
+     "font": "title",
+     "color": "#ffffff",
+     "emph_color": "#ff4b2b",
+     "t": 0.2,
+     "enter": "words"
+    }
+   ]
+  },
+  {
+   "t": 8.8,
+   "title": "back",
+   "transition": {
+    "type": "cut"
+   },
+   "origin": [
+    0,
+    0
+   ],
+   "elements": [
+    {
+     "type": "backdrop",
+     "kind": "studio",
+     "t": 0,
+     "enter": "none"
+    },
+    {
+     "type": "radial_formula",
+     "id": "wheel2",
+     "x": 540,
+     "y": 1500,
+     "r": 470,
+     "hub_r": 250,
+     "nodes": [
+      {
+       "label": "هوک",
+       "icon": "target",
+       "t": -7.800000000000001
+      },
+      {
+       "label": "وعده",
+       "icon": "handshake",
+       "t": -5.800000000000001
+      },
+      {
+       "label": "ارزش",
+       "icon": "star",
+       "t": -3.8000000000000007
+      },
+      {
+       "label": "حلقه‌ی باز ۱",
+       "icon": "question",
+       "t": -1.8000000000000007
+      },
+      {
+       "label": "ارزش",
+       "icon": "star",
+       "t": 0.1999999999999993
+      },
+      {
+       "label": "حلقه‌ی باز ۲",
+       "icon": "question",
+       "t": 2.1999999999999993
+      },
+      {
+       "label": "آخرین ارزش",
+       "icon": "trophy",
+       "t": 4.199999999999999
+      },
+      {
+       "label": "دعوت به اقدام",
+       "icon": "megaphone",
+       "t": 6.199999999999999
+      }
+     ],
+     "hub_title": "محتوای وایرال",
+     "hub_sub": "فرمولِ",
+     "accent": "#ff4b2b",
+     "t": 0,
+     "enter": "none",
+     "label_size": 56
+    }
+   ]
+  }
+ ]
+}

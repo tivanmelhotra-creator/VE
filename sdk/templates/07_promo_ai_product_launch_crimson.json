@@ -1,0 +1,192 @@
+{
+  "meta": {
+    "style": "promo",
+    "palette": "crimson",
+    "aspect": "9:16",
+    "duration": 18.0,
+    "fps": 30
+  },
+  "subtitles": [
+    {
+      "t": 0.2,
+      "end": 4.2,
+      "text": "هنوز ساعت‌ها توی تایم‌لاین افترافکت **وقت** می‌ذاری؟"
+    },
+    {
+      "t": 4.5,
+      "end": 8.8,
+      "text": "کافیه یه **پرامپت** بنویسی تا شکل‌های سیال و سه‌بعدی ساخته بشن."
+    },
+    {
+      "t": 9.1,
+      "end": 13.4,
+      "text": "ببین حروف چطوری **کش** میان و تایپوگرافی زنده میشه!"
+    },
+    {
+      "t": 13.7,
+      "end": 17.6,
+      "text": "دوربین رو روشن کن، هر **فریم** یه داستان سینماییه."
+    }
+  ],
+  "chapters": [
+    {
+      "t": 0.0,
+      "title": "پایان روش قدیمی",
+      "palette": "silver",
+      "elements": [
+        {
+          "type": "text",
+          "text": "دیگه لازم نیست…",
+          "font": "title",
+          "x": 540,
+          "y": 360,
+          "size": 88,
+          "t": 0.0,
+          "enter": "rise"
+        },
+        {
+          "type": "timeline_ui",
+          "x": 540,
+          "y": 940,
+          "w": 900,
+          "h": 540,
+          "t": 0.1,
+          "title": "After Effects",
+          "strike_at": 2.2
+        }
+      ]
+    },
+    {
+      "t": 4.4,
+      "title": "پرامپت و سه‌بعدی",
+      "palette": "crimson",
+      "ambient": "bokeh",
+      "transition": {
+        "type": "whip_pan",
+        "dir": "left",
+        "dur": 0.42
+      },
+      "elements": [
+        {
+          "type": "text",
+          "text": "اینو",
+          "font": "title",
+          "x": 540,
+          "y": 520,
+          "size": 240,
+          "t": 0.1,
+          "text_style": {
+            "kind": "extrude_3d",
+            "depth": 32,
+            "extrude": "#5e0818"
+          },
+          "extrude_grow": true
+        },
+        {
+          "type": "prompt_box",
+          "x": 540,
+          "y": 980,
+          "w": 880,
+          "h": 170,
+          "t": 0.3,
+          "label": "Claude",
+          "prompt": "یه موشن پرومو بساز",
+          "type_at": 0.6,
+          "cps": 24
+        },
+        {
+          "type": "iso_cube",
+          "x": 540,
+          "y": 1380,
+          "s": 210,
+          "t": 1.1,
+          "label": "المان سه‌بعدی",
+          "label_size": 54
+        }
+      ]
+    },
+    {
+      "t": 9.0,
+      "title": "کشیده و سیال",
+      "palette": "crimson",
+      "bg_mode": "crimson_vivid",
+      "transition": {
+        "type": "portal",
+        "dur": 0.65
+      },
+      "elements": [
+        {
+          "type": "liquid_blob",
+          "x": 540,
+          "y": 600,
+          "r": 230,
+          "t": 0.1,
+          "text": "شکل‌های سیال",
+          "size": 106
+        },
+        {
+          "type": "text",
+          "text": "کش میان!",
+          "font": "title",
+          "x": 540,
+          "y": 1180,
+          "size": 160,
+          "t": 0.4,
+          "kashida": {
+            "px": 260,
+            "word": "کش"
+          },
+          "kashida_at": 1.1,
+          "color": "#ffffff"
+        }
+      ]
+    },
+    {
+      "t": 13.6,
+      "title": "چشمی سینما",
+      "palette": "crimson",
+      "ambient": {
+        "kind": "warp_stars",
+        "warp": 0.25
+      },
+      "transition": {
+        "type": "whip_pan",
+        "dir": "up",
+        "dur": 0.42
+      },
+      "elements": [
+        {
+          "type": "viewfinder_hud",
+          "x": 540,
+          "y": 960,
+          "w": 960,
+          "h": 1560,
+          "t": 0.0,
+          "tc_start": 21,
+          "label": "4K · 24FPS"
+        },
+        {
+          "type": "text",
+          "text": "دوربین رو روشن کن",
+          "font": "title",
+          "x": 540,
+          "y": 520,
+          "size": 92,
+          "t": 0.0,
+          "enter": "rise"
+        },
+        {
+          "type": "filmstrip",
+          "x": 540,
+          "y": 1080,
+          "w": 1700,
+          "h": 300,
+          "angle": -8,
+          "t": 0.2,
+          "word": "فریم",
+          "size": 200
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+ "meta": {"style": "promo", "palette": "crimson", "bg": "#101012", "bloom": 0.2, "duration": 6.0},
+ "hud": {"header": {"show": false}, "dots": {"show": false}, "subs": {"show": false}},
+ "audio": {"ambient": false, "sfx": true},
+ "chapters": [{"t": 0, "title": "footage", "elements": [
+   {"type": "footage", "id": "clip", "src": "../examples/media/hands.mp4", "x": 540, "y": 960, "w": 1080, "h": 1920,
+    "trackers": {"hand": {"kind": "hand", "point": "index_tip"}},
+    "ramps": [{"t": 1.2, "dur": 0.3, "speed": 0.3, "hold": 0.6}],
+    "grade_keys": [[0, "flat"], [0.8, "vivid", 0.4]],
+    "zooms": [{"t": 3.6, "dur": 0.5, "to": 1.18}],
+    "flash": [3.6],
+    "edge_glow": {"t": 2.2, "dur": 1.2, "color": "#2ad1ff", "width": 12},
+    "hue_shift": [{"t": 4.4, "dur": 0.3, "from": "#e0402a", "to": "#2a6bff", "tol": 12}]},
+   {"type": "text", "id": "behind_word", "behind": "clip", "text": "لوکس‌تره", "x": 540, "y": 420, "size": 230,
+    "font": "title", "t": 0.3, "enter": "rise", "color": "#ffffff"},
+   {"type": "pill", "id": "tag", "text": "دست", "x": 0, "y": 0, "follow": "clip.hand", "follow_offset": [0, -90],
+    "t": 0.5, "enter": "pop", "filled": true}
+ ]}]
+}

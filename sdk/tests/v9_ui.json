@@ -1,0 +1,6 @@
+{"meta":{"style":"promo","palette":"silver","duration":6,"fps":30},
+ "chapters":[{"t":0,"elements":[
+   {"type":"timeline_ui","x":540,"y":420,"w":940,"h":540,"t":0,"strike_at":2.5},
+   {"type":"bezier_graph","x":540,"y":1050,"w":760,"h":500,"t":0.2,"title":"Speed Graph","flex_at":1.0},
+   {"type":"filmstrip","x":540,"y":1560,"w":1600,"h":260,"t":0.1,"word":"فریم","size":200}
+ ]}]}

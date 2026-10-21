@@ -1,0 +1,161 @@
+{
+  "meta": {
+    "style": "ui_physics",
+    "palette": "emerald_os",
+    "aspect": "9:16",
+    "duration": 10.0,
+    "fps": 30
+  },
+  "chapters": [
+    {
+      "t": 0.0,
+      "title": "اپلیکیشن هوشمند",
+      "ambient": "dot_matrix",
+      "camera": [
+        [
+          0.0,
+          [
+            540,
+            940,
+            1.0
+          ]
+        ],
+        [
+          3.2,
+          [
+            540,
+            960,
+            1.02
+          ],
+          "smooth"
+        ],
+        [
+          6.5,
+          [
+            540,
+            980,
+            1.0
+          ],
+          "smooth"
+        ],
+        [
+          9.5,
+          [
+            540,
+            960,
+            0.96
+          ],
+          "smooth"
+        ]
+      ],
+      "elements": [
+        {
+          "type": "text",
+          "text": "تجربه کاربری زنده",
+          "font": "title",
+          "x": 540,
+          "y": 260,
+          "size": 74,
+          "t": 0.0,
+          "color": "@ink"
+        },
+        {
+          "type": "ui_toggle",
+          "x": 260,
+          "y": 520,
+          "w": 154,
+          "h": 78,
+          "t": 0.1,
+          "click_at": 0.35,
+          "reset_at": 8.9
+        },
+        {
+          "type": "ui_slider",
+          "x": 650,
+          "y": 520,
+          "w": 460,
+          "t": 0.2,
+          "roll_at": 0.6,
+          "roll_dur": 1.6,
+          "fa": true
+        },
+        {
+          "type": "ui_notification_stack",
+          "x": 540,
+          "y": 930,
+          "w": 680,
+          "t": 1.8,
+          "stagger": 0.35,
+          "cards": [
+            {
+              "title": "پرداخت هوشمند",
+              "body": "تراکنش با موفقیت انجام شد",
+              "icon": "slider",
+              "appear_at": 1.8,
+              "hit_at": 2.4
+            },
+            {
+              "title": "هوش مصنوعی",
+              "body": "گزارش ماهانه آماده بررسی است",
+              "icon": "gravity",
+              "appear_at": 2.2,
+              "hit_at": 2.9
+            },
+            {
+              "title": "پیام جدید",
+              "body": "پاسخ خودکار ارسال شد",
+              "icon": "messages",
+              "appear_at": 2.6,
+              "hit_at": 3.4
+            }
+          ]
+        },
+        {
+          "type": "ui_reply_pill",
+          "x": 540,
+          "y": 1310,
+          "pill_w": 260,
+          "field_w": 420,
+          "t": 3.2,
+          "type_at": 3.8,
+          "send_at": 6.8,
+          "placeholder": "پاسخ سریع...",
+          "sent_text": "تایید شد",
+          "hits": [
+            {
+              "t": 4.0,
+              "key": "r",
+              "char": "o"
+            },
+            {
+              "t": 4.5,
+              "key": "t",
+              "char": "k"
+            }
+          ]
+        },
+        {
+          "type": "ui_keyboard",
+          "x": 540,
+          "y": 1560,
+          "scale": 0.88,
+          "t": 3.5,
+          "hits": [
+            {
+              "t": 4.0,
+              "key": "r"
+            },
+            {
+              "t": 4.5,
+              "key": "t"
+            },
+            {
+              "t": 6.6,
+              "key": "return"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

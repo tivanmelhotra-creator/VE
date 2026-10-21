@@ -1,0 +1,1 @@
+cd /home/user/webapp && git add -A && git commit -qm "$1" ; AUTHED=$(echo 'https://www.genspark.ai' | sed -E 's#^(https?://)#\1x-access-token:'"$GSK_TOKEN"'@#'); timeout 90 git -c credential.helper= push -q "$AUTHED/sb-git/me/genspark-ea2824fc-c1ef-486d-952e-b0f255e31453.git" HEAD:refs/heads/v8-horizon 2>&1 | tail -2; git log --oneline | head -1

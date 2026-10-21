@@ -1,0 +1,118 @@
+{
+  "meta": {
+    "title": "Creative Viral Reels Pack",
+    "fps": 30,
+    "width": 1080,
+    "height": 1920,
+    "style": "visual_dna",
+    "palette": "obsidian_dna",
+    "hud": {
+      "header": {
+        "show": false
+      },
+      "dots": {
+        "show": false
+      },
+      "subs": {
+        "show": false
+      }
+    }
+  },
+  "chapters": [
+    {
+      "t": 0.0,
+      "end": 3.5,
+      "title": "کپسول خطی و دیسک راداری",
+      "elements": [
+        {
+          "type": "dna_stage",
+          "id": "st1",
+          "t": 0.0,
+          "mode": "dark",
+          "accent": "#F59E0B"
+        },
+        {
+          "type": "wireframe_badge",
+          "id": "wb1",
+          "t": 0.15,
+          "x": 540,
+          "y": 460,
+          "r": 165,
+          "shape": "squircle",
+          "angle": 11.0,
+          "accent": "#F59E0B",
+          "top": "مورد اول",
+          "title": "خشکی",
+          "bottom": "دهان و مینای دندان",
+          "corner_sprite": "warn_3d"
+        },
+        {
+          "type": "circular_dial",
+          "id": "cd1",
+          "t": 0.35,
+          "x": 540,
+          "y": 1060,
+          "r": 210,
+          "accent": "#EF4444",
+          "center_text": "بیشتر",
+          "top_text": "از اینکه روی کاهش وزن",
+          "bottom_text": "روی سلامت دهان و دندون",
+          "flip_at": 1.2
+        },
+        {
+          "type": "wireframe_badge",
+          "id": "wb_oct",
+          "t": 0.55,
+          "x": 540,
+          "y": 1580,
+          "r": 145,
+          "shape": "octagon",
+          "angle": 0.0,
+          "accent": "#10B981",
+          "top": "راهکار طلایی",
+          "title": "آب زیاد",
+          "bottom": "بعد از هر وعده"
+        }
+      ]
+    },
+    {
+      "t": 3.5,
+      "end": 7.0,
+      "title": "مسیر زیگزاگ سه‌بعدی و کاروسل",
+      "elements": [
+        {
+          "type": "dna_stage",
+          "id": "st2",
+          "t": 0.0,
+          "mode": "dark",
+          "accent": "#10B981"
+        },
+        {
+          "type": "avatar_carousel_3d",
+          "id": "car1",
+          "t": 0.1,
+          "x": 540,
+          "y": 310,
+          "count": 7
+        },
+        {
+          "type": "zigzag_path_3d",
+          "id": "zz1",
+          "t": 0.2,
+          "x": 620,
+          "y": 1120,
+          "w": 380,
+          "h": 980,
+          "walk_dur": 2.6,
+          "accent": "#10B981",
+          "items": [
+            "پیدا کردن مشتری",
+            "قیمت‌گذاری",
+            "مدیریت پروژه",
+            "انتخاب مسیر"
+          ]
+        }
+      ]
+    }
+  ]
+}

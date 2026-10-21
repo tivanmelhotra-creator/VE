@@ -1,0 +1,7 @@
+{"meta":{"style":"promo","palette":"crimson","duration":6,"fps":30},
+ "_cuts":[2.0,3.2],
+ "chapters":[{"t":0,"ambient":"bokeh","elements":[
+   {"type":"talking_head","id":"host","src":"../examples/media/host.mp4","x":540,"y":1000,"w":1080,"h":1440,"bg":"world","rim":"#ff1e42","t":0,"pip_at":4.2,
+    "pip":{"x":800,"y":1560,"r":170},
+    "behind":[{"type":"text","text":"کافیه!","x":540,"y":560,"size":330,"font":"title","color":"#ff1e42","text_style":{"kind":"extrude_3d","depth":30,"extrude":"#2a0309"},"t":0.3,"enter":"pop"}]}
+ ]}]}

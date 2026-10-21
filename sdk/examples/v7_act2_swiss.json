@@ -1,0 +1,220 @@
+{
+ "meta": {
+  "w": 1080,
+  "h": 1920,
+  "fps": 30,
+  "style": "swiss",
+  "palette": "red"
+ },
+ "hud": {
+  "handle": "@MONEY.TRIAL"
+ },
+ "audio": {
+  "ambient": true,
+  "sfx": true
+ },
+ "subtitles": [
+  {
+   "t": 0.3,
+   "end": 3.4,
+   "text": "قیمتِ **واقعیِ** یک لیتر بنزین چنده؟"
+  },
+  {
+   "t": 3.6,
+   "end": 7.2,
+   "text": "از **۱۵۰۰** تومن رسید به **۳۰۰۰.**"
+  },
+  {
+   "t": 7.6,
+   "end": 11.4,
+   "text": "سه چیز توی این قیمت **پنهانه.**"
+  },
+  {
+   "t": 11.6,
+   "end": 15.0,
+   "text": "و سهمِ شما از نفت؟ **صفر.**"
+  }
+ ],
+ "chapters": [
+  {
+   "t": 0,
+   "title": "قیمت",
+   "elements": [
+    {
+     "type": "block",
+     "col": [
+      1,
+      6
+     ],
+     "row": 1.4,
+     "rows": 2.2,
+     "color": "@accent",
+     "side": "right",
+     "t": 0.1,
+     "out": 7.3
+    },
+    {
+     "type": "headline",
+     "text": "قیمتِ\n**واقعیِ**\nبنزین",
+     "col": [
+      1,
+      6
+     ],
+     "row": 5.4,
+     "size": 170,
+     "t": 0.4,
+     "accent": "@accent",
+     "out": 7.3
+    },
+    {
+     "type": "rule",
+     "col": [
+      1,
+      6
+     ],
+     "row": 8.5,
+     "weight": 12,
+     "t": 1.2,
+     "out": 7.3
+    },
+    {
+     "type": "big_number",
+     "col": [
+      1,
+      6
+     ],
+     "row": 10,
+     "size": 230,
+     "t": "w:۱۵۰۰",
+     "unit": "تومان",
+     "caption": "قیمت هر لیتر",
+     "tracks": {
+      "value": [
+       [
+        "w:۱۵۰۰",
+        1500
+       ],
+       [
+        "w:۳۰۰۰.-0.5",
+        1500
+       ],
+       [
+        "w:۳۰۰۰.+0.4",
+        3000,
+        "out_expo"
+       ]
+      ]
+     },
+     "out": 7.3
+    },
+    {
+     "type": "disc",
+     "x": 870,
+     "y": 330,
+     "r": 120,
+     "color": "@paper",
+     "t": 0.6,
+     "out": 7.3,
+     "allow_overlap": true
+    }
+   ]
+  },
+  {
+   "t": 7.4,
+   "title": "پنهان",
+   "transition": {
+    "type": "wipe",
+    "dir": "left",
+    "dur": 0.6
+   },
+   "elements": [
+    {
+     "type": "headline",
+     "text": "سه هزینه‌ی\n**پنهان**",
+     "col": [
+      1,
+      6
+     ],
+     "row": 2.5,
+     "size": 150,
+     "t": 0.3,
+     "accent": "@accent"
+    },
+    {
+     "type": "index",
+     "items": [
+      "هزینه‌ی پالایش",
+      "حمل‌ونقل",
+      "سهم شما از نفت"
+     ],
+     "col": [
+      1,
+      6
+     ],
+     "row": 6,
+     "gap": 150,
+     "size": 64,
+     "t": "w:پنهانه.",
+     "highlight": 2,
+     "highlight_at": "w:صفر."
+    },
+    {
+     "type": "block",
+     "col": [
+      1,
+      3
+     ],
+     "row": 11,
+     "rows": 1.6,
+     "color": "@ink",
+     "side": "bottom",
+     "t": "w:صفر.-0.8",
+     "text": "صفر",
+     "text_color": "@paper",
+     "size": 110
+    }
+   ],
+   "camera": [
+    [
+     0,
+     [
+      540,
+      960,
+      1.0
+     ]
+    ],
+    [
+     "w:پنهانه.",
+     [
+      540,
+      960,
+      1.0
+     ]
+    ],
+    [
+     "w:صفر.",
+     [
+      540,
+      1040,
+      1.07
+     ],
+     "smooth"
+    ]
+   ]
+  }
+ ],
+ "voice": {
+  "provider": "file",
+  "clips": [
+   {
+    "audio": "voice_src/act_swiss.mp3",
+    "words": "voice_src/act_swiss.words.json",
+    "lines": [
+     0,
+     3
+    ]
+   }
+  ],
+  "pause": 0.45
+ }
+}

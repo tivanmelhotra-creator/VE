@@ -1,0 +1,236 @@
+{
+  "_about": "v13.9 @novadent.ir 100/100 Master Showcase: All 7 forensic techniques (Split Trapezoidal Dome + Dashed Golden Arc, Vinyl CD Ring with Collar/Hand Optical Red Light Spill & Curved Persian Arc Text, Tilted Square + 45° Diamond Badge + Border-Breaking 3D Golden Calligraphy + Elastic Jelly Glassmorphic Subtitle, Behind-Chair Golden Light-Wrap Text, 2-Layer Red CD Halo Behind Speaker & Chair, True Backdrop-Blur Glassmorphic Hexagon, and 3D Head-Orbiting Title).",
+  "meta": {
+    "title": "Novadent 100/100 Master Showcase",
+    "fps": 30,
+    "width": 1080,
+    "height": 1920,
+    "style": "promo",
+    "palette": "crimson",
+    "bg": "#08090C"
+  },
+  "subtitles": [
+    {
+      "t": 6.2,
+      "end": 7.6,
+      "text": "و دهان رو خشک میکنن",
+      "words": [
+        {
+          "w": "و",
+          "t": 6.2
+        },
+        {
+          "w": "دهان",
+          "t": 6.4
+        },
+        {
+          "w": "رو",
+          "t": 6.7
+        },
+        {
+          "w": "خشک",
+          "t": 6.9
+        },
+        {
+          "w": "میکنن",
+          "t": 7.2
+        }
+      ]
+    },
+    {
+      "t": 7.65,
+      "end": 9.0,
+      "text": "در مقابل اسید معده بی‌دفاع میشن",
+      "words": [
+        {
+          "w": "در",
+          "t": 7.65
+        },
+        {
+          "w": "مقابل",
+          "t": 7.85
+        },
+        {
+          "w": "اسید",
+          "t": 8.15
+        },
+        {
+          "w": "معده",
+          "t": 8.4
+        },
+        {
+          "w": "بی‌دفاع",
+          "t": 8.65
+        },
+        {
+          "w": "میشن",
+          "t": 8.85
+        }
+      ]
+    }
+  ],
+  "chapters": [
+    {
+      "t": 0.0,
+      "end": 16.0,
+      "title": "Novadent Master",
+      "elements": [
+        {
+          "type": "footage",
+          "id": "clip",
+          "t": 0.0,
+          "out": 16.0,
+          "src": "../projects/raw01/media/raw.mp4",
+          "fit": "cover",
+          "matte": true,
+          "grade": "warm_cinema",
+          "enhance": true,
+          "headroom": 310,
+          "bg_dim": 0.68,
+          "bg_tint": "#24180B"
+        },
+        {
+          "type": "novadent_split_dome",
+          "id": "shot1_dome",
+          "t": 0.0,
+          "out": 2.6,
+          "behind": "clip",
+          "y_split": 820,
+          "panels_at": 0.25,
+          "dome_y": 135,
+          "dome_r": 435,
+          "top_title": "آمپول‌های",
+          "title": "لاغری",
+          "left_en": "SPARTINA",
+          "left_fa": "اسپارتینا",
+          "right_en": "OZEMPIC",
+          "right_fa": "اوزمپیک"
+        },
+        {
+          "type": "novadent_cd_dial",
+          "id": "shot2_cd",
+          "t": 2.7,
+          "out": 6.0,
+          "x": 540,
+          "y": 1310,
+          "r": 235,
+          "rotate_at": 4.3,
+          "rotate_dur": 0.65,
+          "center_top": "بیشتر از",
+          "center_bot": "این کـه",
+          "top_text": "روی کاهش وزن اثر بذارن!",
+          "bottom_text": "روی سلامت دهان و دندونتون"
+        },
+        {
+          "type": "novadent_diamond_square",
+          "id": "shot4_sq",
+          "t": 6.1,
+          "out": 9.1,
+          "x": 560,
+          "y": 255,
+          "r": 162,
+          "angle": -16.0,
+          "top": "مورد اول",
+          "title": "خشکی",
+          "bottom": "دهان",
+          "size": 124
+        },
+        {
+          "type": "novadent_chair_glow_text",
+          "id": "shot5_chair",
+          "t": 9.2,
+          "out": 11.2,
+          "behind": "clip",
+          "x": 225,
+          "y": 650,
+          "line1": "ماهایی که",
+          "hero": "زدیم",
+          "line3": "چیکار",
+          "line4": "کنیم"
+        },
+        {
+          "type": "novadent_red_halo",
+          "id": "shot6_halo",
+          "t": 11.3,
+          "out": 13.4,
+          "behind": "clip",
+          "x": 540,
+          "y": 485,
+          "r_outer": 365,
+          "r_inner": 248,
+          "darken_room": true,
+          "top": "اصلاً",
+          "title": "ســــــخت",
+          "bottom": "نیست",
+          "size": 118
+        },
+        {
+          "type": "novadent_glass_hex",
+          "id": "shot7_hex",
+          "t": 13.5,
+          "out": 16.0,
+          "x": 540,
+          "y": 1280,
+          "r": 195,
+          "angle": -6.0,
+          "top": "از آدامس‌های",
+          "title": "بدون قند",
+          "bottom": "برای تحریک بزاق استفاده کنید"
+        },
+        {
+          "type": "orbiting_title_3d",
+          "id": "orb_back",
+          "t": 13.5,
+          "out": 16.0,
+          "behind": "clip",
+          "mode": "orbit_head_3d",
+          "half": "back",
+          "x": 540,
+          "y": 560,
+          "rx": 360,
+          "ry": 90,
+          "text": "راهکار طلایی"
+        },
+        {
+          "type": "orbiting_title_3d",
+          "id": "orb_front",
+          "t": 13.5,
+          "out": 16.0,
+          "mode": "orbit_head_3d",
+          "half": "front",
+          "x": 540,
+          "y": 560,
+          "rx": 360,
+          "ry": 90,
+          "text": "راهکار طلایی"
+        },
+        {
+          "type": "novadent_edge_light_spill",
+          "id": "shot5_spill",
+          "t": 9.2,
+          "out": 11.2,
+          "x": 335,
+          "y": 645,
+          "r": 185,
+          "color": "#F59E0B"
+        }
+      ]
+    }
+  ],
+  "hud": {
+    "header": {
+      "show": false
+    },
+    "dots": {
+      "show": false
+    },
+    "subs": {
+      "show": true,
+      "style": "novadent_jelly",
+      "y": 0.68,
+      "size": 44,
+      "rim_color": "#2DD4BF",
+      "color": "#F8FAFC"
+    }
+  }
+}

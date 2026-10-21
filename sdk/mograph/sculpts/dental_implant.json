@@ -1,0 +1,21 @@
+{
+  "_about": "ObjectSculptSpec (img2threejs-style): dental implant — crown (ceramic) + abutment (chrome) + threaded titanium screw. The crown lifts off the abutment on entry (anim_rot-free: pos tracks via anim_pos).",
+  "root": {
+    "id": "implant_root", "primitive": "none", "rot": [0, 0, 0],
+    "children": [
+      {"id": "crown", "primitive": "lathe", "mat": "ceramic", "pos": [0, 0.55, 0], "segs": 40,
+       "profile": [[0.0, 0.42], [0.22, 0.40], [0.38, 0.30], [0.44, 0.10], [0.42, -0.10], [0.34, -0.20], [0.20, -0.22], [0.0, -0.22]]},
+      {"id": "abutment", "primitive": "cylinder", "mat": "chrome", "r_top": 0.17, "r_bot": 0.22, "h": 0.30, "pos": [0, 0.20, 0]},
+      {"id": "collar", "primitive": "torus", "mat": "gold", "R": 0.24, "r": 0.035, "pos": [0, 0.04, 0]},
+      {"id": "screw_core", "primitive": "cylinder", "mat": "brushed_steel", "r_top": 0.20, "r_bot": 0.10, "h": 0.95, "pos": [0, -0.48, 0]},
+      {"id": "thread_1", "primitive": "torus", "mat": "brushed_steel", "R": 0.20, "r": 0.04, "pos": [0, -0.12, 0]},
+      {"id": "thread_2", "primitive": "torus", "mat": "brushed_steel", "R": 0.185, "r": 0.04, "pos": [0, -0.26, 0]},
+      {"id": "thread_3", "primitive": "torus", "mat": "brushed_steel", "R": 0.17, "r": 0.04, "pos": [0, -0.40, 0]},
+      {"id": "thread_4", "primitive": "torus", "mat": "brushed_steel", "R": 0.155, "r": 0.038, "pos": [0, -0.54, 0]},
+      {"id": "thread_5", "primitive": "torus", "mat": "brushed_steel", "R": 0.14, "r": 0.035, "pos": [0, -0.68, 0]},
+      {"id": "thread_6", "primitive": "torus", "mat": "brushed_steel", "R": 0.12, "r": 0.03, "pos": [0, -0.82, 0]},
+      {"id": "badge", "primitive": "extrude", "mat": "neon_cyan", "depth": 0.04,
+       "shape": [[0.0, 0.12], [0.11, 0.04], [0.07, -0.10], [-0.07, -0.10], [-0.11, 0.04]], "pos": [0.0, 0.58, 0.43]}
+    ]
+  }
+}

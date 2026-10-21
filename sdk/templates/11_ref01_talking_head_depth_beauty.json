@@ -1,0 +1,278 @@
+{
+ "_ref": "ref01 — talking head on a grey studio sweep; giant words behind the speaker (depth masking), octagon/rounded photo cards, 87% stat, selective colour (keep the orange), B&W + cyan-negative 'VIBE' look, halftone hook, logo watermark.",
+ "meta": {
+  "style": "promo",
+  "palette": "crimson",
+  "bg": "#7a7a78",
+  "bloom": 0.0,
+  "vignette": 0.25,
+  "grain": 0.015,
+  "duration": 12.0
+ },
+ "hud": {
+  "header": {
+   "show": false
+  },
+  "dots": {
+   "show": false
+  },
+  "subs": {
+   "show": false
+  }
+ },
+ "subtitles": [
+  {
+   "t": 0.2,
+   "end": 3.0,
+   "text": "خانمایی که **مژه‌های** پُرتری دارن"
+  },
+  {
+   "t": 3.1,
+   "end": 6.0,
+   "text": "**۸۷ درصد** جذاب‌تر دیده میشن"
+  },
+  {
+   "t": 6.1,
+   "end": 9.0,
+   "text": "لب‌های درشت‌تر و **چهره** شاداب‌تر"
+  },
+  {
+   "t": 9.1,
+   "end": 11.8,
+   "text": "شما بگین **کدوم** چهره زیباتره؟"
+  }
+ ],
+ "chapters": [
+  {
+   "t": 0,
+   "title": "hook",
+   "elements": [
+    {
+     "type": "footage",
+     "id": "host",
+     "src": "../examples/media/host.mp4",
+     "x": 540,
+     "y": 960,
+     "w": 1080,
+     "h": 1920,
+     "t": 0,
+     "grade": "natural",
+     "frame": [
+      [
+       0,
+       [
+        0.5,
+        0.42,
+        1.0
+       ]
+      ],
+      [
+       3.0,
+       [
+        0.5,
+        0.4,
+        1.12
+       ],
+       "out_expo"
+      ]
+     ],
+     "punch": [
+      3.0,
+      6.0,
+      9.0
+     ],
+     "halftone": [
+      {
+       "t": 0,
+       "dur": 0.5,
+       "cell": 16,
+       "color": "#e14c2c",
+       "bg": "#f1e5dc"
+      }
+     ],
+     "selective": {
+      "keep": "#e14c2c",
+      "t": 6.0,
+      "dur": 2.8,
+      "tol": 14
+     },
+     "looks": [
+      {
+       "t": 9.0,
+       "dur": 0.35,
+       "look": "mono"
+      },
+      {
+       "t": 9.35,
+       "dur": 0.35,
+       "look": "invert_cyan"
+      }
+     ],
+     "flash": [
+      3.0,
+      9.0
+     ],
+     "trackers": {
+      "face": {
+       "kind": "face"
+      }
+     }
+    },
+    {
+     "type": "text",
+     "id": "behind1",
+     "behind": "host",
+     "text": "خانمایی که",
+     "x": 540,
+     "y": 640,
+     "size": 170,
+     "font": "title",
+     "color": "#ffffff",
+     "t": 0.3,
+     "enter": "rise",
+     "out": 2.9,
+     "text_style": {
+      "kind": "extrude_3d",
+      "depth": 10,
+      "extrude": "#3a1a12"
+     }
+    },
+    {
+     "type": "image_card",
+     "id": "eye",
+     "src": "../examples/media/gen/hiker.jpg",
+     "x": 300,
+     "y": 1150,
+     "w": 330,
+     "h": 330,
+     "shape": "octagon",
+     "t": 1.0,
+     "out": 5.8,
+     "border": "#ffffff",
+     "border_w": 5,
+     "focus": [
+      0.5,
+      0.35
+     ]
+    },
+    {
+     "type": "big_number",
+     "id": "stat",
+     "value": 87,
+     "unit": "٪",
+     "x": 540,
+     "y": 520,
+     "size": 300,
+     "t": 3.1,
+     "out": 5.9,
+     "color": "#ffffff",
+     "roll": true,
+     "shadow": {
+      "blur": 18,
+      "alpha": 0.5
+     }
+    },
+    {
+     "type": "text",
+     "id": "stat_cap",
+     "text": "**درصد** جذاب‌تر",
+     "x": 540,
+     "y": 760,
+     "size": 72,
+     "font": "title",
+     "color": "#ffffff",
+     "base_color": "#ffffff",
+     "emph_color": "#ff5a36",
+     "t": 3.3,
+     "out": 5.9,
+     "enter": "words",
+     "shadow": {
+      "blur": 16,
+      "alpha": 0.7
+     }
+    },
+    {
+     "type": "text",
+     "id": "lips",
+     "text": "لب‌های **درشت‌تر**",
+     "x": 300,
+     "y": 420,
+     "size": 76,
+     "font": "title",
+     "color": "#ffffff",
+     "emph_color": "#e14c2c",
+     "t": 6.1,
+     "out": 8.9,
+     "enter": "rise",
+     "shadow": {
+      "blur": 14,
+      "alpha": 0.5
+     }
+    },
+    {
+     "type": "tracked_callout",
+     "id": "face_call",
+     "anchor": "host.face",
+     "box": [
+      800,
+      380
+     ],
+     "text": "چهره شاداب",
+     "sub": "استروژن بالا",
+     "accent": "#e14c2c",
+     "t": 6.6,
+     "out": 8.9,
+     "size": 44
+    },
+    {
+     "type": "text",
+     "id": "vibe",
+     "text": "VIBE",
+     "x": 540,
+     "y": 1180,
+     "size": 200,
+     "font": "title",
+     "color": "#ff7a1a",
+     "t": 9.0,
+     "enter": "slam",
+     "out": 10.4,
+     "glow": {
+      "color": "#ff7a1a",
+      "radius": 22
+     }
+    },
+    {
+     "type": "text",
+     "id": "cta",
+     "text": "شما بگین **کدوم** چهره زیباتره؟",
+     "x": 540,
+     "y": 420,
+     "size": 70,
+     "font": "title",
+     "color": "#ffffff",
+     "emph_color": "#e14c2c",
+     "t": 10.4,
+     "enter": "words",
+     "shadow": {
+      "blur": 16,
+      "alpha": 0.5
+     }
+    },
+    {
+     "type": "handle_tag",
+     "handle": "Dr.Name",
+     "icon": false,
+     "x": 540,
+     "y": 1700,
+     "size": 34,
+     "t": 0.2,
+     "color": "#e9fbff",
+     "shadow": {
+      "blur": 12,
+      "alpha": 0.85
+     }
+    }
+   ]
+  }
+ ]
+}

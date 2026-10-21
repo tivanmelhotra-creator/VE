@@ -1,0 +1,106 @@
+{
+  "meta": {
+    "title": "Single-Image to 3D Volumetric Motion",
+    "fps": 30,
+    "width": 1080,
+    "height": 1920,
+    "style": "visual_dna",
+    "palette": "obsidian_dna",
+    "hud": {
+      "header": {
+        "show": false
+      },
+      "dots": {
+        "show": false
+      },
+      "subs": {
+        "show": false
+      }
+    }
+  },
+  "chapters": [
+    {
+      "t": 0.0,
+      "end": 4.0,
+      "title": "تبدیل عکس دوبعدی به حجم سه‌بعدی واقعی",
+      "elements": [
+        {
+          "type": "dna_stage",
+          "id": "st",
+          "t": 0.0,
+          "mode": "dark",
+          "accent": "#38BDF8"
+        },
+        {
+          "type": "image_to_3d",
+          "id": "m1",
+          "t": 0.1,
+          "x": 310,
+          "y": 540,
+          "w": 360,
+          "src": "laptop_3d.png",
+          "motion": "turntable_osc",
+          "yaw_amp": 52.0,
+          "pitch_amp": 20.0,
+          "speed": 2.6
+        },
+        {
+          "type": "image_to_3d",
+          "id": "m2",
+          "t": 0.2,
+          "x": 770,
+          "y": 540,
+          "w": 340,
+          "src": "logo_apple_3d.png",
+          "motion": "spin_360",
+          "yaw_speed": 95.0,
+          "depth": 0.08,
+          "geometry": "badge"
+        },
+        {
+          "type": "image_to_3d",
+          "id": "m3",
+          "t": 0.3,
+          "x": 310,
+          "y": 1180,
+          "w": 350,
+          "src": "cash_3d.png",
+          "motion": "turntable_osc",
+          "yaw_amp": -50.0,
+          "pitch_amp": 22.0,
+          "speed": 2.4,
+          "depth": 0.2,
+          "geometry": "cushion"
+        },
+        {
+          "type": "image_to_3d",
+          "id": "m4",
+          "t": 0.4,
+          "x": 770,
+          "y": 1180,
+          "w": 350,
+          "src": "shield_3d.png",
+          "motion": "spring_entry",
+          "depth": 0.14,
+          "geometry": "slab"
+        },
+        {
+          "type": "hud_loading_bar",
+          "id": "hb",
+          "t": 0.3,
+          "x": 540,
+          "y": 1640,
+          "w": 640,
+          "h": 42,
+          "from": 0,
+          "to": 100,
+          "load_dur": 2.8,
+          "segments": 16,
+          "accent": "#38BDF8",
+          "label": "IMAGE → 3D"
+        }
+      ]
+    }
+  ],
+  "_about": "v14.4 3D showcase: laptop → multiview (auto-detected laptop_yaw_*.png), apple → badge, cash → cushion, shield → slab. Audit any image first: python3 -m mograph turntable3d <image.png>"
+}

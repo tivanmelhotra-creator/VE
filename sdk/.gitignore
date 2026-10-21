@@ -1,0 +1,44 @@
+__pycache__/
+*.pyc
+out/
+*.mp4
+*.wav
+/tmp/
+dist/
+.mograph_keys.json
+voice/
+media/omni/_work/
+
+
+
+# v9: shipped demo assets (kept in the SDK + backups)
+!examples/voice/
+!examples/voice/*.mp3
+!examples/*.voiced.json
+!examples/media/
+!examples/media/host.mp4
+!examples/media/host.jpg
+!examples/voice_src/*.mp3
+*.matte/
+
+!deliverables/
+!deliverables/*.mp4
+!deliverables/*.jpg
+!deliverables/*.zip
+# v11: shipped media + generated test assets
+!examples/media/*.mp4
+!examples/media/gen/
+!examples/media/gen/*.jpg
+!templates/media/
+!templates/media/*
+# v11 caches (regenerated automatically)
+*.track/
+*.depth*/
+*.rig*/
+*.trace*.json
+*.prompts.json
+
+# v12 raw projects
+!projects/*/media/raw.mp4
+*.enh_*.mp4
+*.shots.json

@@ -1,0 +1,17 @@
+{
+ "meta": {"style": "lineart", "palette": "noir", "bg": "#000000", "bloom": 0.4, "duration": 4.0},
+ "hud": {"header": {"show": false}, "dots": {"show": false}, "subs": {"show": false}},
+ "audio": {"ambient": false},
+ "chapters": [
+  {"t": 0, "title": "trace", "elements": [
+   {"type": "auto_trace", "src": "../examples/media/gen/elephant_line.jpg", "x": 540, "y": 800, "w": 900,
+    "color_mode": "source", "width": 3.2, "dur": 2.0, "stagger": 0.5, "glow": {"radius": 14, "strength": 1.2}},
+   {"type": "sprite_rig", "src": "../examples/media/gen/puppet_sheet.jpg", "grid": [3, 2], "x": 540, "y": 1500,
+    "scale": 0.75, "idle": "walk", "speed": 1.2, "t": 0.2}
+  ]},
+  {"t": 2.0, "title": "depth", "transition": {"type": "cut"}, "bloom": 0, "elements": [
+   {"type": "depth_plate", "src": "../examples/media/gen/hiker.jpg", "x": 540, "y": 960, "w": 1080, "h": 1920,
+    "enter": "none", "push": [[0, 1.0], [2, 1.15]], "pan": [[0, [0, 0]], [2, [-50, 0]]]}
+  ]}
+ ]
+}

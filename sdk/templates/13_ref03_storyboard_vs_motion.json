@@ -1,0 +1,179 @@
+{
+ "_ref": "ref03 — 'Storyboard' card (hand sketch drawn on with auto_trace) next to the 'Edited' phone with the finished motion design: notification badges, falling broken hearts, toggle, megaphone bubbles.",
+ "meta": {
+  "style": "swiss",
+  "palette": "mono",
+  "bg": "#9ab3b4",
+  "bloom": 0,
+  "grain": 0,
+  "vignette": 0,
+  "duration": 10.0
+ },
+ "hud": {
+  "header": {
+   "show": false
+  },
+  "dots": {
+   "show": false
+  },
+  "subs": {
+   "show": false
+  }
+ },
+ "chapters": [
+  {
+   "t": 0,
+   "title": "storyboard",
+   "elements": [
+    {
+     "type": "backdrop",
+     "kind": "paper",
+     "t": 0,
+     "enter": "none"
+    },
+    {
+     "type": "device_frame",
+     "id": "sb",
+     "x": 250,
+     "y": 860,
+     "w": 330,
+     "h": 560,
+     "label": "Storyboard",
+     "label_color": "#1d2a2a",
+     "fill": "#ffffff",
+     "tilt": -8,
+     "t": 0,
+     "children": [
+      {
+       "type": "auto_trace",
+       "id": "sketch",
+       "src": "../examples/media/gen/elephant_line.jpg",
+       "x": 540,
+       "y": 900,
+       "w": 980,
+       "color": "#222222",
+       "width": 7,
+       "dur": 3.0,
+       "t": 0.3
+      }
+     ]
+    },
+    {
+     "type": "device_frame",
+     "id": "ed",
+     "x": 690,
+     "y": 800,
+     "w": 500,
+     "h": 890,
+     "label": "Edited",
+     "label_color": "#1d2a2a",
+     "fill": "#d9d6c7",
+     "t": 0.2,
+     "children": [
+      {
+       "type": "backdrop",
+       "kind": "studio",
+       "color": "#e4e1d3",
+       "color2": "#bdb8a6",
+       "t": 0,
+       "enter": "none"
+      },
+      {
+       "type": "pill",
+       "id": "n1",
+       "text": "۱  خودمحوری",
+       "x": 540,
+       "y": 520,
+       "size": 70,
+       "filled": true,
+       "t": 0.8,
+       "color": "#b5323a",
+       "out": 4.5
+      },
+      {
+       "type": "sprite_rig",
+       "id": "man",
+       "src": "../examples/media/gen/puppet_sheet.jpg",
+       "x": 540,
+       "y": 1150,
+       "scale": 1.5,
+       "idle": "talk",
+       "t": 1.0,
+       "out": 4.5
+      },
+      {
+       "type": "pill",
+       "id": "n2",
+       "text": "۲  فقدان همدلی",
+       "x": 540,
+       "y": 520,
+       "size": 70,
+       "filled": true,
+       "t": 4.6,
+       "color": "#b5323a"
+      },
+      {
+       "type": "emitter",
+       "id": "hearts",
+       "x": 540,
+       "y": 300,
+       "kind": "fall",
+       "shape": "heart",
+       "n": 14,
+       "life": 3.0,
+       "colors": [
+        "#b5323a",
+        "#d1495b"
+       ],
+       "t": 4.8,
+       "area": [
+        900,
+        40
+       ],
+       "size": 60
+      },
+      {
+       "type": "emitter",
+       "id": "insults",
+       "x": 540,
+       "y": 1250,
+       "kind": "burst",
+       "shape": "text:احمق|زشت|بازنده",
+       "bubble": "#b5323a",
+       "n": 6,
+       "life": 2.2,
+       "speed": 520,
+       "spread": 70,
+       "size": 110,
+       "t": 7.0,
+       "stagger": 0.15
+      }
+     ]
+    },
+    {
+     "type": "badge_button",
+     "text": "موشن گرافی",
+     "x": 540,
+     "y": 1470,
+     "size": 54,
+     "t": 0.4,
+     "press_at": 4.6
+    },
+    {
+     "type": "handle_tag",
+     "handle": "yourhandle",
+     "x": 540,
+     "y": 1585,
+     "size": 32,
+     "color": "#2b3a3a",
+     "t": 0.5
+    },
+    {
+     "type": "social_outro",
+     "handle": "@YOURHANDLE",
+     "t": 8.8
+    }
+   ]
+  }
+ ]
+}

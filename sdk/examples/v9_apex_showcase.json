@@ -1,0 +1,1117 @@
+{
+ "meta": {
+  "w": 1080,
+  "h": 1920,
+  "fps": 30,
+  "style": "lineart",
+  "camera_drift": 2,
+  "slam_pulse": true,
+  "out": "demo_v9_apex.mp4"
+ },
+ "hud": {
+  "header": {
+   "prefix": "پرونده:"
+  },
+  "dots": {
+   "style": "dots"
+  },
+  "subs": {
+   "size": 48
+  },
+  "handle": "@MOGRAPH.APEX"
+ },
+ "audio": {
+  "ambient": true,
+  "sfx": true,
+  "carve": "spectral"
+ },
+ "voice": {
+  "provider": "file",
+  "pause": 0.45,
+  "max_pause": 0.32,
+  "dedupe_fillers": true,
+  "clips": [
+   {
+    "audio": "voice_src/act_lineart.mp3",
+    "words": "voice_src/act_lineart.words.json",
+    "lines": [
+     0,
+     2
+    ]
+   },
+   {
+    "audio": "voice_src/act_swiss.mp3",
+    "words": "voice_src/act_swiss.words.json",
+    "lines": [
+     3,
+     6
+    ]
+   },
+   {
+    "audio": "voice_src/apex_promo.mp3",
+    "words": "voice_src/apex_promo.words.json",
+    "lines": [
+     7,
+     18
+    ]
+   }
+  ]
+ },
+ "subtitles": [
+  {
+   "t": 0.3,
+   "end": 3.6,
+   "text": "یک **قطره** نفت؛"
+  },
+  {
+   "t": 3.6,
+   "end": 7.0,
+   "text": "که قرار بود **پول** همه‌ی ما باشه."
+  },
+  {
+   "t": 8.4,
+   "end": 12.8,
+   "text": "زیرِ **خونه‌ی** ما، دریایی از **ثروت** خوابیده."
+  },
+  {
+   "t": 15.6,
+   "end": 18.7,
+   "text": "قیمتِ **واقعیِ** یک لیتر بنزین چنده؟"
+  },
+  {
+   "t": 18.9,
+   "end": 22.5,
+   "text": "از **۱۵۰۰** تومن رسید به **۳۰۰۰.**"
+  },
+  {
+   "t": 22.9,
+   "end": 26.7,
+   "text": "سه چیز توی این قیمت **پنهانه.**"
+  },
+  {
+   "t": 27.5,
+   "end": 30.9,
+   "text": "و سهمِ شما از نفت؟ **صفر.**"
+  },
+  {
+   "t": 31.76,
+   "end": 34.16,
+   "text": "فکر می‌کنی ساختن یه موشن حرفه‌ای **امکان نداره؟**"
+  },
+  {
+   "t": 34.37,
+   "end": 34.91,
+   "text": "**اینو** ببین."
+  },
+  {
+   "t": 35.13,
+   "end": 36.08,
+   "text": "همه‌چی با یه **پرامپت** شروع می‌شه."
+  },
+  {
+   "t": 36.04,
+   "end": 39.14,
+   "text": "دیگه لازم نیست ساعت‌ها توی افترافکت تایم‌لاین رو **باز** کنی."
+  },
+  {
+   "t": 39.22,
+   "end": 41.22,
+   "text": "منحنی سرعت، خودش **نرم** می‌شه."
+  },
+  {
+   "t": 41.64,
+   "end": 45.1,
+   "text": "**شکل‌های سیال،** المان سه‌بعدی، و حرکت روان دوربین."
+  },
+  {
+   "t": 45.66,
+   "end": 47.12,
+   "text": "ببین حروف چطوری **کش** میان!"
+  },
+  {
+   "t": 47.44,
+   "end": 49.08,
+   "text": "**تایپوگرافی** که از صفحه بیرون می‌زنه."
+  },
+  {
+   "t": 49.24,
+   "end": 51.22,
+   "text": "دوربین رو روشن کن، هر **فریم** یه داستانه."
+  },
+  {
+   "t": 51.42,
+   "end": 54.26,
+   "text": "**شوخیت** گرفته؟ نه! این فقط یه فایل جیسونه."
+  },
+  {
+   "t": 54.16,
+   "end": 55.54,
+   "text": "چهار سبک، یه موتور."
+  },
+  {
+   "t": 55.76,
+   "end": 56.6,
+   "text": "**کافیه** شروع کنی."
+  }
+ ],
+ "chapters": [
+  {
+   "t": 0,
+   "title": "قطره",
+   "camera": [
+    [
+     0,
+     [
+      540,
+      900,
+      1.1
+     ]
+    ],
+    [
+     "we:باشه.",
+     [
+      470,
+      840,
+      1.0
+     ],
+     "smooth"
+    ]
+   ],
+   "elements": [
+    {
+     "type": "dot_grid",
+     "id": "depth_grid",
+     "x": 540,
+     "y": 960,
+     "rows": 22,
+     "cols": 13,
+     "gap": 70,
+     "r": 2.4,
+     "opacity": 0.32,
+     "z": -0.35,
+     "t": 0,
+     "allow_overlap": true,
+     "sfx": "none",
+     "out": "end-0.3"
+    },
+    {
+     "type": "text",
+     "id": "h1",
+     "text": "قیمتِ واقعیِ نفت",
+     "font": "title",
+     "x": 540,
+     "y": 380,
+     "size": 104,
+     "t": 0.2,
+     "enter": "words",
+     "out": "we:باشه.+0.2"
+    },
+    {
+     "type": "text",
+     "text": "پرونده‌ی شماره ۰۸",
+     "font": "document",
+     "x": 540,
+     "y": 500,
+     "size": 40,
+     "color": "#8a8a90",
+     "t": 0.7,
+     "out": "we:باشه.+0.2"
+    },
+    {
+     "type": "morph",
+     "id": "seed",
+     "chain": [
+      "drop",
+      "money_core",
+      "question"
+     ],
+     "at": [
+      "w:پول",
+      "we:باشه.-0.2"
+     ],
+     "dur": 1.0,
+     "x": 540,
+     "y": 960,
+     "size": 340,
+     "t": 0.3,
+     "draw_in": 1.2,
+     "width": 7,
+     "idle": "vo_pulse",
+     "out": "end-0.1"
+    },
+    {
+     "type": "pill",
+     "text": "۱ قطره",
+     "x": 540,
+     "y": 1240,
+     "z": 0.22,
+     "t": "w:قطره",
+     "out": "w:که",
+     "exit": "fade"
+    },
+    {
+     "type": "pill",
+     "text": "پولِ همه",
+     "x": 540,
+     "y": 1240,
+     "z": 0.22,
+     "t": "w:پول",
+     "out": "end-0.5",
+     "exit": "fade"
+    }
+   ]
+  },
+  {
+   "t": "w:زیرِ-0.45",
+   "title": "زیرِ زمین",
+   "transition": {
+    "type": "thread",
+    "from": "seed",
+    "to": "ground",
+    "dur": 1.2
+   },
+   "camera": [
+    [
+     0,
+     [
+      540,
+      960,
+      1.0
+     ]
+    ],
+    [
+     "w:خونه‌ی",
+     [
+      520,
+      930,
+      1.04
+     ],
+     "smooth"
+    ],
+    [
+     "w:ثروت",
+     [
+      550,
+      1000,
+      1.06
+     ],
+     "smooth"
+    ],
+    [
+     "we:خوابیده.+0.6",
+     [
+      540,
+      1040,
+      1.06
+     ],
+     "smooth"
+    ]
+   ],
+   "elements": [
+    {
+     "type": "strata",
+     "id": "ground",
+     "x": 540,
+     "y": 1000,
+     "w": 960,
+     "t": 0.5,
+     "surface": [
+      "home",
+      "human",
+      "car"
+     ],
+     "layers": 4,
+     "drill_at": "w:دریایی",
+     "drill_x": 330,
+     "label_top": "روی زمین",
+     "label_bottom": "زیر زمین"
+    },
+    {
+     "type": "text",
+     "text": "دریایی از **ثروت**",
+     "font": "title",
+     "x": 540,
+     "y": 400,
+     "size": 78,
+     "z": 0.18,
+     "t": "w:دریایی"
+    },
+    {
+     "type": "callout",
+     "anchor": "ground+-160,-210",
+     "elbow": [
+      -60,
+      -120
+     ],
+     "shelf": -160,
+     "label": "خونه‌ی ما",
+     "t": "w:خونه‌ی",
+     "size": 36
+    },
+    {
+     "type": "stamp",
+     "text": "خوابیده",
+     "x": 740,
+     "y": 1420,
+     "size": 54,
+     "angle": -8,
+     "t": "w:خوابیده.+0.1",
+     "allow_overlap": true,
+     "z": 0.25
+    }
+   ]
+  },
+  {
+   "t": "w:قیمتِ-0.55",
+   "title": "قیمت",
+   "style": "swiss",
+   "palette": "red",
+   "transition": {
+    "type": "portal",
+    "x": 330,
+    "y": 1180,
+    "dur": 0.8
+   },
+   "camera": [
+    [
+     0,
+     [
+      540,
+      960,
+      1.0
+     ]
+    ],
+    [
+     "w:۳۰۰۰.",
+     [
+      540,
+      990,
+      1.05
+     ],
+     "smooth"
+    ]
+   ],
+   "elements": [
+    {
+     "type": "block",
+     "col": [
+      1,
+      6
+     ],
+     "row": 1.4,
+     "rows": 2.2,
+     "color": "@accent",
+     "side": "right",
+     "t": 0.15,
+     "z": -0.25
+    },
+    {
+     "type": "disc",
+     "x": 870,
+     "y": 330,
+     "r": 120,
+     "color": "@paper",
+     "t": 0.6,
+     "z": 0.25,
+     "allow_overlap": true
+    },
+    {
+     "type": "headline",
+     "text": "قیمتِ\n**واقعیِ**\nبنزین",
+     "col": [
+      1,
+      6
+     ],
+     "row": 5.4,
+     "size": 170,
+     "t": 0.45,
+     "accent": "@accent"
+    },
+    {
+     "type": "rule",
+     "col": [
+      1,
+      6
+     ],
+     "row": 8.5,
+     "weight": 12,
+     "t": "w:لیتر",
+     "z": -0.2
+    },
+    {
+     "type": "big_number",
+     "col": [
+      1,
+      6
+     ],
+     "row": 10,
+     "size": 230,
+     "t": "w:۱۵۰۰",
+     "roll": true,
+     "unit": "تومان",
+     "caption": "قیمت هر لیتر",
+     "tracks": {
+      "value": [
+       [
+        "w:۱۵۰۰",
+        1500
+       ],
+       [
+        "w:۳۰۰۰.-0.45",
+        1500
+       ],
+       [
+        "w:۳۰۰۰.+0.5",
+        3000,
+        "in_out"
+       ]
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "t": "w:سه-0.4",
+   "title": "پنهان",
+   "style": "swiss",
+   "palette": "red",
+   "transition": {
+    "type": "wipe",
+    "dir": "left",
+    "dur": 0.6
+   },
+   "elements": [
+    {
+     "type": "headline",
+     "text": "سه هزینه‌ی\n**پنهان**",
+     "col": [
+      1,
+      6
+     ],
+     "row": 2.6,
+     "size": 150,
+     "t": 0.15,
+     "accent": "@accent"
+    },
+    {
+     "type": "swiss_bars",
+     "col": [
+      1,
+      6
+     ],
+     "row": 7.6,
+     "max": 100,
+     "suffix": "٪",
+     "highlight": 0,
+     "bar_h": 120,
+     "t": "w:چیز",
+     "items": [
+      {
+       "label": "پالایش",
+       "value": 46,
+       "t": "w:چیز"
+      },
+      {
+       "label": "حمل‌ونقل",
+       "value": 31,
+       "t": "w:این"
+      },
+      {
+       "label": "مالیات",
+       "value": 9,
+       "t": "w:قیمت"
+      }
+     ]
+    },
+    {
+     "type": "text",
+     "text": "سهم از قیمت نهایی — داده‌ی نمایشی",
+     "font": "ui_label",
+     "x": 540,
+     "y": 1180,
+     "size": 30,
+     "color": "@ink",
+     "t": "w:پنهانه."
+    }
+   ]
+  },
+  {
+   "t": "w:و-0.4",
+   "title": "سهم شما",
+   "style": "swiss",
+   "palette": "red",
+   "transition": {
+    "type": "wipe",
+    "dir": "up",
+    "dur": 0.55
+   },
+   "elements": [
+    {
+     "type": "versus_table",
+     "id": "vs",
+     "col": [
+      1,
+      6
+     ],
+     "row": 2.2,
+     "t": 0.1,
+     "right_title": "ادعای رسمی",
+     "left_title": "واقعیت",
+     "rows": [
+      {
+       "right": "نفت مالِ مردم",
+       "left": "سهمِ شما؟",
+       "t": "w:سهمِ"
+      },
+      {
+       "right": "قیمتِ شفاف",
+       "left": "سه هزینه‌ی پنهان",
+       "t": "w:نفت؟"
+      },
+      {
+       "right": "یارانه به همه",
+       "left": "صفر",
+       "t": "w:صفر.-0.15"
+      }
+     ]
+    },
+    {
+     "type": "block",
+     "id": "zero",
+     "col": [
+      1,
+      3
+     ],
+     "row": 10.6,
+     "rows": 1.8,
+     "color": "@ink",
+     "side": "bottom",
+     "t": "w:صفر.-0.6",
+     "text": "صفر",
+     "text_color": "@paper",
+     "size": 120
+    }
+   ]
+  },
+  {
+   "t": "w:فکر-0.45",
+   "style": "kinetic",
+   "palette": "blood",
+   "transition": {
+    "type": "portal",
+    "shape": "slab",
+    "from": "zero",
+    "dur": 0.7
+   },
+   "elements": [
+    {
+     "type": "kinetic",
+     "id": "p1_k",
+     "text": "فکر می‌کنی ساختن یه **موشن** حرفه‌ای",
+     "mode": "stack",
+     "x": 540,
+     "y": 640,
+     "size": 124,
+     "max_width": 900,
+     "t": 0
+    },
+    {
+     "type": "sine_wave",
+     "x": 540,
+     "y": 1010,
+     "w": 820,
+     "amp": 30,
+     "t": "w:امکان-0.25",
+     "width": 13
+    },
+    {
+     "type": "text",
+     "font": "title",
+     "text": "امکان نداره؟",
+     "x": 540,
+     "y": 1250,
+     "size": 150,
+     "color": "@accent",
+     "t": "w:امکان",
+     "enter": "pop",
+     "text_style": {
+      "kind": "extrude_3d",
+      "depth": 22,
+      "extrude": "#3a0006"
+     }
+    }
+   ]
+  },
+  {
+   "t": "w:اینو-0.3",
+   "style": "promo",
+   "palette": "crimson",
+   "ambient": "bokeh",
+   "camera": [
+    [
+     0,
+     [
+      540,
+      960,
+      1.08
+     ]
+    ],
+    [
+     "end",
+     [
+      540,
+      960,
+      1.0
+     ],
+     "smooth"
+    ]
+   ],
+   "elements": [
+    {
+     "type": "text",
+     "font": "title",
+     "id": "p2_this",
+     "text": "اینو",
+     "x": 540,
+     "y": 560,
+     "size": 330,
+     "t": "w:اینو",
+     "enter": "whip_blur",
+     "extrude_grow": true,
+     "text_style": {
+      "kind": "extrude_3d",
+      "depth": 44,
+      "extrude": "#5e0818"
+     }
+    },
+    {
+     "type": "prompt_box",
+     "id": "p2_prompt",
+     "x": 540,
+     "y": 1150,
+     "w": 920,
+     "h": 190,
+     "label": "Claude",
+     "prompt": "یه موشن پرومو بساز",
+     "t": "w:ببین",
+     "type_at": "w:ببین+0.15",
+     "cps": 26
+    }
+   ]
+  },
+  {
+   "t": "w:دیگه-0.25",
+   "style": "promo",
+   "palette": "silver",
+   "elements": [
+    {
+     "type": "text",
+     "font": "title",
+     "text": "دیگه لازم نیست…",
+     "x": 540,
+     "y": 330,
+     "size": 96,
+     "t": 0,
+     "enter": "rise"
+    },
+    {
+     "type": "timeline_ui",
+     "id": "p3_tl",
+     "x": 540,
+     "y": 900,
+     "w": 940,
+     "h": 580,
+     "t": 0.05,
+     "title": "After Effects",
+     "strike_at": "w:باز"
+    }
+   ]
+  },
+  {
+   "t": "w:منحنی-0.25",
+   "style": "promo",
+   "palette": "silver",
+   "elements": [
+    {
+     "type": "bezier_graph",
+     "x": 540,
+     "y": 820,
+     "w": 800,
+     "h": 600,
+     "t": 0,
+     "title": "Speed Graph",
+     "flex_at": "w:نرم-0.2",
+     "flex_dur": 0.8,
+     "label": "منحنی سرعت",
+     "label_size": 84
+    }
+   ]
+  },
+  {
+   "t": "w:شکل‌های-0.3",
+   "style": "promo",
+   "palette": "crimson",
+   "ambient": [
+    "bokeh",
+    {
+     "kind": "grid",
+     "step": 96
+    }
+   ],
+   "camera": [
+    [
+     0,
+     [
+      540,
+      960,
+      1.0,
+      0
+     ]
+    ],
+    [
+     "w:حرکت",
+     [
+      540,
+      960,
+      1.0,
+      0
+     ]
+    ],
+    [
+     "we:دوربین",
+     [
+      560,
+      930,
+      1.1,
+      -12
+     ],
+     "smooth"
+    ]
+   ],
+   "elements": [
+    {
+     "type": "liquid_blob",
+     "id": "p5_blob",
+     "x": 540,
+     "y": 560,
+     "r": 250,
+     "text": "شکل‌های سیال",
+     "size": 118,
+     "t": 0,
+     "drift": [
+      120,
+      0
+     ]
+    },
+    {
+     "type": "iso_cube",
+     "id": "p5_cube",
+     "x": 540,
+     "y": 1170,
+     "s": 260,
+     "t": "w:المان-0.1",
+     "label": "المان سه‌بعدی",
+     "label_size": 62
+    }
+   ]
+  },
+  {
+   "t": "w:حروف-0.45",
+   "style": "promo",
+   "palette": "crimson",
+   "bg_mode": "crimson_vivid",
+   "elements": [
+    {
+     "type": "text",
+     "font": "title",
+     "text": "حروف چطوری",
+     "x": 540,
+     "y": 520,
+     "size": 110,
+     "t": 0,
+     "enter": "rise",
+     "out": "w:تایپوگرافی-0.2",
+     "color": "#ffffff"
+    },
+    {
+     "type": "text",
+     "font": "title",
+     "text": "کش میان!",
+     "x": 540,
+     "y": 760,
+     "size": 170,
+     "t": 0.1,
+     "enter": "pop",
+     "kashida": {
+      "px": 300,
+      "word": "کش"
+     },
+     "kashida_at": "w:کش",
+     "out": "w:تایپوگرافی-0.2",
+     "color": "#ffffff"
+    },
+    {
+     "type": "text",
+     "font": "title",
+     "text": "تایپوگرافی",
+     "x": 540,
+     "y": 1080,
+     "size": 150,
+     "t": "w:تایپوگرافی",
+     "enter": "whip_blur",
+     "text_style": {
+      "kind": "outline",
+      "stroke_w": 5
+     },
+     "stroke_reveal": 0.8,
+     "color": "#ffffff"
+    },
+    {
+     "type": "text",
+     "font": "title",
+     "text": "از صفحه بیرون می‌زنه",
+     "x": 540,
+     "y": 1330,
+     "size": 84,
+     "t": "w:صفحه",
+     "enter": "pop",
+     "text_style": {
+      "kind": "extrude_3d",
+      "depth": 16,
+      "extrude": "#5e0818"
+     },
+     "color": "#ffffff"
+    }
+   ]
+  },
+  {
+   "t": "w:روشن-0.65",
+   "style": "promo",
+   "palette": "crimson",
+   "ambient": {
+    "kind": "warp_stars",
+    "warp": 0.25
+   },
+   "camera": [
+    [
+     0,
+     [
+      540,
+      960,
+      1.0
+     ]
+    ],
+    [
+     "end",
+     [
+      540,
+      960,
+      1.22
+     ],
+     "in_out"
+    ]
+   ],
+   "elements": [
+    {
+     "type": "viewfinder_hud",
+     "x": 540,
+     "y": 960,
+     "w": 960,
+     "h": 1560,
+     "t": 0,
+     "tc_start": 21,
+     "label": "4K · 24FPS"
+    },
+    {
+     "type": "text",
+     "font": "title",
+     "text": "دوربین رو روشن کن",
+     "x": 540,
+     "y": 520,
+     "size": 96,
+     "t": 0,
+     "enter": "rise"
+    },
+    {
+     "type": "filmstrip",
+     "x": 540,
+     "y": 1080,
+     "w": 1700,
+     "h": 300,
+     "t": "w:هر-0.2",
+     "word": "فریم",
+     "size": 210,
+     "angle": -8
+    }
+   ]
+  },
+  {
+   "t": "w:شوخیت-0.3",
+   "style": "promo",
+   "palette": "crimson",
+   "ambient": "bokeh",
+   "elements": [
+    {
+     "type": "talking_head",
+     "id": "host",
+     "src": "media/host.mp4",
+     "x": 540,
+     "y": 980,
+     "w": 1080,
+     "h": 1440,
+     "bg": "world",
+     "rim": "#ff1e42",
+     "t": 0,
+     "pip_at": "w:این-0.2",
+     "pip": {
+      "x": 820,
+      "y": 1420,
+      "r": 160
+     },
+     "behind": [
+      {
+       "type": "starburst",
+       "x": 540,
+       "y": 470,
+       "r": 300,
+       "points": 16,
+       "t": 0.05
+      },
+      {
+       "type": "text",
+       "text": "شوخیت؟!",
+       "x": 540,
+       "y": 470,
+       "size": 130,
+       "font": "title",
+       "color": "#ffffff",
+       "t": 0.1,
+       "enter": "pop",
+       "text_style": {
+        "kind": "extrude_3d",
+        "depth": 14,
+        "extrude": "#5e0818"
+       }
+      }
+     ]
+    },
+    {
+     "type": "text",
+     "font": "ui",
+     "text": "فقط یه فایل { JSON }",
+     "x": 440,
+     "y": 900,
+     "size": 86,
+     "color": "#ff1e42",
+     "t": "w:فایل",
+     "enter": "pop",
+     "text_style": "knockout"
+    }
+   ],
+   "hud": {
+    "subs": {
+     "y": 0.93,
+     "size": 40
+    }
+   }
+  },
+  {
+   "t": "w:چهار-0.3",
+   "style": "swiss",
+   "palette": "red",
+   "transition": {
+    "type": "wipe",
+    "dir": "left",
+    "dur": 0.5
+   },
+   "elements": [
+    {
+     "type": "headline",
+     "text": "چهار سبک\n**یه موتور**",
+     "col": [
+      1,
+      6
+     ],
+     "row": 3,
+     "size": 170,
+     "t": 0.1
+    },
+    {
+     "type": "index",
+     "items": [
+      "لاین‌آرت",
+      "سوئیس",
+      "کینتیک",
+      "پرومو"
+     ],
+     "col": [
+      1,
+      6
+     ],
+     "row": 8,
+     "gap": 105,
+     "size": 58,
+     "t": 0.35,
+     "stagger": 0.09
+    }
+   ]
+  },
+  {
+   "t": "w:کافیه-0.25",
+   "style": "promo",
+   "palette": "crimson",
+   "ambient": "bokeh",
+   "transition": {
+    "type": "portal",
+    "dur": 0.6
+   },
+   "camera": [
+    [
+     0,
+     [
+      540,
+      960,
+      1.0
+     ]
+    ],
+    [
+     "end",
+     [
+      540,
+      960,
+      1.08
+     ],
+     "smooth"
+    ]
+   ],
+   "elements": [
+    {
+     "type": "kinetic",
+     "id": "fin",
+     "text": "**کافیه** شروع کنی",
+     "mode": "stack",
+     "x": 540,
+     "y": 880,
+     "size": 170,
+     "t": 0,
+     "emph_style": {
+      "kind": "extrude_3d",
+      "depth": 30,
+      "extrude": "#5e0818"
+     }
+    },
+    {
+     "type": "text",
+     "font": "ui",
+     "text": "mograph v9 · Studio Apex",
+     "x": 540,
+     "y": 1300,
+     "size": 46,
+     "color": "#8a6a70",
+     "t": 0.4,
+     "enter": "fade"
+    }
+   ]
+  }
+ ]
+}

@@ -1,0 +1,228 @@
+{
+ "_ref": "ref06 — small BEFORE clip + big AFTER frame on purple smoke; AFTER: close-up speaker with neon blue words, blue edge glow (saber) around the speaker, a depth-plate illustration, a glowing brain with words wrapping it, blue light streaks + neon numbers.",
+ "meta": {
+  "style": "promo",
+  "palette": "cyber",
+  "bg": "#0d0b12",
+  "bloom": 0.35,
+  "grain": 0.012,
+  "vignette": 0.3,
+  "duration": 9.0
+ },
+ "hud": {
+  "header": {
+   "show": false
+  },
+  "dots": {
+   "show": false
+  },
+  "subs": {
+   "show": false
+  }
+ },
+ "chapters": [
+  {
+   "t": 0,
+   "title": "before_after",
+   "elements": [
+    {
+     "type": "backdrop",
+     "kind": "smoke",
+     "t": 0,
+     "enter": "none",
+     "drift": 20
+    },
+    {
+     "type": "text",
+     "id": "lbl_after",
+     "text": "AFTER",
+     "x": 640,
+     "y": 300,
+     "size": 56,
+     "font": "title",
+     "t": 0
+    },
+    {
+     "type": "text",
+     "id": "lbl_before",
+     "text": "BEFORE",
+     "x": 175,
+     "y": 760,
+     "size": 30,
+     "font": "ui",
+     "t": 0,
+     "color": "#cccccc"
+    },
+    {
+     "type": "device_frame",
+     "id": "before",
+     "x": 175,
+     "y": 960,
+     "w": 290,
+     "h": 516,
+     "radius": 14,
+     "border": null,
+     "t": 0,
+     "children": [
+      {
+       "type": "footage",
+       "id": "before_clip",
+       "src": "../examples/media/host.mp4",
+       "x": 540,
+       "y": 960,
+       "w": 1080,
+       "h": 1920,
+       "grade": "flat"
+      }
+     ]
+    },
+    {
+     "type": "device_frame",
+     "id": "after",
+     "x": 680,
+     "y": 980,
+     "w": 600,
+     "h": 1066,
+     "radius": 22,
+     "border": null,
+     "t": 0,
+     "fill": "#05060c",
+     "children": [
+      {
+       "type": "footage",
+       "id": "aclip",
+       "src": "../examples/media/host.mp4",
+       "x": 540,
+       "y": 960,
+       "w": 1080,
+       "h": 1920,
+       "t": 0,
+       "out": 3.0,
+       "grade": "moody",
+       "frame": [
+        [
+         0,
+         [
+          0.5,
+          0.38,
+          1.25
+         ]
+        ]
+       ],
+       "edge_glow": {
+        "t": 1.2,
+        "dur": 1.8,
+        "color": "#1e7bff",
+        "width": 14,
+        "core": "#cfe6ff",
+        "flicker": 0.2
+       }
+      },
+      {
+       "type": "text",
+       "id": "neon1",
+       "text": "چون کلاً **آدم شبم**",
+       "x": 540,
+       "y": 1350,
+       "size": 110,
+       "font": "title",
+       "color": "#ffffff",
+       "emph_color": "#3f9bff",
+       "t": 0.3,
+       "out": 3.0,
+       "enter": "words",
+       "glow": {
+        "color": "#1e7bff",
+        "radius": 22,
+        "strength": 1.4
+       }
+      },
+      {
+       "type": "depth_plate",
+       "id": "night",
+       "src": "../examples/media/gen/hiker.jpg",
+       "x": 540,
+       "y": 960,
+       "w": 1080,
+       "h": 1920,
+       "t": 3.0,
+       "out": 5.6,
+       "push": [
+        [
+         0,
+         1.0
+        ],
+        [
+         2.6,
+         1.12
+        ]
+       ],
+       "enter": "fade",
+       "dur": 0.2
+      },
+      {
+       "type": "backdrop",
+       "id": "streaks",
+       "kind": "streaks",
+       "t": 5.6,
+       "enter": "fade",
+       "dur": 0.2
+      },
+      {
+       "type": "icon",
+       "id": "brain",
+       "name": "brain",
+       "x": 540,
+       "y": 900,
+       "size": 460,
+       "t": 5.7,
+       "color": "#ff5a6a",
+       "width": 6,
+       "glow": {
+        "color": "#ff2a4a",
+        "radius": 26
+       }
+      },
+      {
+       "type": "orbit_trail",
+       "id": "orbit",
+       "x": 540,
+       "y": 900,
+       "r": 330,
+       "period": 2.4,
+       "color": "#3f9bff",
+       "t": 5.8
+      },
+      {
+       "type": "kinetic",
+       "id": "k_brain",
+       "mode": "stack",
+       "text": "و مغزم شروع می‌کنه به **کار کردن**",
+       "x": 540,
+       "y": 1450,
+       "size": 100,
+       "t": 6.0,
+       "glow": {
+        "color": "#1e7bff",
+        "radius": 18
+       }
+      }
+     ]
+    },
+    {
+     "type": "handle_tag",
+     "handle": "@YOURHANDLE",
+     "x": 860,
+     "y": 520,
+     "size": 22,
+     "t": 0.2,
+     "color": "#ffffff",
+     "shadow": {
+      "blur": 10,
+      "alpha": 0.7
+     }
+    }
+   ]
+  }
+ ]
+}

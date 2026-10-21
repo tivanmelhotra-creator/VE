@@ -1,0 +1,6 @@
+{"meta":{"w":1080,"h":1920,"fps":30,"style":"lineart","camera_drift":0},
+ "subtitles":[{"t":0.3,"end":4.0,"text":"یک قطره نفت"}],
+ "chapters":[{"t":0,"camera":[[0,[540,960,1.0]],[3.5,[300,800,1.3],"smooth"]],"elements":[
+   {"type":"dot_grid","x":540,"y":960,"rows":24,"cols":14,"gap":70,"r":3,"z":-0.35,"t":0},
+   {"type":"icon","name":"drop","x":540,"y":960,"size":300,"t":0},
+   {"type":"stamp","text":"مستند","x":700,"y":700,"size":60,"z":0.25,"t":0.5,"allow_overlap":true}]}]}

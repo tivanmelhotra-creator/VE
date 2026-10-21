@@ -1,0 +1,11 @@
+{"meta":{"style":"promo","palette":"crimson","duration":6,"fps":30},
+ "chapters":[{"t":0,"ambient":["bokeh",{"kind":"grid","step":90}],"camera":[[0,[540,960,1.0,0]],[5,[540,960,1.05,-6],"smooth"]],
+  "elements":[
+   {"type":"liquid_blob","x":540,"y":330,"r":230,"text":"شکل‌های سیال","size":110,"t":0,"drift":[140,0]},
+   {"type":"iso_cube","x":250,"y":800,"s":230,"t":0.2,"label":"سه‌بعدی","label_size":48},
+   {"type":"starburst","x":800,"y":790,"r":200,"text":"شوخیت!","size":80,"t":0.3},
+   {"type":"prompt_box","x":540,"y":1170,"w":900,"h":170,"label":"Claude","prompt":"یه ویدیو موشن بساز","t":0.1,"type_at":0.4},
+   {"type":"sine_wave","x":540,"y":1360,"w":800,"t":0.2},
+   {"type":"text","text":"تایپوگرافی","x":540,"y":1530,"size":120,"font":"title","text_style":"outline","stroke_reveal":1.5,"t":0},
+   {"type":"text","text":"کش میان","x":540,"y":1700,"size":110,"font":"title","kashida":{"px":240,"word":"کش"},"kashida_at":0.6,"t":0}
+ ]}]}
