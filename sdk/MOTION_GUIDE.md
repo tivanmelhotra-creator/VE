@@ -1,6 +1,6 @@
 # v18 MOTION KIT — `mograph.motion` (agent guide)
 
-Six engines, one vocabulary. **First:** `python3 -m mograph.motion selftest` → 9/9.
+Six engines, one vocabulary. **First:** `python3 -m mograph.motion selftest` → 10/10.
 Every feature works in **v14 footage edits** (`"layers"`) and **v5–v13 scenes** (`"elements"`) with the same keys.
 
 ## 0. User words → engine keys (do this FIRST)

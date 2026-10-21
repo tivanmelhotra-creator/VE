@@ -126,7 +126,26 @@ def t_bridges():
         f"v14 DRAW + v5 REGISTRY + fx item (glow alpha 10 px above the layer = {glow})"
 
 
-TESTS = [t_glossary, t_easing, t_retime, t_flow, t_saber, t_saber_time, t_lipsync, t_character, t_bridges]
+def t_robust():
+    import subprocess
+    import sys
+    from . import saber as SB
+    from .glossary import resolve
+    from .lipsync import track
+    from .retime import Retime
+    code = ("from mograph.motion.bridge import _saber_spec;"
+            "print(_saber_spec({'id': 'neon_word', 'text': 'x'}, 0, None, 0)['seed'])")
+    seeds = {subprocess.run([sys.executable, "-c", code], capture_output=True, text=True).stdout.strip() for _ in range(2)}
+    SB.render({"preset": "electric", "core": "shape", "shape": "star", "w": 60, "x": 50, "y": 50}, -3.0, 100, 100)
+    SB.render({"color": "red"}, 0, 32, 32)
+    Retime([{"op": "slow_motion", "t": 1, "dur": 1, "speed": 0}], 5)
+    weak = resolve("go back home") == [] and resolve("نوری که از پنجره میاد") == []
+    strong = resolve("glow نئون")[0]["canonical"] == "saber"
+    return len(seeds) == 1 and weak and strong and track([]) == [{"t": 0.0, "v": "rest", "open": 0.03}], \
+        f"seed stable across processes {seeds}, negative t / named colour / speed 0 ok, weak-word filter {weak}"
+
+
+TESTS = [t_glossary, t_easing, t_retime, t_flow, t_saber, t_saber_time, t_lipsync, t_character, t_bridges, t_robust]
 
 
 def main():

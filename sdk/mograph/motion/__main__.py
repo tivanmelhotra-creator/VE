@@ -1,7 +1,7 @@
 """
 python3 -m mograph.motion <command>      — v18 MOTION KIT (glossary · easing · retime · saber · character · lip sync)
 
-  selftest                                   numeric regression tests (< 10 s) — must say 9/9
+  selftest                                   numeric regression tests (< 10 s) — must say 10/10
   resolve  "<user words>"                    Persian/English request → canonical concepts + params (JSON)
   glossary [--sync]                          print the glossary (--sync: glossary.yaml → glossary.json)
   ease list                                  every easing name (+ measured character)

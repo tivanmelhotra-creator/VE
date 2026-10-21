@@ -223,7 +223,8 @@ def track(words, audio=None, fps=30.0, lead=None, offset=0.0, min_frames_closure
             keys.append({"t": max(0.0, t - lead), "v": v})
             t += d
         prev_end = t1
-    keys.append({"t": prev_end + 0.05, "v": "rest"})
+    if W:
+        keys.append({"t": prev_end + 0.05, "v": "rest"})
     # merge sub-frame keys + identical neighbours
     keys.sort(key=lambda k: k["t"])
     out = []

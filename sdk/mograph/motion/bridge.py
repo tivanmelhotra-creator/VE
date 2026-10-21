@@ -44,7 +44,8 @@ def _saber_spec(L, t0, t1, t, x=None, y=None, k=1.0):
         sp["out"] = {"t": t1 + float(od.get("t", 0.0)), "dur": float(od.get("dur", 0.35)), "ease": od.get("ease", "in_cubic")}
     else:
         sp.pop("out", None)
-    sp.setdefault("seed", abs(hash(str(L.get("id", L.get("text", ""))))) % 997)
+    import zlib                                   # stable across processes (hash() is salted → chunked renders differed)
+    sp.setdefault("seed", zlib.crc32(str(L.get("id", L.get("text", ""))).encode("utf-8")) % 997)
     return sp
 
 

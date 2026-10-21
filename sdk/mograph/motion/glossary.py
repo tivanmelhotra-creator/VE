@@ -148,7 +148,13 @@ def _phrases():
 _CACHE = {}
 
 
-def resolve(text: str):
+# single generic words that only count when ANOTHER concept word of the same family is present (avoid
+# "go back home" → easing back, "نوری که از پنجره میاد" → saber)
+WEAK = {"back", "نور", "نرم", "تند", "کند", "سرعت", "speed", "glow", "beam", "fire", "smoke", "دود", "آتش", "اتش",
+        "energy", "انرژی", "برق", "mouth", "دهان", "rig", "ریگ", "puppet", "curve", "منحنی", "اسلو", "mask", "ماسک"}
+
+
+def resolve(text: str, strict=True):
     """free text → list of {canonical, matched, **params} (merged per canonical, order of first appearance)."""
     if "p" not in _CACHE:
         _CACHE["p"] = _phrases()
@@ -169,6 +175,9 @@ def resolve(text: str):
                 hits.append((i, can, p, params))
             start = j
     hits.sort()
+    if strict:                                    # drop weak words whose concept has no strong word in the text
+        strong = {can for _, can, p, _ in hits if p not in WEAK}
+        hits = [h for h in hits if h[2] not in WEAK or h[1] in strong]
     merged, order, best = {}, [], {}
     for i, can, p, params in hits:
         if can not in merged:

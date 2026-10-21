@@ -71,7 +71,7 @@ class Retime:
     def __init__(self, ops, edited_duration, resolve=None, speed=1.0, cfg=None):
         self.cfg = dict(cfg or {})
         self.E = float(edited_duration)
-        self.base = float(speed or 1.0)
+        self.base = max(0.02, float(speed or 1.0))
         res = resolve or (lambda v, d=None: float(v) if v is not None else d)
         ops = [dict(o) for o in (ops or []) if o.get("op") != "frame_interpolation"]
         for o in ops:
@@ -123,7 +123,7 @@ class Retime:
         if dur <= 0:
             return u, e
         if kind in ("slow_motion", "fast_motion"):
-            s = float(o.get("speed", 0.4 if kind == "slow_motion" else 4.0)) * b
+            s = max(0.02, float(o.get("speed", 0.4 if kind == "slow_motion" else 4.0))) * b   # 0 → use freeze_frame
             r = min(float(o.get("ramp", 0.2 if kind == "slow_motion" else 0.12)), dur / 2.5)
             g = _ease(o.get("ease", "in_out_sine"))
             self.events.append((u, "slow" if s < b else "fast"))
@@ -144,7 +144,7 @@ class Retime:
                     keys.append([dur + hold, z])
                 if back:
                     keys.append([keys[-1][0] + float(back), float(o.get("back_to", a))])
-            keys = [[float(k[0]), float(k[1]) * b] + list(k[2:]) for k in keys]
+            keys = [[float(k[0]), max(0.02, float(k[1])) * b] + list(k[2:]) for k in keys]
             span = min(keys[-1][0], self.E - e)
             g_default = o.get("ease", "in_out_sine")
             eases = [_ease(k[2] if len(k) > 2 else g_default) for k in keys]

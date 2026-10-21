@@ -4,7 +4,7 @@
 > `"source": {"retime": [{"op": "speed_ramp"|"slow_motion"|"fast_motion"|"freeze_frame"|"reverse", …}]}` (v14, optical flow)
 > `"ease"` everywhere now takes `cubic-bezier(…)`, `[x1,y1,x2,y2]`, `{"type": "elastic"…}`, Persian names (`ease graph`).
 > `{"type": "character", "rig": "bean", "actions": [...], "lip_sync": {...}, "timing": "twos"}` · `{"type": "mouth"}`
-> `python3 -m mograph.motion selftest` must say 9/9.
+> `python3 -m mograph.motion selftest` must say 10/10.
 
 # 🔷 v17 AE-Comp — After-Effects SHAPE-LAYER engine + box-free lower thirds → read `AECOMP_GUIDE.md`
 > 12 own shape elements (burst, confetti, arcs, arrow trace, slides, wipes, loops…) + 4 RTL lower thirds + 4 full-frame titles (`"title_style"`) (zero-box,
@@ -16,7 +16,7 @@
 > 351 AE text animators (`"preset": "atp_23"` on v14 titles, Persian-aware) · 352 in/out/fx motion presets
 > (`"fx": [{"motion": "scale_10_in"}]` on any v14 layer or v5–13 element) · `deep_glow` · `path_blur` · cut presets.
 > Choose from MEASURED data: `python3 -m mograph.aefx suggest punchy impact --dir in` → `sheet` → LOOK → apply.
-> `python3 -m mograph.aefx selftest` must say 9/9.
+> `python3 -m mograph.aefx selftest` must say 10/10.
 
 # 🧠 00_START_HERE — Motion Creator Brain SDK **v14 Studio Depth**
 

@@ -160,8 +160,23 @@ def _val(v, t, default=0.0):
     return default if v is None else v
 
 
+NAMED = {"red": "#ff2a2a", "blue": "#2a7dff", "green": "#27ff6a", "yellow": "#ffd21f", "orange": "#ff7a1a",
+         "purple": "#a43cff", "pink": "#ff3fb4", "white": "#ffffff", "gold": "#ffb627", "cyan": "#18e6e0",
+         "magenta": "#ff1f8f", "black": "#000000"}
+
+
 def _hex(c):
-    c = str(c).lstrip("#")
+    if isinstance(c, (list, tuple)):                       # [r, g, b] 0..1 or 0..255
+        v = np.array(c[:3], np.float32)
+        v = v / 255.0 if v.max() > 1.0 else v
+        return v[::-1].copy()
+    c = str(c).strip()
+    if not c.startswith("#"):
+        from .glossary import COLOURS
+        c = NAMED.get(c.lower(), COLOURS.get(c, c))
+        if not c.startswith("#"):
+            raise ValueError(f"saber colour '{c}': use #rrggbb, [r,g,b] or a name ({', '.join(NAMED)})")
+    c = c.lstrip("#")
     if len(c) == 3:
         c = "".join(ch * 2 for ch in c)
     return np.array([int(c[4:6], 16), int(c[2:4], 16), int(c[0:2], 16)], np.float32) / 255.0   # BGR
@@ -170,7 +185,7 @@ def _hex(c):
 # =============================================================================================== noise
 @lru_cache(maxsize=96)
 def _grid(seed, o, k, gw, gh):
-    rng = np.random.default_rng((seed * 7919 + o * 104729 + k * 1299709) & 0x7FFFFFFF)
+    rng = np.random.default_rng((seed * 7919 + o * 104729 + k * 1299709) & 0x7FFFFFFF)   # & → never negative
     return rng.standard_normal((gh, gw)).astype(np.float32)
 
 
@@ -381,7 +396,7 @@ def _lightning(mask, p, t, k):
     if len(xs) < 4:
         return mask
     strike = int(math.floor(t * float(cfg.get("rate", 14))))
-    rng = np.random.default_rng(int(p.get("seed", 0)) * 977 + strike)
+    rng = np.random.default_rng((int(p.get("seed", 0)) * 977 + strike) & 0x7FFFFFFF)
     bolt = np.zeros_like(mask)
     span = max(w, h) * float(cfg.get("reach", 0.35))
     jit = float(cfg.get("jitter", 0.22))
