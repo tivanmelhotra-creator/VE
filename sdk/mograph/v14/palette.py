@@ -278,12 +278,17 @@ def match_reference_grade(src_bgr: np.ndarray, ref_bgr: np.ndarray,
         w_md = np.maximum(0.0, 1.0 - w_sh - w_hi)
         da = float((w_sh * shifts["shadows"][1] + w_md * shifts["midtones"][1] + w_hi * shifts["highlights"][1]).mean())
         db = float((w_sh * shifts["shadows"][2] + w_md * shifts["midtones"][2] + w_hi * shifts["highlights"][2]).mean())
-        a_new = float(s_lab[..., 1][sk].mean()) + da
-        b_new = float(s_lab[..., 2][sk].mean()) + db
-        new_hue = float(np.degrees(math.atan2(b_new, a_new)) % 360.0)
-        dh = _hue_dist(new_hue, st_s["skin_hue"])
-        if dh > max_skin_deg:
-            scale_cast = max_skin_deg / max(dh, 1e-4)
+        a0_, b0_ = float(s_lab[..., 1][sk].mean()), float(s_lab[..., 2][sk].mean())
+
+        def _dh(k):
+            return _hue_dist(float(np.degrees(math.atan2(b0_ + k * db, a0_ + k * da)) % 360.0), st_s["skin_hue"])
+        if _dh(1.0) > max_skin_deg:
+            # v15.1: exact bisection on the cast scale (v15.0 assumed hue shift ∝ scale → 10.7° on a strong cast)
+            lo, hi = 0.0, 1.0
+            for _ in range(30):
+                mid = 0.5 * (lo + hi)
+                lo, hi = (mid, hi) if _dh(mid) <= max_skin_deg * 0.97 else (lo, mid)
+            scale_cast = lo
             for k in shifts:
                 shifts[k][1:] *= scale_cast
 
