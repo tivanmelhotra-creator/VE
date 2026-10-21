@@ -1,3 +1,15 @@
+# 🔷 v17 AE-Comp — After-Effects SHAPE-LAYER engine + box-free lower thirds → read `AECOMP_GUIDE.md`
+> 12 own shape elements (burst, confetti, arcs, arrow trace, slides, wipes, loops…) + 4 RTL lower thirds + 4 full-frame titles (`"title_style"`) (zero-box,
+> Doran) via `{"type": "aecomp", "gen": "burst"}` / `{"type": "aecomp", "lower_third": "line_reveal", "title": …}` in
+> v5–13 scenes AND v14 edits. Full AE shape semantics (trim, repeater, merge, zigzag, twist, mattes, AE keyframes).
+> LOOK first: `python3 -m mograph.aecomp sheet` · `lt-sheet --title "…"` · `title-sheet --title "…"` · `python3 -m mograph.aecomp selftest` = 11/11.
+
+# 🎛 v16 AE-FX — After-Effects-grade presets & effects for EVERY layer → read `AEFX_GUIDE.md`
+> 351 AE text animators (`"preset": "atp_23"` on v14 titles, Persian-aware) · 352 in/out/fx motion presets
+> (`"fx": [{"motion": "scale_10_in"}]` on any v14 layer or v5–13 element) · `deep_glow` · `path_blur` · cut presets.
+> Choose from MEASURED data: `python3 -m mograph.aefx suggest punchy impact --dir in` → `sheet` → LOOK → apply.
+> `python3 -m mograph.aefx selftest` must say 9/9.
+
 # 🧠 00_START_HERE — Motion Creator Brain SDK **v14 Studio Depth**
 
 > ## 🚀 FOR ANY REAL TALKING-HEAD FOOTAGE → USE `mograph.v14` (read `V14_GUIDE.md` first, then `V14_AUDIT.md`)
@@ -40,7 +52,7 @@ That way all your reasoning goes into **directing and the scenario**, not into t
 ## ⚡ The first 60 seconds
 ```bash
 unzip motion_creator_brain_sdk_v11.zip -d sdk && cd sdk
-pip install pycairo fonttools opencv-contrib-python-headless numpy pillow onnxruntime mediapipe   # if missing
+pip install pycairo fonttools opencv-contrib-python-headless numpy pillow onnxruntime mediapipe shapely   # if missing (shapely: exact Merge Paths; optional)
 apt-get install -y libegl1   # only for hand/pose tracking (mediapipe)
 python3 -m mograph qa examples/demo_spec.json        # must say "QA clean ✓"
 python3 -m mograph sheet examples/demo_spec.json     # look at the output image

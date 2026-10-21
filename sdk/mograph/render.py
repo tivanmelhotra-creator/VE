@@ -184,6 +184,17 @@ def draw_world(ctx, scene, t, collect=None, paint_bg=False):
                 so = shiver_offset(el, t)
                 if so:
                     ctx.translate(so[0], so[1])
+            if el.get("fx") and isinstance(el["fx"], list):            # v16 AE-FX stack (mograph/aefx/bridge.py)
+                from .aefx import bridge as _AB
+                if "_fx" not in el:
+                    _t0 = float(el.get("t", 0.0) or 0.0)
+                    _t1 = float(el["out"]) if isinstance(el.get("out"), (int, float)) else _t0 + 9999.0
+                    el["_fx"] = _AB.resolve_items(el["fx"], lambda v: float(v) if isinstance(v, (int, float))
+                                                  else scene.resolve_time(v, 0.0, None), _t0, _t1)
+                if _AB.draw_with_fx(ctx, lambda c: fn(c, el, s), el["_fx"], t, float(scene.fps)):
+                    _text.AUDIT_MUTE = _mute_prev
+                    ctx.restore()
+                    continue
             if el.get("glow") or el.get("shadow"):
                 from .glowfx import layer_fx
                 if el.get("enter") == "whip_blur" or el.get("whip"):

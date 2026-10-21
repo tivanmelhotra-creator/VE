@@ -1,4 +1,4 @@
-# VE — mograph: automatic video editor & motion-graphics SDK (v15.1)
+# VE — mograph: automatic video editor & motion-graphics SDK (v17 AE-Comp)
 
 An agent-driven engine for editing **Persian talking-head footage** and making **vector motion graphics**,
 designed to run inside a small sandbox (2 vCPU, ~1 GB RAM, no GPU).
@@ -11,6 +11,8 @@ The agent writes one JSON spec; the engine does the drawing, word-locked timing,
 | `sdk/mograph/` | v5–v13 engine (vector scenes, typography, widgets, footage, tracking, audio, QA) |
 | `sdk/mograph/v14/` | v14 "Studio Depth" footage engine: physics, vector 3D type, MODNet matte, glass/light compositor, subtitles |
 | `sdk/mograph/v14/{remix,flow_cut,craftlayers,selftest}.py`, `sdk/mograph/{varstroke,autotrace,puppet_arap,shatter3d}.py` | **v15.1** Craft engines (bar-grid music remix, morph cuts, ARAP puppet, shape morph, shatter, tapered strokes, Oklab look match) — `python3 -m mograph.v14 selftest` |
+| `sdk/mograph/aefx/` | **v16 AE-FX**: AE keyframes (speed/influence), 351 AE text animators (range/wiggly selectors, Persian-aware), 352 Premiere-style in/out/fx motion presets, deep_glow, path_blur, `"fx"` stack on any layer, measured catalogue + `suggest` — `python3 -m mograph.aefx selftest` · guide `sdk/AEFX_GUIDE.md` |
+| `sdk/mograph/aecomp/` | **v17 AE-Comp**: After-Effects shape-layer engine (trim, repeater, merge, zigzag, twist, round corners, pucker, offset, mattes, parenting, AE keyframes/loopOut/wiggle/controls) + 12 own shape elements + 4 box-free RTL lower thirds + 4 full-frame titles; `{"type": "aecomp", ...}` in v5–13 and v14 — `python3 -m mograph.aecomp selftest` · guide `sdk/AECOMP_GUIDE.md` |
 | `sdk/mograph/pbr3d.py` | **v14.6** photoreal 3D: scanned CC0 PBR models rendered by the bundled EffectCraft CLI (HDRI + real shadow) |
 | `sdk/mograph/real3d.py`, `sculpt3d.py`, `obj3d.py` | earlier procedural 3D engines (fallback) |
 | `sdk/fonts/` | 139 Persian/Latin fonts (YekanBakh, Morabba, Doran, Pelak, Abar, Pinar, Gohar…) |
@@ -39,6 +41,8 @@ bash ../../sdk/tools/render_chunks.sh edit_v14.json 4                # resumable
 ```
 
 ## Docs
+- `sdk/AECOMP_GUIDE.md` — **v17** AE-Comp: shape elements, lower thirds, comp JSON, measured timing rules
+- `sdk/AEFX_GUIDE.md` — **v16** AE-FX: text/motion presets, glow, path blur, fx stacks, preset gallery (`public/aefx/`)
 - `CONTINUE_HERE.md` — resume point / changelog v14.2 → v15.1
 - `sdk/V15_REVIEW.md` — audit of the v15.0 patch: measured bugs and their fixes
 - `sdk/V14_GUIDE.md`, `sdk/V14_3D_GUIDE.md`, `sdk/V14_AUDIT.md`
@@ -61,4 +65,4 @@ bash ../../sdk/tools/render_chunks.sh edit_v14.json 4                # resumable
 - Old v14.2 deliverables (`mograph_v14_2_sdk.zip`, `maghale_v14_2_final.mp4`, `showcase_v14_2.mp4`) moved to the
   GitHub Release `v14.2-deliverables` → `cd sdk && python3 -m mograph.fetch_assets --deliverables` (→ `work/deliver/`).
 - API keys are never stored in the repo (`python3 -m mograph keys …` keeps them outside git).
-- The `src/`, `wrangler.jsonc`, `package.json` files are the unused Hono web template of the sandbox.
+- `src/` (Hono) only serves the AE-FX / AE-Comp preset gallery: `python3 sdk/tools/build_aefx_gallery.py && npm run build && npx wrangler pages dev dist` → `/aefx/`. Gallery previews (`public/aefx/media/`, ~8 MB) are git-ignored and regenerated on demand.

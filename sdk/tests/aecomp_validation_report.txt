@@ -1,0 +1,39 @@
+452 measured, 0 errors
+category                    n    IoU     F3  score
+Arcs                       47  0.516  0.852  0.852
+Arrows                     38  0.693  0.935  0.935
+Blow_Ups                   48  0.510  0.820  0.820
+Complicated_Elements       12  0.706  0.921  0.921
+Explosions                 96  0.625  0.871  0.871
+Simple_Elements            48  0.787  0.960  0.960
+Simple_Elements_Looped     48  0.786  0.974  0.974
+Slides                     48  0.379  0.683  0.683
+Transitions                67  0.855  0.938  0.938
+ALL                       452  0.663  0.916  0.916   >=0.6: 397  <0.4: 26
+
+worst:
+  Blow_Ups/31                  iou 0.073 f3 0.192 L2 
+  Blow_Ups/40                  iou 0.150 f3 0.203 L2 
+  Blow_Ups/32                  iou 0.101 f3 0.204 L2 
+  Arcs/40                      iou 0.160 f3 0.206 L2 
+  Slides/24                    iou 0.153 f3 0.232 L2 
+  Explosions/1                 iou 0.157 f3 0.234 L2 
+  Slides/34                    iou 0.170 f3 0.254 L2 
+  Slides/25                    iou 0.162 f3 0.255 L2 
+  Explosions/24                iou 0.167 f3 0.281 L2 
+  Slides/9                     iou 0.163 f3 0.292 L2 
+  Blow_Ups/48                  iou 0.180 f3 0.295 L2 
+  Explosions/12                iou 0.182 f3 0.299 L2 
+  Simple_Elements/48           iou 0.206 f3 0.300 L2 ADBE Radial Wipe
+  Slides/46                    iou 0.181 f3 0.309 L2 
+  Slides/43                    iou 0.190 f3 0.314 L2 
+  Blow_Ups/42                  iou 0.176 f3 0.318 L2 
+  Slides/44                    iou 0.188 f3 0.328 L2 
+  Slides/45                    iou 0.195 f3 0.335 L2 
+  Slides/27                    iou 0.273 f3 0.336 L2 
+  Blow_Ups/5                   iou 0.107 f3 0.350 L2 
+  Simple_Elements/25           iou 0.375 f3 0.375 L2 
+  Simple_Elements/27           iou 0.375 f3 0.375 L2 
+  Simple_Elements/29           iou 0.375 f3 0.375 L2 
+  Blow_Ups/43                  iou 0.142 f3 0.381 L2 
+  Slides/47                    iou 0.295 f3 0.384 L2 

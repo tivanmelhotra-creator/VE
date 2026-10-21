@@ -1,0 +1,9 @@
+{"meta": {"style": "lineart", "palette": "noir", "bg": "#0b0c10", "bloom": 0.15, "duration": 5.0},
+ "hud": {"header": {"show": false}, "dots": {"show": false}, "subs": {"show": false}}, "audio": {"ambient": false},
+ "chapters": [{"t": 0, "title": "aecomp", "elements": [
+  {"type": "text", "id": "h", "text": "عنصر شکلی", "x": 540, "y": 520, "size": 120, "font": "title", "color": "#ffffff", "t": 0.1},
+  {"type": "aecomp", "id": "b1", "gen": "burst", "seed": 2, "layer": -1, "x": 540, "y": 520, "size": 760, "t": 0.3, "c1": "#ffffff", "c2": "#ffd36b"},
+  {"type": "aecomp", "id": "a1", "gen": "arc_swirl", "seed": 1, "x": 270, "y": 1000, "size": 420, "t": 0.6},
+  {"type": "aecomp", "id": "s1", "gen": "spinner_loop", "x": 810, "y": 1000, "size": 380, "t": 0.0, "loop": true},
+  {"type": "aecomp", "id": "lt", "lower_third": "line_reveal", "title": "دکتر سارا احمدی", "role": "متخصص ارتودنسی", "t": 0.5, "dur": 4.5, "accent": "#ffb21f"}
+ ]}]}
