@@ -66,6 +66,10 @@ def voice_track(R, n):
             print(f"[audio] denoise failed ({e}) → raw voice")
     if src is None:
         src = _read_src(R.src)
+    rtl = getattr(R.tl, "rt", None)                  # v18 retime: build the voice in EDITED time, then remap
+    n_out = n
+    if rtl is not None:
+        n = int(R.tl.base.duration * SR) + SR
     out = np.zeros(n, np.float32)
     xf = int(0.012 * SR)
     for i, (a, b) in enumerate(R.tl.seg):
@@ -80,6 +84,10 @@ def voice_track(R, n):
         m = min(len(seg), n - o)
         if m > 0:
             out[o:o + m] += seg[:m]
+    if rtl is not None:
+        y = rtl.remap_audio(out, SR, R.spec.get("audio", {}).get("retime", "auto"))
+        out = np.zeros(n_out, np.float32)
+        out[:min(n_out, len(y))] = y[:n_out]
     out = _hp(out, 85)
     if R.spec.get("audio", {}).get("dehum", False):
         out = dehum_comb(out, SR)
@@ -140,6 +148,9 @@ def sfx_events(R):
             ev.append((p["t0"], ("jelly", float(np.clip(1.15 - dw * 0.25, 0.8, 1.5))), 0.35, 0.0))
     for s in R.cam.shakes:
         ev.append((s[0], "thump", 0.7, 0.0))
+    if getattr(R, "retimed", False):
+        from ..motion.retime import v14_events
+        ev.extend(v14_events(R))
     return ev
 
 

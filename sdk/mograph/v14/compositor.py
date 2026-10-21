@@ -401,6 +401,10 @@ class Renderer:
         segs = src.get("segments") or [[0.0, self.sn / self.sfps]]
         self.tl = Timeline(segs, words)
         self.duration = float(m.get("duration", self.tl.duration))
+        self.retimed = False
+        if src.get("retime") or float(src.get("speed", 1.0)) != 1.0:      # v18 motion kit: slow/fast/ramp/freeze/reverse
+            from ..motion.retime import install_v14
+            self.retimed = install_v14(self) is not None
         self.tracks = Tracks(self.src)
         cam = spec.get("camera", {})
         keys = [[self.tl.resolve(k[0])] + list(k[1:]) for k in cam.get("keys", [[0, 1, .5, .5]])]
@@ -496,7 +500,12 @@ class Renderer:
         W, H = self.W, self.H
         F = Frame(self, t)
         st = F.src_t
-        fr, idx = self.src_frame(st)
+        rt_matte = None
+        if self.retimed:                                   # v18: in-betweens (optical flow) / shutter blend
+            from ..motion.retime import v14_frame
+            fr, rt_matte, idx = v14_frame(self, t, st)
+        else:
+            fr, idx = self.src_frame(st)
         M, z = self.matrix(t)
         F.M, F.zoom = M, z
         mat = None
@@ -510,6 +519,8 @@ class Renderer:
         if self._gmatch is not None:
             from .palette import apply_grade_match
             plate = apply_grade_match(plate, *self._gmatch)
+        if mat is None and rt_matte is not None:
+            mat = rt_matte
         A = cv2.warpAffine(self.tracks.matte(idx) if mat is None else mat, M, (W, H), flags=cv2.INTER_LINEAR,
                            borderMode=cv2.BORDER_REPLICATE)
         A = np.clip((A - 0.04) / 0.92, 0, 1).astype(np.float32)
