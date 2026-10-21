@@ -61,7 +61,7 @@ def prepare(L, R):
     if L.get("type") == "halo":              # anatomy defaults (above the head, 2 discs, VFX) — see HALO_DEFAULT
         for kk, v in HALO_DEFAULT.items():
             L.setdefault(kk, v)
-    for k in ("land", "flip_at", "hero_hit", "pulse_at", "turn_on"):
+    for k in ("land", "flip_at", "hero_hit", "pulse_at", "turn_on", "break_at", "at"):
         if k in L and L[k] is not None:
             v = L[k]
             L["_" + k] = [R.tl.resolve(x) for x in v] if isinstance(v, list) else R.tl.resolve(v)
@@ -1337,3 +1337,7 @@ def draw_god_rays(ctx, L, F):
 
 DRAW["vegas_comet"] = draw_vegas_comet
 DRAW["god_rays"] = draw_god_rays
+
+# v15.1 spec-level Craft layers (shatter_text / puppet_sticker / morph_shape)
+from .craftlayers import register as _reg_craft  # noqa: E402
+_reg_craft(DRAW)
