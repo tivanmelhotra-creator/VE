@@ -52,14 +52,14 @@ def t_retime():
 def t_flow():
     import cv2
     from .retime import FlowInterp
-    a = np.zeros((120, 160, 3), np.uint8)
-    b = a.copy()
-    cv2.circle(a, (50, 60), 14, (255, 255, 255), -1)
-    cv2.circle(b, (90, 60), 14, (255, 255, 255), -1)
-    m = FlowInterp("flow", 160).frame(a, b, 0.5)
-    ys, xs = np.nonzero(m[..., 0] > 128)
-    cx = xs.mean() if len(xs) else -1
-    return abs(cx - 70) < 4, f"in-between blob centre x={cx:.1f} (expected 70, a cross-fade would give two blobs)"
+    rng = np.random.default_rng(1)
+    base = cv2.GaussianBlur((rng.random((240, 340, 3)) * 255).astype(np.uint8), (0, 0), 2.5)
+    a, b = np.ascontiguousarray(base[:, 20:300]), np.ascontiguousarray(base[:, 8:288])   # 12 px pan
+    ref = base[:, 14:294]                                                                  # true middle frame
+    m = FlowInterp("flow", 280).frame(a, b, 0.5)
+    ef = float(np.abs(m.astype(int) - ref)[:, 20:-20].mean())
+    eb = float(np.abs(cv2.addWeighted(a, .5, b, .5, 0).astype(int) - ref)[:, 20:-20].mean())
+    return ef < eb * 0.2, f"in-between error flow {ef:.3f} vs cross-fade {eb:.2f} (12 px pan)"
 
 
 def t_saber():
@@ -69,7 +69,7 @@ def t_saber():
     ring = int(fx[160, 80, :3].max())           # on the ring
     centre = int(fx[160, 160, :3].max())        # inside
     far = int(fx[5, 5, :3].max())
-    pre = bool((fx[..., :3].max(axis=2) <= fx[..., 3] + 1).all())
+    pre = bool((fx[..., :3].max(axis=2).astype(int) <= fx[..., 3].astype(int) + 1).all())
     fx2 = SB.render({"preset": "default", "start": [40, 160], "end": [280, 160], "core_end": 50}, 0.5, W, H)
     trim = int(fx2[160, 100, :3].max()) > 200 and int(fx2[160, 250, :3].max()) < 60
     n = len(SB.preset_names())
