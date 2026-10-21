@@ -129,3 +129,40 @@ screen), `offset` [dx, dy] in HEAD WIDTHS, `size`, `text`, `styles`, `pass` back
   → breath cuts (> 0.32 s) → Persian impact scoring → one hero every 2.5–3.5 s → depth rotation
   (kinetic BACK → orbit_ring → frame_box + object_3d → disc+flip_at → halo BACK → glass FRONT) + camera/grade/flash +
   subtitles.hide → QA fix loop until clean. Then polish by hand (texts, colours) — every time is a word anchor.
+
+## v15.1 additions — Craft-Omni (EffectCraft / FilmCraft ideas, audited) — details: `V15_REVIEW.md`
+First, after any change or reset: `python3 -m mograph.v14 selftest` → must print `9/9 pass`.
+
+**Spec keys (all optional, default off unless noted)**
+```jsonc
+"source": {"morph_cuts": {"dur": 0.24, "max_motion": 60, "cuts": null}},   // optical-flow morph on breath cuts (auto-edit: on)
+"grade":  {"match": {"ref": "../work/input/ref_novadent.mp4", "strength": 0.8, "at": 0.5, "max_skin_deg": 8}},
+"post":   {"decontaminate": 0.75,                 // un-mixes background spill from the hair/hijab edge (0..1)
+           "glass": {"fresnel": 0.35}},            // + Schlick rim reflection on every glass element
+"audio":  {"multiband": true, "vocal_booth_reverb": 0.04, "dehum": false,     // multiband = default ON
+           "music": {"file": "media/song.mp3", "bpm": null, "downbeat": null}}  // a real track → remixed to the edit on the bar grid
+```
+**Text selectors** (every text layer: kinetic_title, orbit_ring, frame_box, halo, glass_shape…)
+```jsonc
+"selectors": [{"shape": "smooth|square|ramp_up|ramp_down|triangle|round|wiggly", "start": 0, "end": 0.35,
+               "offset": [0.55, 1.25, -0.4, 1.05],   // [t_from, t_to, offset_from, offset_to] (s after layer t) = a wave travelling through the line
+               "props": {"ty": -14, "rz": 8, "scale": 0.08, "alpha": -1, "glow": 0.9}}]
+```
+**Text on a path**: `"field": {"kind": "bezier_path", "points": [[-300,0],[0,-90],[300,0]], "align": "center"}`
+(smooth Catmull-Rom curve through the points; or `"bezier": [p0, c1, c2, p3, c1, c2, p3, ...]`).
+
+**New layers**
+| type | what | key params |
+|---|---|---|
+| `shatter_text` | text card that explodes into 3D shards | `text, size, break_at (word anchor), rows, cols, force, gravity` |
+| `puppet_sticker` | ARAP-bent sticker (waving flag / wobbling icon) | `src, size, pins: [{"uv": [0.5,1]}, {"uv": [0.5,0], "wiggle": [24,0], "freq": 1.5}]` (`"to": [dx,dy]` = one-shot bend) |
+| `morph_shape` | shape → shape morph (constant area, linear rotation) | `shapes: ["circle","star","heart","hept",...], at: [anchors], dur, w, color, glow` |
+| `vegas_comet` | glowing tapered comets running round a shape | `shape, w, h, comets, speed, length, width` |
+| `god_rays` | rotating volumetric rays behind a hero | `radius, rays, spin, beam_deg, alpha` (pass: back) |
+
+**Rules learnt**
+- Morph cuts only suit small head moves (jump cuts in one take). If the median flow is > `max_motion` px, the
+  cut stays hard; the director's punch-zoom + flash covers it.
+- `grade.match` is a LOOK transfer, not a replacement for `grade.bg/fg`. Keep strength at 0.6–0.85; the skin guard
+  keeps the face natural even with an extreme reference.
+- Procedural music is already composed to the edit, so it is not remixed. A `music.file` is remixed automatically.
