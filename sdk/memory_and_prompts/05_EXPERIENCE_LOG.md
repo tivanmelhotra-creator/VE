@@ -94,3 +94,20 @@
      keys with punch-in on cuts, grade keys, subtitles.hide, and a QA auto-fix loop (`qa.qa_warnings`).
 - Verified: QA clean on edit_v14 / edit_v14_3d / edit_auto (edit_v14_pbr3d keeps its pre-existing obj_tooth edge
   warning from v14.7). A/B frames v14.7 vs v14.8 at the same t: streaks on drop_bounce / swing_3d only, glass rims refract.
+
+
+## 2026-10-21 — v15.0 Craft-Omni Master: Absorbing 18 Hidden EffectCraft & FilmCraft Engines into mograph
+- Trigger: Deep line-by-line source audit of `storytold/effectcraft` and `storytold/filmcraft` (`CRAFT_EXTRACTION_BLUEPRINT_AND_RANK1_PROMPT_V15.md`).
+- Implemented across `sdk/mograph/` and `sdk/mograph/v14/`:
+  1. **True Height-Field Snell Refractive Glass + Chromatic Aberration + Fresnel Bevel Specular (`v14/compositor.py` `glass`)**: Ported from `effectcraft/crates/effects/src/stylize3.rs`. Rasterizes the shape mask in ROI, computes a smooth bevel height field $H$ and Sobel surface normal $N = (-\partial_x H, -\partial_y H)$, warps the frosted backdrop via `cv2.remap` with 1.6px Red/Blue chromatic dispersion and bevel specular highlight.
+  2. **RotoBrush 2.0 Foreground Edge Color Decontamination (`v14/compositor.py` `decontaminate_foreground_edge`)**: Ported from `effectcraft/crates/track/src/roto/refine.rs`. Strips background color spill from semi-transparent hair/hijab/shoulder boundary pixels ($0.03 < \alpha < 0.94$) before applying light wrap/spill.
+  3. **Oklab 3-Range Perceptual Color Match with <= 8° Skin-Tone Guard (`v14/palette.py` `match_reference_grade`)**: Ported from `filmcraft/crates/render/src/color_match.rs` (`oklab`, shadows/midtones/highlights smoothstep weights, x0.2 skin-tone down-weighting, and <= 8° skin hue shift clamp).
+  4. **Automatic Beat-Sheet Director (`v14/director.py` & CLI `python3 -m mograph.v14 auto-edit`)**: Resolves Backlog #3 in `SKILL_TOOLBOX.md`. Excises dead pauses (> 0.34s), segments transcript into semantic beats, scores Persian hero keywords, alternates layer depth (`kinetic_title` -> `orbit_ring` -> `frame_box` -> `disc` -> `halo` -> `glass_shape`), populates `subtitles.hide`, and outputs a `QA clean ✓` spec.
+  5. **4-Band Linkwitz-Riley Multiband Compressor + Vocal Booth IR Convolution Reverb + DeHum + Soft Clipper (`v14/audio.py`)**: Ported from `filmcraft/crates/audio-dsp/src/effects/{multiband.rs, reverbs.rs, restoration.rs}`.
+  6. **Beat-Similarity Matrix Automatic Music Remix (`v14/remix.py`)**: Ported from `filmcraft/crates/audio-dsp/src/remix.rs`. Retimes any music bed to exact `R.duration` by splicing at the highest-similarity bar boundary with a beat-locked raised-cosine crossfade.
+  7. **Bidirectional Optical-Flow Morph Cut, Gaussian/L1 Stabilizer & Planar Homography Tracker (`v14/flow_cut.py`)**: Ported from `filmcraft/crates/render/src/flow.rs` and `effectcraft/crates/track/src/{stabilize.rs, klt.rs}`.
+  8. **Variable-Width Tapered & Wave Brush Strokes + Per-Vertex Variable Mask Feather (`mograph/varstroke.py` & `v14/layers.py` `draw_strike`, `draw_vegas_comet`, `draw_god_rays`)**: Ported from `effectcraft/crates/path/src/{varstroke.rs, feather.rs}` and `crates/effects/src/{generate2.rs, generate3.rs}`.
+  9. **Sub-Pixel Marching-Squares + Douglas-Peucker + Newton Cubic-Bezier Auto-Trace & Belongie Shape-Context + 2D Procrustes Morph (`mograph/autotrace.py`)**: Ported from `effectcraft/crates/path/src/{trace.rs, fit.rs, interp.rs}`.
+  10. **SIGGRAPH 2005 As-Rigid-As-Possible (`ARAP`) 2D Puppet Mesh Solver (`mograph/puppet_arap.py`) & 3D Extruded Shatter Physics (`mograph/shatter3d.py`)**: Ported from `effectcraft/crates/effects/src/puppet/arap.rs` and `sim2.rs`.
+  11. **Composable AE Range & Wiggly Text Selectors + Arbitrary Bezier Path Text (`v14/glyphs.py` `eval_selector` & `Field("bezier_path")`)**: Ported from `effectcraft/crates/text/src/{selectors.rs, path_text.rs}`.
+- Verified: All 20 modules pass `py_compile`, `auto-edit` produces `QA clean ✓` on `maghale`, and 6-panel visual audit sheet `/tmp/v15_craft_omni_audit_sheet.jpg` verified via `view_file`.
