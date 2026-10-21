@@ -478,29 +478,76 @@ class Field:
             A = float(kw.get("amp", 0.3)); W = float(kw.get("width", 400))
             f = 1 + A * x / W
             return np.stack([x, y * f, z], 1)
-        if k == "bezier_path":   # Ported from EffectCraft `crates/text/src/path_text.rs` (`PathMeasure`)
-            pts = np.asarray(kw.get("points", [[-300, 0], [0, -90], [300, 0]]), dtype=np.float32)
-            if len(pts) < 2:
-                return P
-            diffs = np.diff(pts, axis=0)
-            segl = np.hypot(diffs[:, 0], diffs[:, 1])
-            cum = np.concatenate([[0.0], np.cumsum(segl)])
+        if k == "bezier_path":   # text on an arbitrary path (EffectCraft text/path_text.rs idea) — v15.1 rewrite
+            # spec: {"kind": "bezier_path", "points": [[x,y],...]  → smooth centripetal Catmull-Rom through them
+            #        | "bezier": [[p0],[c1],[c2],[p3],[c1],[c2],[p3],...]  → exact cubic Bézier chain,
+            #        "align": "center"|"start"|"end", "margin": px, "perp": true}
+            # v15.0 used the raw points as a LINEAR polyline → tangent jumped at every knot and glyphs crossing a
+            # knot were torn apart (measured: 10 px of text → 27 px gap at the apex).  Now the curve is densely
+            # sampled, tangents are smooth, and beyond the ends text continues along the end tangents.
+            cum, xy, tan = _path_table_cached(kw)
             tot = float(cum[-1])
             if tot <= 1e-5:
                 return P
-            s_raw = x + tot * 0.5 + float(kw.get("margin", 0.0))
+            al = kw.get("align", "center")
+            base = {"start": 0.0, "end": tot}.get(al, tot * 0.5)
+            s_raw = x + base + float(kw.get("margin", 0.0))
             s_q = np.clip(s_raw, 0.0, tot)
-            idx = np.clip(np.searchsorted(cum, s_q, side="right") - 1, 0, len(diffs) - 1)
-            tx = diffs[idx, 0] / np.maximum(1e-5, segl[idx])
-            ty = diffs[idx, 1] / np.maximum(1e-5, segl[idx])
+            px = np.interp(s_q, cum, xy[:, 0])
+            py = np.interp(s_q, cum, xy[:, 1])
+            tx = np.interp(s_q, cum, tan[:, 0])
+            ty = np.interp(s_q, cum, tan[:, 1])
+            tn = np.hypot(tx, ty) + 1e-9
+            tx, ty = tx / tn, ty / tn
             extra = s_raw - s_q
-            px = np.interp(s_q, cum, pts[:, 0]) + extra * tx
-            py = np.interp(s_q, cum, pts[:, 1]) + extra * ty
+            px = px + extra * tx
+            py = py + extra * ty
             if kw.get("perp", True):
                 nx, ny = -ty, tx
-                return np.stack([px + y * nx, py + y * ny, z], 1)
+                return np.stack([px + y * nx, py + y * ny, z], 1)     # block y (down) → along the normal
             return np.stack([px, py + y, z], 1)
         return P
+
+
+_PATH_CACHE = {}
+
+
+def _path_table_cached(kw):
+    # Field objects are rebuilt every frame by the layers → cache the table by its geometry
+    key = repr((kw.get("bezier"), kw.get("points")))
+    if key not in _PATH_CACHE:
+        if len(_PATH_CACHE) > 64:
+            _PATH_CACHE.clear()
+        _PATH_CACHE[key] = _path_table(kw)
+    return _PATH_CACHE[key]
+
+
+def _path_table(kw, n_per=48):
+    """Dense arc-length table (cum, xy, unit tangent) for Field("bezier_path")."""
+    if kw.get("bezier"):
+        c = np.asarray(kw["bezier"], np.float64)
+        segs = [(c[i], c[i + 1], c[i + 2], c[i + 3]) for i in range(0, len(c) - 3, 3)]
+    else:
+        p = np.asarray(kw.get("points", [[-300, 0], [0, -90], [300, 0]]), np.float64)
+        if len(p) < 2:
+            return np.zeros(1), p[:1], np.array([[1.0, 0.0]])
+        q = np.vstack([2 * p[0] - p[1], p, 2 * p[-1] - p[-2]])
+        segs = []
+        for i in range(1, len(q) - 2):                      # Catmull-Rom (tension 0.5) → Bézier
+            p0, p1, p2, p3 = q[i - 1], q[i], q[i + 1], q[i + 2]
+            segs.append((p1, p1 + (p2 - p0) / 6.0, p2 - (p3 - p1) / 6.0, p2))
+    u = np.linspace(0, 1, n_per, endpoint=False)[:, None]
+    pts, tans = [], []
+    for p0, c1, c2, p3 in segs:
+        om = 1 - u
+        pts.append(om ** 3 * p0 + 3 * om ** 2 * u * c1 + 3 * om * u ** 2 * c2 + u ** 3 * p3)
+        tans.append(3 * om ** 2 * (c1 - p0) + 6 * om * u * (c2 - c1) + 3 * u ** 2 * (p3 - c2))
+    p0, c1, c2, p3 = segs[-1]
+    pts.append(p3[None])
+    tans.append((3 * (p3 - c2))[None])
+    xy, tan = np.vstack(pts), np.vstack(tans)
+    cum = np.concatenate([[0.0], np.cumsum(np.hypot(*np.diff(xy, axis=0).T))])
+    return cum.astype(np.float32), xy.astype(np.float32), tan.astype(np.float32)
 
 
 def eval_selector(u: float, t: float, cfg: dict) -> float:
