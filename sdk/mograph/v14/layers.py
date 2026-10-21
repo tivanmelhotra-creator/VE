@@ -267,6 +267,35 @@ def _glyph_motion(L, F, b, k, lt, out_lt):
         elif idle == "jelly":
             s.shear += 0.04 * math.sin(t * 5.1 + g.word * 1.7)
             s.sy *= 1 + 0.03 * math.sin(t * 4.3 + g.word * 2.3)
+        # ---- v15.1 AE-style text SELECTORS (glyphs.eval_selector) — spec:
+        #   "selectors": [{"shape": "smooth", "start": 0, "end": 0.4, "offset": [t0, t1, -0.4, 1.0] | 0.2,
+        #                  "amount": 1, "props": {"ty": -40, "rz": 12, "sx": 0.3, "alpha": -1, "glow": 1.2}}, ...]
+        #   u = reading-order position of the glyph in [0, 1]; "offset" as [t_a, t_b, o_a, o_b] sweeps the range over
+        #   time (a travelling wave through the word); "wiggly" ignores start/end.  Property deltas are ADDITIVE
+        #   (sx/sy multiply by 1 + w·v, alpha multiplies by 1 + w·v clamped ≥ 0).
+        for sel in L.get("selectors") or ():
+            u = g.order / max(1, n - 1)
+            sc_ = dict(sel)
+            off = sel.get("offset", 0.0)
+            if isinstance(off, (list, tuple)) and len(off) == 4:
+                ta, tb, oa, ob = [float(v) for v in off]
+                q = min(1.0, max(0.0, (t - L["_t0"] - ta) / max(1e-6, tb - ta)))
+                sc_["offset"] = oa + (ob - oa) * ph.SILK(q)
+            wv = G.eval_selector(u, t, sc_)
+            if abs(wv) < 1e-4:
+                continue
+            for pk, pv in (sel.get("props") or {}).items():
+                pv = float(pv) * wv
+                if pk in ("sx", "sy"):
+                    setattr(s, pk, getattr(s, pk) * (1.0 + pv))
+                elif pk == "scale":
+                    s.sx *= 1.0 + pv; s.sy *= 1.0 + pv
+                elif pk == "alpha":
+                    s.alpha *= max(0.0, 1.0 + pv)
+                elif pk == "glow":
+                    s.glow = (s.glow or 0.0) + pv
+                elif pk in ("tx", "ty", "tz", "rx", "ry", "rz", "shear"):
+                    setattr(s, pk, getattr(s, pk) + pv)
         # ---- exit
         if out_lt is not None and out_lt > 0:
             ot = out_lt - ((n - 1 - g.order) * stag * 0.5 if unit == "glyph" else (b.nwords - 1 - g.word) * stag * 1.5)
@@ -1257,15 +1286,21 @@ def draw_vegas_comet(ctx, L, F):
     col = G.rgba(L.get("color", "@accent"), L["_pal"])
     a = min(1.0, lt / 0.2) * (1.0 if olt is None else max(0.0, 1.0 - olt / 0.35))
     n_comets = int(L.get("comets", 2))
-    speed = float(L.get("speed", 0.55))
-    span = int(max(4, len(pts) * float(L.get("length", 0.28))))
+    speed = float(L.get("speed", 0.55))                 # laps per second
+    # v15.1: comets travel by ARC LENGTH on the resampled contour (v15.0 indexed raw polygon vertices → on a
+    # 7-vertex heptagon the head jumped corner to corner and the tail was 1–2 straight segments).
+    from ..varstroke import polyline_slice
+    closed = np.vstack([pts, pts[:1]])
+    tot = float(np.hypot(*np.diff(closed, axis=0).T).sum())
+    span = tot * float(L.get("length", 0.28))
+    tap = Taper(start_len=0.85, end_len=0.05, start_width=0.0, end_width=0.2)
     for ci in range(n_comets):
-        head_idx = int(((lt * speed + ci / n_comets) % 1.0) * len(pts))
-        seg_pts = np.array([pts[(head_idx - span + j) % len(pts)] for j in range(span)], dtype=np.float32)
-        tap = Taper(start_len=0.85, end_len=0.05, start_width=0.0, end_width=0.2)
+        head = ((lt * speed + ci / n_comets) % 1.0) * tot
+        seg_pts = polyline_slice(pts, head - span, head, closed=True, step=3.0)
         draw_tapered_stroke(ctx, seg_pts, float(L.get("width", 5.5)) * k, (col[0], col[1], col[2], a), taper=tap)
         if F.ectx is not None:
-            draw_tapered_stroke(F.ectx, seg_pts, float(L.get("width", 11.0)) * k, (col[0], col[1], col[2], 0.75 * a), taper=tap)
+            draw_tapered_stroke(F.ectx, seg_pts, float(L.get("glow_width", 11.0)) * k, (col[0], col[1], col[2], 0.75 * a),
+                                taper=tap)
 
 
 def draw_god_rays(ctx, L, F):

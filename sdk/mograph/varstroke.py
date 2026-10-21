@@ -112,23 +112,29 @@ def draw_tapered_stroke(
     if len(v_pts) < 2:
         return
 
+    # v15.1: RESAMPLE along arc length so the taper/wave profile is smooth even on coarse polylines
+    # (v15.0 evaluated the width only at the input vertices → stepped tapers on a 7-vertex heptagon comet).
+    vp = resample_polyline(np.asarray(v_pts, dtype=np.float32), step=max(1.5, base_width * 0.25))
+    dd = np.hypot(*np.diff(vp, axis=0).T)
+    v_s = np.concatenate([[0.0], np.cumsum(dd)])
     radii = []
     for s_val in v_s:
-        wf = taper.width_factor(s_val, vis_len)
+        wf = taper.width_factor(float(s_val), vis_len)
         if wave is not None:
-            wf *= wave.width_factor(s_val, vis_len)
+            wf *= wave.width_factor(float(s_val), vis_len)
         radii.append(0.5 * base_width * wf)
 
-    # Compute smooth per-vertex unit normals along v_pts
-    vp = np.asarray(v_pts, dtype=np.float32)
-    tang = np.zeros_like(vp)
-    tang[:-1] = vp[1:] - vp[:-1]
-    tang[-1] = tang[-2]
-    tang[1:-1] = 0.5 * (tang[1:-1] + tang[:-2])
-    tlen = np.hypot(tang[:, 0], tang[:, 1])[:, None] + 1e-6
-    tang /= tlen
-    normals = np.column_stack([-tang[:, 1], tang[:, 0]])
-    r_arr = np.asarray(radii, dtype=np.float32)[:, None]
+    # per-vertex MITER normals: m = normalise(n_prev + n_next), offset r / cos(φ/2) (clamped at 2.2 r) → the ribbon
+    # keeps its full width through sharp corners (v15.0 used a plain tangent average → pinched joints)
+    seg = np.diff(vp, axis=0)
+    seg /= (np.hypot(seg[:, 0], seg[:, 1])[:, None] + 1e-6)
+    sn = np.column_stack([-seg[:, 1], seg[:, 0]])
+    n_prev = np.vstack([sn[:1], sn])
+    n_next = np.vstack([sn, sn[-1:]])
+    normals = n_prev + n_next
+    normals /= (np.hypot(normals[:, 0], normals[:, 1])[:, None] + 1e-6)
+    cos_half = np.clip(np.sum(normals * n_next, axis=1), 1.0 / 2.2, 1.0)
+    r_arr = (np.asarray(radii, dtype=np.float32) / cos_half)[:, None]
 
     left_side = vp + normals * r_arr
     right_side = vp - normals * r_arr
@@ -141,9 +147,45 @@ def draw_tapered_stroke(
     for pt in right_side[::-1]:
         ctx.line_to(float(pt[0]), float(pt[1]))
     ctx.close_path()
+    ctx.set_fill_rule(cairo.FILL_RULE_WINDING)      # self-overlapping loops stay solid (no even-odd holes)
     ctx.set_source_rgba(*color_rgba)
     ctx.fill()
     ctx.restore()
+
+
+def resample_polyline(pts: np.ndarray, step: float = 2.0, max_pts: int = 1200) -> np.ndarray:
+    """Uniform arc-length resampling of an open polyline (keeps both end points)."""
+    pts = np.asarray(pts, dtype=np.float32)
+    if len(pts) < 2:
+        return pts
+    d = np.hypot(*np.diff(pts, axis=0).T)
+    cum = np.concatenate([[0.0], np.cumsum(d)])
+    tot = float(cum[-1])
+    if tot <= 1e-6:
+        return pts[:1].repeat(2, 0)
+    n = int(np.clip(math.ceil(tot / step) + 1, 2, max_pts))
+    tq = np.linspace(0.0, tot, n)
+    # keep every ORIGINAL vertex (corners stay sharp), drop samples closer than step/3 to a vertex
+    tq = tq[np.min(np.abs(tq[:, None] - cum[None, :]), axis=1) > step / 3.0]
+    tq = np.unique(np.concatenate([tq, cum]))
+    tq = tq[np.concatenate([[True], np.diff(tq) > 1e-4])]
+    return np.column_stack([np.interp(tq, cum, pts[:, 0]), np.interp(tq, cum, pts[:, 1])]).astype(np.float32)
+
+
+def polyline_slice(pts: np.ndarray, s0: float, s1: float, closed: bool = True, step: float = 2.0) -> np.ndarray:
+    """Sub-path between arc lengths s0 → s1 (wraps around a closed contour) — comets / trim-paths."""
+    pts = np.asarray(pts, dtype=np.float32)
+    if closed and np.linalg.norm(pts[0] - pts[-1]) > 1e-3:
+        pts = np.vstack([pts, pts[:1]])
+    d = np.hypot(*np.diff(pts, axis=0).T)
+    cum = np.concatenate([[0.0], np.cumsum(d)])
+    tot = float(cum[-1])
+    if tot <= 1e-6:
+        return pts[:2]
+    n = int(np.clip(math.ceil(abs(s1 - s0) / step) + 1, 2, 1200))
+    sq = np.linspace(s0, s1, n)
+    sq = np.mod(sq, tot) if closed else np.clip(sq, 0, tot)
+    return np.column_stack([np.interp(sq, cum, pts[:, 0]), np.interp(sq, cum, pts[:, 1])]).astype(np.float32)
 
 
 def variable_feather_mask(W: int, H: int, poly_pts: np.ndarray | list,

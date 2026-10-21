@@ -409,6 +409,23 @@ class Renderer:
         self.post = spec.get("post", {})
         self._vig = None
         self._bokeh_on = bool(self.post.get("bokeh_dust")) or any(L["type"] == "ambient_bokeh" for L in self.layers)
+        # v15.1 reference look match (palette.match_reference_grade, Oklab 3-range, ≤ 8° skin hue guard):
+        #   "grade": {"match": {"ref": "../work/input/ref.mp4", "strength": 0.8, "at": 0.5}}
+        self._gmatch = None
+        gm = spec.get("grade", {}).get("match")
+        if gm:
+            from .palette import match_reference_grade, reference_frame
+            gm = gm if isinstance(gm, dict) else {"ref": gm}
+            rp = gm["ref"] if os.path.isabs(gm["ref"]) else os.path.join(base_dir, gm["ref"])
+            fr0, _ = self.src_frame(self.tl.to_src(self.tl.duration * 0.5))
+            self._gmatch = (match_reference_grade(fr0.copy(), reference_frame(rp, float(gm.get("at", 0.5))),
+                                                  max_skin_deg=float(gm.get("max_skin_deg", 8.0))),
+                            float(gm.get("strength", 0.8)))
+        mc = src.get("morph_cuts")
+        self.morph = None
+        if mc and self.tl.cuts:                                   # v15.1 optical-flow morph cuts (flow_cut.py)
+            from .flow_cut import MorphCuts
+            self.morph = MorphCuts(self, mc)
 
     # ------------------------------------------------------------------ source
     def src_frame(self, st):
@@ -463,8 +480,19 @@ class Renderer:
         fr, idx = self.src_frame(st)
         M, z = self.matrix(t)
         F.M, F.zoom = M, z
+        mat = None
+        if self.morph is not None:
+            win = self.morph.window(t)
+            if win is not None:
+                mf = self.morph.frame(*win)
+                if mf is not None:
+                    fr, mat = mf
         plate = cv2.warpAffine(fr, M, (W, H), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REFLECT)
-        A = cv2.warpAffine(self.tracks.matte(idx), M, (W, H), flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
+        if self._gmatch is not None:
+            from .palette import apply_grade_match
+            plate = apply_grade_match(plate, *self._gmatch)
+        A = cv2.warpAffine(self.tracks.matte(idx) if mat is None else mat, M, (W, H), flags=cv2.INTER_LINEAR,
+                           borderMode=cv2.BORDER_REPLICATE)
         A = np.clip((A - 0.04) / 0.92, 0, 1).astype(np.float32)
         # ---------------- background: mask-normalised DOF blur (no person ghost) + grade
         g = self.grade_at(t)

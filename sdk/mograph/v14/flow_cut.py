@@ -107,3 +107,83 @@ def track_planar_homography(prev_bgr: np.ndarray, cur_bgr: np.ndarray, quad_pts:
     pts_h = np.hstack([quad_pts.astype(np.float32), np.ones((len(quad_pts), 1), dtype=np.float32)]) @ H_f.T
     new_q = pts_h[:, :2] / np.maximum(1e-6, pts_h[:, 2:3])
     return new_q, H_f
+
+
+# ====================================================================================== v15.1 renderer integration
+class MorphCuts:
+    """Optical-flow MORPH CUT on every jump cut of the EDL (Premiere "Morph Cut" idea) — spec:
+
+        "source": {..., "morph_cuts": true | {"dur": 0.24, "cuts": [1, 3] (indices; default all), "max_motion": 60}}
+
+    Inside a window of `dur` seconds centred on cut c the renderer shows morph_cut_frame(A, B, α) instead of the
+    raw source frame, where A = last frame before the cut, B = first frame after it and α = SILK ramp 0 → 1.
+    The two frames and BOTH dense flows are computed once per cut (cached) → each frame costs 2 remaps (~25 ms).
+    Cuts whose median flow is larger than `max_motion` px (speaker moved a lot / different shot) are skipped —
+    a morph would smear; those keep the hard cut (+ the director's punch-zoom + flash).
+    The matte is blended with the same α (A·(1−α) + B·α) so the depth sandwich stays clean."""
+
+    def __init__(self, R, cfg):
+        cfg = cfg if isinstance(cfg, dict) else {}
+        self.R = R
+        self.dur = float(cfg.get("dur", 0.24))
+        self.max_motion = float(cfg.get("max_motion", 60.0))
+        allow = cfg.get("cuts")
+        self.cuts = [(i, c) for i, c in enumerate(R.tl.cuts) if allow is None or i in allow]
+        self._cache = {}
+
+    def window(self, t):
+        h = self.dur / 2
+        for i, c in self.cuts:
+            if c - h <= t < c + h:
+                return i, (t - (c - h)) / self.dur
+        return None
+
+    def _prep(self, i):
+        if i in self._cache:
+            return self._cache[i]
+        R = self.R
+        a_end = R.tl.seg[i][1]
+        b_start = R.tl.seg[i + 1][0]
+        fa, ia = R.src_frame(max(0.0, a_end - 1.0 / R.sfps))
+        fa = fa.copy()
+        fb, ib = R.src_frame(b_start)
+        fb = fb.copy()
+        work_w = 320
+        H, W = fa.shape[:2]
+        work_h = max(32, int(round(H * work_w / W)))
+        ga = cv2.cvtColor(cv2.resize(fa, (work_w, work_h), interpolation=cv2.INTER_AREA), cv2.COLOR_BGR2GRAY)
+        gb = cv2.cvtColor(cv2.resize(fb, (work_w, work_h), interpolation=cv2.INTER_AREA), cv2.COLOR_BGR2GRAY)
+        f01 = cv2.calcOpticalFlowFarneback(ga, gb, None, 0.5, 4, 21, 3, 5, 1.2, 0)
+        f10 = cv2.calcOpticalFlowFarneback(gb, ga, None, 0.5, 4, 21, 3, 5, 1.2, 0)
+        sx, sy = W / work_w, H / work_h
+        med = float(np.median(np.hypot(f01[..., 0] * sx, f01[..., 1] * sy)))
+        ok = med <= self.max_motion
+        fb_err = np.hypot(f01[..., 0] + f10[..., 0], f01[..., 1] + f10[..., 1])
+        agree = cv2.resize(np.exp(-fb_err / 2.5).astype(np.float32), (W, H), interpolation=cv2.INTER_LINEAR)
+        u01 = cv2.resize(f01, (W, H), interpolation=cv2.INTER_LINEAR) * np.array([sx, sy], np.float32)
+        u10 = cv2.resize(f10, (W, H), interpolation=cv2.INTER_LINEAR) * np.array([sx, sy], np.float32)
+        yy, xx = np.mgrid[0:H, 0:W].astype(np.float32)
+        ent = {"ok": ok, "median_px": round(med, 1), "fa": fa, "fb": fb, "ia": ia, "ib": ib,
+               "u01": u01, "u10": u10, "agree": agree[..., None], "xx": xx, "yy": yy}
+        self._cache = {i: ent}                       # keep only the current cut (RAM: ~4 full-res float planes)
+        return ent
+
+    def frame(self, i, alpha):
+        """→ (bgr, matte) for cut i at blend α, or None when this cut is skipped."""
+        e = self._prep(i)
+        if not e["ok"]:
+            return None
+        from .physics import SILK
+        a = float(SILK(min(1.0, max(0.0, alpha))))
+        # backward warp: pixel x of the in-between frame came from x − a·u01 in A and x − (1−a)·u10 in B
+        wa = cv2.remap(e["fa"], e["xx"] - a * e["u01"][..., 0], e["yy"] - a * e["u01"][..., 1],
+                       cv2.INTER_LINEAR, borderMode=cv2.BORDER_REFLECT)
+        wb = cv2.remap(e["fb"], e["xx"] - (1 - a) * e["u10"][..., 0], e["yy"] - (1 - a) * e["u10"][..., 1],
+                       cv2.INTER_LINEAR, borderMode=cv2.BORDER_REFLECT)
+        flow_mix = cv2.addWeighted(wa, 1.0 - a, wb, a, 0.0)
+        cross = cv2.addWeighted(e["fa"], 1.0 - a, e["fb"], a, 0.0)
+        ag = e["agree"]
+        out = (flow_mix.astype(np.float32) * ag + cross.astype(np.float32) * (1 - ag) + 0.5).astype(np.uint8)
+        ma = self.R.tracks.matte(e["ia"])
+        mb = self.R.tracks.matte(e["ib"])
+        return out, (ma * (1.0 - a) + mb * a).astype(np.float32)
