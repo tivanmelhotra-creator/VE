@@ -519,36 +519,73 @@
     },
     {
       "type": "object_3d",
-      "id": "obj_doc",
-      "t": "w:مقاله-0.3",
+      "id": "obj_paper",
+      "t": "w:مقاله-0.35",
       "out": "w:چکیده-0.1",
-      "src": "shield_3d.png",
+      "src": "paper_lens_3d.png",
       "geometry": "slab",
-      "depth": 0.12,
+      "depth": 0.14,
       "anchor": "shoulder_l",
       "offset": [
-        -0.35,
-        -0.9
+        0.25,
+        -0.78
       ],
-      "size": 1.05,
+      "size": 0.95,
       "motion": "hover",
-      "yaw": 20,
-      "pitch": 10
+      "yaw": 22,
+      "pitch": 12
     },
     {
       "type": "object_3d",
-      "id": "obj_tooth",
-      "t": "w:مقدمه-0.1",
-      "out": 15.85,
-      "preset": "dental_implant",
+      "id": "obj_pen",
+      "t": "w:برای-0.05",
+      "out": "w:دقیقا-0.1",
+      "src": "fountain_pen_3d.png",
+      "geometry": "slab",
+      "depth": 0.14,
       "anchor": "shoulder_l",
       "offset": [
-        -0.85,
-        -0.45
+        0.28,
+        -0.65
       ],
-      "size": 0.8,
+      "size": 0.92,
       "motion": "turntable_osc",
-      "yaw_amp": 35,
+      "yaw_amp": 28,
+      "pitch": 12
+    },
+    {
+      "type": "object_3d",
+      "id": "obj_laptop",
+      "t": "w:مقاله#2-0.15",
+      "out": "w:مقدمه-0.15",
+      "preset": "laptop_pro_3d",
+      "ssaa": 1,
+      "anchor": "shoulder_r",
+      "offset": [
+        -0.28,
+        -0.35
+      ],
+      "size": 0.95,
+      "motion": "spin_360",
+      "yaw_speed": 85,
+      "pitch": 16
+    },
+    {
+      "type": "object_3d",
+      "id": "obj_shield",
+      "t": "w:مقدمه-0.1",
+      "out": 15.85,
+      "src": "first_step_shield_3d.png",
+      "geometry": "slab",
+      "depth": 0.14,
+      "anchor": "shoulder_l",
+      "offset": [
+        0.32,
+        -0.25
+      ],
+      "size": 0.88,
+      "motion": "turntable_osc",
+      "yaw_amp": 32,
       "pitch": 14
     }
   ],

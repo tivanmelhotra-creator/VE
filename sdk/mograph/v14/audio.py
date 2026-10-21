@@ -12,6 +12,7 @@ mograph.v14.audio — soundtrack for a v14 edit, built from the SAME timing math
 """
 from __future__ import annotations
 
+import math
 import os
 import subprocess
 import wave
@@ -80,7 +81,14 @@ def voice_track(R, n):
         if m > 0:
             out[o:o + m] += seg[:m]
     out = _hp(out, 85)
+    if R.spec.get("audio", {}).get("dehum", False):
+        out = dehum_comb(out, SR)
     out = _level(out)
+    if R.spec.get("audio", {}).get("multiband", True):
+        out = multiband_compress_4band(out, SR)
+    vb_wet = float(R.spec.get("audio", {}).get("vocal_booth_reverb", 0.045))
+    if vb_wet > 0:
+        out = vocal_booth_reverb(out, SR, wet=vb_wet)
     pk = np.percentile(np.abs(out), 99.95) + 1e-9
     return out * (0.6 / pk)
 
@@ -167,7 +175,10 @@ def music_track(R, n, cfg):
     from ..beat import render_beat
     secs = cfg.get("sections") or [{"t": 0.0, "part": "intro"}, {"t": 1.2, "part": "verse"}]
     secs = [dict(s, t=R.tl.resolve(s["t"])) for s in secs]
-    y = render_beat(cfg, R.duration, secs, int(cfg.get("seed", 3)))
+    y = render_beat(cfg, R.duration + 2.5, secs, int(cfg.get("seed", 3)))
+    if cfg.get("remix", True):
+        from .remix import remix_music_to_duration
+        y = remix_music_to_duration(y, SR, R.duration, float(cfg.get("bpm", 92.0)))
     out = np.zeros(n, np.float32)
     m = min(n, len(y))
     out[:m] = y[:m]
@@ -193,7 +204,7 @@ def build_audio(R, out_wav, start=0.0, end=None):
     Rc = v + sr + mus
     st = np.stack([Lc, Rc], 1)[int(start * SR):int(end * SR)]
     pk = np.abs(st).max() + 1e-9
-    st = np.tanh(st / pk * 1.3) / np.tanh(1.3) * 0.89
+    st = soft_clip(st / pk * 0.96, 0.92)
     tmp = out_wav.replace(".wav", "_pre.wav")
     with wave.open(tmp, "wb") as wf:
         wf.setnchannels(2); wf.setsampwidth(2); wf.setframerate(SR)
@@ -203,3 +214,88 @@ def build_audio(R, out_wav, start=0.0, end=None):
                     "-ar", str(SR), out_wav])
     os.remove(tmp)
     return out_wav
+
+
+# ====================================================================================================
+# v15 (FilmCraft multiband.rs, reverbs.rs, restoration.rs):
+# 4-Band Linkwitz-Riley Multiband Compressor, Vocal Booth IR Reverb, DeHum & Soft Clipper
+# ====================================================================================================
+def soft_clip(x: np.ndarray, t: float = 0.92) -> np.ndarray:
+    """Ported from FilmCraft `crates/audio-dsp/src/effects/multiband.rs`: cubic soft clipper with ceiling `t`."""
+    k = 0.5 * t
+    a = np.abs(x)
+    u = np.minimum(1.0, np.maximum(0.0, (a - k) / max(1e-6, 2.0 * (t - k))))
+    y = k + (t - k) * (2.0 * u - u * u)
+    return np.where(a <= k, x, np.sign(x) * y).astype(np.float32)
+
+
+def dehum_comb(x: np.ndarray, sr: int = SR, f0: float = 50.0, harmonics: int = 6, q: float = 35.0) -> np.ndarray:
+    """Ported from FilmCraft `crates/audio-dsp/src/effects/restoration.rs` (`DeHum`): harmonic notch comb."""
+    from scipy.signal import iirnotch, lfilter
+    out = x.copy()
+    for h in range(1, harmonics + 1):
+        freq = f0 * h
+        if freq >= sr * 0.48:
+            break
+        b, a = iirnotch(freq, q * h, sr)
+        out = lfilter(b, a, out).astype(np.float32)
+    return out
+
+
+def multiband_compress_4band(x: np.ndarray, sr: int = SR) -> np.ndarray:
+    """
+    Ported from FilmCraft `crates/audio-dsp/src/effects/multiband.rs`:
+    4-band Linkwitz-Riley (4th-order Butterworth squared) crossover at 160 Hz, 800 Hz, 4500 Hz
+    with independent soft-knee envelope compression per band for broadcast vocal warmth & presence.
+    """
+    from scipy.signal import butter, sosfilt
+    nyq = 0.5 * sr
+    # Band 1 (<160 Hz), Band 2 (160..800 Hz), Band 3 (800..4500 Hz), Band 4 (>4500 Hz)
+    b1 = sosfilt(butter(2, 160.0 / nyq, btype="low", output="sos"), x)
+    b2 = sosfilt(butter(2, [160.0 / nyq, 800.0 / nyq], btype="bandpass", output="sos"), x)
+    b3 = sosfilt(butter(2, [800.0 / nyq, 4500.0 / nyq], btype="bandpass", output="sos"), x)
+    b4 = sosfilt(butter(2, 4500.0 / nyq, btype="high", output="sos"), x)
+
+    bands_cfg = [
+        (b1, 0.045, 2.8, 1.08),  # Low warmth
+        (b2, 0.055, 2.4, 0.96),  # Low-mid mud control
+        (b3, 0.050, 3.2, 1.18),  # Vocal presence & articulation
+        (b4, 0.025, 3.0, 1.12),  # High air & de-ess ceiling
+    ]
+    win = max(16, int(0.018 * sr))
+    k_win = np.ones(win, dtype=np.float32) / win
+    out = np.zeros_like(x, dtype=np.float32)
+    for b_sig, thresh, ratio, makeup in bands_cfg:
+        env = np.sqrt(np.convolve(b_sig * b_sig, k_win, mode="same") + 1e-9)
+        over = np.maximum(1.0, env / thresh)
+        gain = (over ** (1.0 / ratio - 1.0)) * makeup
+        out += (b_sig * gain).astype(np.float32)
+    return out
+
+
+def vocal_booth_reverb(x: np.ndarray, sr: int = SR, wet: float = 0.055) -> np.ndarray:
+    """
+    Ported from FilmCraft `crates/audio-dsp/src/effects/reverbs.rs` (`IrSpec` "Vocal Booth"):
+    rt60 = 0.30s, er_ms = 15.0ms, er_count = 8, hf_decay = 8.0, onset_ms = 4.0ms.
+    Adds subtle acoustic studio early reflections so denoised voice never sounds overly dry.
+    """
+    if wet <= 0.002:
+        return x
+    from scipy.signal import fftconvolve, butter, lfilter
+    rt60 = 0.30
+    n_ir = int(rt60 * sr)
+    t_ir = np.arange(n_ir, dtype=np.float32) / sr
+    rng = np.random.default_rng(16)
+    ir = np.zeros(n_ir, dtype=np.float32)
+    # 8 Early reflections in 4..19ms
+    for i in range(8):
+        delay_s = 0.004 + (i / 8.0) * 0.015 + float(rng.uniform(0.0, 0.0015))
+        idx = min(n_ir - 1, int(delay_s * sr))
+        ir[idx] += ((-1.0) ** i) * (0.45 * math.exp(-delay_s * 18.0))
+    # Diffuse late tail with HF decay
+    tail = rng.standard_normal(n_ir).astype(np.float32) * np.exp(-6.9078 * t_ir / rt60) * 0.08
+    b_lp, a_lp = butter(1, 3800.0 / (0.5 * sr), btype="low")
+    tail = lfilter(b_lp, a_lp, tail).astype(np.float32)
+    ir += tail
+    rev = fftconvolve(x, ir, mode="full")[:len(x)].astype(np.float32)
+    return ((1.0 - wet) * x + wet * rev).astype(np.float32)

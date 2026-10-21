@@ -341,6 +341,14 @@ def render_sequence(model, size, poses, hdri=None, light=None, env_rot=0.0, floo
         os.makedirs(cdir, exist_ok=True)
         base_l = None
         floor_px = None
+        try:
+            ec_bin()
+            _has_ec = True
+        except Exception:
+            _has_ec = False
+        if not _has_ec:
+            _render_gltf_software_fallback(model, size, poses, cdir, fl)
+            return _CachedSeq(cdir, len(poses))
         for s0 in range(0, len(poses), chunk):
             part = poses[s0:s0 + chunk]
             with tempfile.TemporaryDirectory(dir=_tmp_root()) as td:
@@ -556,3 +564,145 @@ try:
     _register()
 except Exception:  # pragma: no cover
     pass
+
+_GLTF_MESH_CACHE = {}
+
+def _load_gltf_mesh_and_maps(gltf_path):
+    if gltf_path in _GLTF_MESH_CACHE:
+        return _GLTF_MESH_CACHE[gltf_path]
+    import cv2
+    base = os.path.dirname(gltf_path)
+    g = json.load(open(gltf_path))
+    buf_uri = g["buffers"][0]["uri"]
+    raw_bin = open(os.path.join(base, buf_uri), "rb").read()
+
+    def _acc(idx):
+        a = g["accessors"][idx]
+        bv = g["bufferViews"][a["bufferView"]]
+        off = bv.get("byteOffset", 0) + a.get("byteOffset", 0)
+        cnt = a["count"]
+        dt = {5126: np.float32, 5123: np.uint16, 5125: np.uint32}[a["componentType"]]
+        ncomp = {"SCALAR": 1, "VEC2": 2, "VEC3": 3, "VEC4": 4}[a["type"]]
+        arr = np.frombuffer(raw_bin, dtype=dt, count=cnt * ncomp, offset=off)
+        return arr.reshape(cnt, ncomp) if ncomp > 1 else arr
+
+    prim = g["meshes"][0]["primitives"][0]
+    pos = _acc(prim["attributes"]["POSITION"]).astype(np.float32)
+    nor = _acc(prim["attributes"]["NORMAL"]).astype(np.float32)
+    uv = _acc(prim["attributes"]["TEXCOORD_0"]).astype(np.float32)
+    ind = _acc(prim["indices"]).astype(np.int32).reshape(-1, 3)
+
+    # Normalize to unit sphere
+    lo, hi = pos.min(0), pos.max(0)
+    center = (lo + hi) * 0.5
+    rad = float(np.linalg.norm(hi - lo) * 0.5) or 1.0
+    pos = (pos - center) / rad
+
+    # Load diffuse, normal, arm textures
+    diff_im = nor_im = arm_im = None
+    for im_info in g.get("images", []):
+        uri = im_info.get("uri", "")
+        p_im = os.path.join(base, uri)
+        if os.path.exists(p_im):
+            im = cv2.imread(p_im, cv2.IMREAD_COLOR)
+            if im is not None:
+                im_f = cv2.cvtColor(im, cv2.COLOR_BGR2RGB).astype(np.float32) / 255.0
+                if "diff" in uri or "col" in uri or "albedo" in uri:
+                    diff_im = im_f
+                elif "nor" in uri:
+                    nor_im = im_f
+                elif "arm" in uri or "rough" in uri:
+                    arm_im = im_f
+    if diff_im is None:
+        diff_im = np.full((64, 64, 3), 0.75, dtype=np.float32)
+    _GLTF_MESH_CACHE[gltf_path] = (pos, nor, uv, ind, diff_im, nor_im, arm_im)
+    return _GLTF_MESH_CACHE[gltf_path]
+
+
+def _render_gltf_software_fallback(model, size, poses, cdir, fl):
+    """Offline pure-Python/NumPy PBR + HDRI glTF rasterizer fallback when effectcraft-cli is not installed."""
+    import cv2
+    from . import zraster
+    src_gltf = model.get("src") or model["path"]
+    if src_gltf.endswith(".norm.gltf") and os.path.exists(src_gltf[:-10] + ".gltf"):
+        src_gltf = src_gltf[:-10] + ".gltf"
+    pos, nor, uv, ind, diff_im, nor_im, arm_im = _load_gltf_mesh_and_maps(src_gltf)
+    D = int(math.ceil(size * 1.30 / 2) * 2)
+    R_px = size * 0.46
+    th_d, tw_d = diff_im.shape[:2]
+
+    for idx_p, pose in enumerate(poses):
+        yaw = math.radians(float(pose[0]))
+        pitch = math.radians(float(pose[1]))
+        roll = math.radians(float(pose[2]) if len(pose) > 2 else 0.0)
+        cy, sy = math.cos(yaw), math.sin(yaw)
+        cp, sp = math.cos(pitch), math.sin(pitch)
+        cr, sr = math.cos(roll), math.sin(roll)
+        Ry = np.array([[cy, 0, sy], [0, 1, 0], [-sy, 0, cy]], np.float32)
+        Rx = np.array([[1, 0, 0], [0, cp, -sp], [0, sp, cp]], np.float32)
+        Rz = np.array([[cr, -sr, 0], [sr, cr, 0], [0, 0, 1]], np.float32)
+        R_mat = Rz @ Rx @ Ry
+
+        vp = pos @ R_mat.T
+        vn = nor @ R_mat.T
+        cam_dist = 3.2
+        z_cam = cam_dist - vp[:, 2]
+        persp = (cam_dist / np.maximum(0.4, z_cam))[:, None]
+        xy = np.empty((len(vp), 2), np.float32)
+        xy[:, 0] = D * 0.5 + vp[:, 0] * R_px * persp[:, 0]
+        xy[:, 1] = D * 0.5 - vp[:, 1] * R_px * persp[:, 0]
+
+        tri_xy = xy[ind]
+        tri_z = z_cam[ind]
+        # Attribute channels: u, v, nx, ny, nz
+        attr_v = np.concatenate([uv, vn], axis=1).astype(np.float32)
+        tri_attr = attr_v[ind]
+        tri_ids = np.arange(1, len(ind) + 1, dtype=np.int32)
+
+        abuf, idb, _ = zraster.raster_attr(tri_xy, tri_z, tri_attr, tri_ids, D, D)
+        mask = idb > 0
+        rgba = np.zeros((D, D, 4), dtype=np.uint8)
+        if np.any(mask):
+            u_m = np.mod(abuf[mask, 0], 1.0)
+            v_m = np.mod(abuf[mask, 1], 1.0)
+            px_u = np.clip((u_m * (tw_d - 1)).astype(np.int32), 0, tw_d - 1)
+            py_v = np.clip((v_m * (th_d - 1)).astype(np.int32), 0, th_d - 1)
+            alb = diff_im[py_v, px_u]  # linear-ish sRGB
+            nx, ny, nz = abuf[mask, 2], abuf[mask, 3], abuf[mask, 4]
+            n_len = np.maximum(1e-5, np.sqrt(nx*nx + ny*ny + nz*nz))
+            nx, ny, nz = nx / n_len, ny / n_len, nz / n_len
+
+            rough = 0.55
+            ao = 1.0
+            if arm_im is not None:
+                th_a, tw_a = arm_im.shape[:2]
+                arm_s = arm_im[np.clip((v_m * (th_a - 1)).astype(np.int32), 0, th_a - 1),
+                               np.clip((u_m * (tw_a - 1)).astype(np.int32), 0, tw_a - 1)]
+                ao = 0.35 + 0.65 * arm_s[:, 0:1]
+                rough = np.clip(arm_s[:, 1:2], 0.12, 0.95)
+
+            # Key light + studio HDRI hemisphere + GGX specular
+            lx, ly, lz = -0.42, 0.72, 0.55
+            ndotl = np.maximum(0.0, nx * lx + ny * ly + nz * lz)[:, None]
+            hemi = (0.48 + 0.32 * ny)[:, None]
+            hx, hy, hz = -0.22, 0.38, 0.89
+            ndoth = np.maximum(0.0, nx * hx + ny * hy + nz * hz)[:, None]
+            spec_pow = np.clip(2.0 / (rough * rough + 0.04), 4.0, 64.0)
+            spec = (np.power(ndoth, spec_pow) * (1.0 - rough * 0.75) * 0.38)
+
+            lit = np.clip((alb * (hemi * ao + ndotl * 0.78) + spec) * 255.0, 0, 255).astype(np.uint8)
+            # RGB -> BGR for cv2.imwrite
+            rgba[mask, 0] = lit[:, 2]
+            rgba[mask, 1] = lit[:, 1]
+            rgba[mask, 2] = lit[:, 0]
+            rgba[mask, 3] = 255
+            # Anti-alias alpha edge slightly
+            rgba[:, :, 3] = cv2.GaussianBlur(rgba[:, :, 3], (3, 3), 0.7)
+
+        cv2.imwrite(os.path.join(cdir, f"{idx_p:05d}.png"), rgba)
+        if fl:
+            sh = np.zeros((D, D), dtype=np.uint8)
+            cv2.ellipse(sh, (D // 2 + int(size * 0.04), int(D * 0.76)), (int(size * 0.34), int(size * 0.09)), 0, 0, 360, 140, -1)
+            sh = cv2.GaussianBlur(sh, (31, 31), 10.0)
+            cv2.imwrite(os.path.join(cdir, f"{idx_p:05d}_s.png"), sh)
+    open(os.path.join(cdir, "done"), "w").write(str(len(poses)))

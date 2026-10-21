@@ -36,6 +36,13 @@ def main(argv=None):
     name = os.path.splitext(os.path.basename(a.spec))[0]
     od = os.path.join(base, "out")
     os.makedirs(od, exist_ok=True)
+    if a.cmd == "auto-edit":
+        from .director import auto_edit
+        vid = a.out if (a.out and a.out.endswith(".mp4")) else os.path.join(base, "media", "raw.mp4")
+        out_json = a.out if (a.out and a.out.endswith(".json")) else os.path.join(base, "edit_auto.json")
+        auto_edit(a.spec, vid, out_json_path=out_json)
+        print(out_json)
+        return
     if a.cmd == "prep":
         import json
         from .track import prep_matte, prep_pose

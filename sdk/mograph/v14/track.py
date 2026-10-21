@@ -58,7 +58,9 @@ def matte_frame(bgr, ref=512):
     h, w = bgr.shape[:2]
     if not s:
         from ..matte import matte_onnx
-        return matte_onnx(bgr)
+        sm_b = cv2.resize(bgr, (270, 480), interpolation=cv2.INTER_AREA)
+        m_s = matte_onnx(sm_b)
+        return cv2.resize(m_s, (w, h), interpolation=cv2.INTER_LINEAR).astype(np.float32)
     sc = ref / min(h, w)
     nh, nw = max(32, int(h * sc) // 32 * 32), max(32, int(w * sc) // 32 * 32)
     x = cv2.resize(cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB), (nw, nh), interpolation=cv2.INTER_AREA).astype(np.float32)
@@ -85,11 +87,57 @@ def prep_matte(path, log=print):
     log(f"[v14 matte] ready ({i} frames, {new} new)", flush=True)
 
 
+def _prep_pose_offline_fallback(path, out, log=print, work_w=360):
+    from ..matte import matte_onnx
+    fc = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
+    cap = cv2.VideoCapture(path)
+    fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
+    W, H = int(cap.get(3)), int(cap.get(4))
+    work_h = int(H * work_w / W)
+    frames, i = [], 0
+    last_box = [0.35, 0.30, 0.30, 0.18]  # normalized [x, y, w, h]
+    while True:
+        ok, fr = cap.read()
+        if not ok:
+            break
+        if i % 3 == 0:
+            sm = cv2.resize(fr, (work_w, work_h), interpolation=cv2.INTER_AREA)
+            gray = cv2.cvtColor(sm, cv2.COLOR_BGR2GRAY)
+            faces = fc.detectMultiScale(gray, 1.1, 5, minSize=(int(work_w*0.18), int(work_w*0.18)))
+            valid = [b for b in faces if 0.15*work_w <= b[0] <= 0.65*work_w and 0.12*work_h <= b[1] <= 0.60*work_h]
+            if valid:
+                bx, by, bw, bh = max(valid, key=lambda b: b[2]*b[3])
+                last_box = [bx / work_w, by / work_h, bw / work_w, bh / work_h]
+        fx, fy, fw, fh = last_box
+        cx = fx + fw * 0.5
+        cy = fy + fh * 0.5
+        pts = [[0.5, 0.5] for _ in range(33)]
+        pts[0]  = [round(cx, 4), round(fy + fh * 0.56, 4)]              # nose
+        pts[2]  = [round(cx + fw * 0.18, 4), round(fy + fh * 0.40, 4)]  # eye_l (subject left = image right)
+        pts[5]  = [round(cx - fw * 0.18, 4), round(fy + fh * 0.40, 4)]  # eye_r (subject right = image left)
+        pts[7]  = [round(cx + fw * 0.34, 4), round(fy + fh * 0.48, 4)]  # ear_l
+        pts[8]  = [round(cx - fw * 0.34, 4), round(fy + fh * 0.48, 4)]  # ear_r
+        pts[11] = [round(cx + fw * 0.78, 4), round(fy + fh * 1.32, 4)]  # sh_l
+        pts[12] = [round(cx - fw * 0.78, 4), round(fy + fh * 1.32, 4)]  # sh_r
+        pts[15] = [round(cx + fw * 0.55, 4), round(min(0.90, fy + fh * 2.35), 4)] # hand_l
+        pts[16] = [round(cx - fw * 0.55, 4), round(min(0.90, fy + fh * 2.35), 4)] # hand_r
+        frames.append(pts)
+        i += 1
+    cap.release()
+    with open(out, "w") as f:
+        json.dump({"fps": fps, "w": W, "h": H, "frames": frames}, f)
+    log(f"[v14 pose offline fallback] ready ({i} frames)", flush=True)
+    return out
+
+
 def prep_pose(path, log=print, work_w=540):
     out = os.path.join(cache_dir(path), "pose.json")
     if os.path.exists(out):
         return out
-    import mediapipe as mp
+    try:
+        import mediapipe as mp
+    except ImportError:
+        return _prep_pose_offline_fallback(path, out, log=log)
     from mediapipe.tasks.python import BaseOptions, vision
     det = vision.PoseLandmarker.create_from_options(vision.PoseLandmarkerOptions(
         base_options=BaseOptions(model_asset_path=os.path.join(MODELS, "pose_landmarker_lite.task")),
@@ -166,8 +214,8 @@ class Tracks:
         # head roll (deg) from the eye line, and shoulder roll — layers can inherit the speaker's tilt
         roll = np.degrees(np.arctan2((eye_l[:, 1] - eye_r[:, 1]) * asp, eye_l[:, 0] - eye_r[:, 0]))
         sroll = np.degrees(np.arctan2((sh_l[:, 1] - sh_r[:, 1]) * asp, sh_l[:, 0] - sh_r[:, 0]))
-        self.roll = _smooth(roll[:, None].astype(np.float32), 3.0)[:, 0]
-        self.sroll = _smooth(sroll[:, None].astype(np.float32), 4.0)[:, 0]
+        self.roll = np.clip(_smooth(roll[:, None].astype(np.float32), 3.0)[:, 0], -12.0, 12.0)
+        self.sroll = np.clip(_smooth(sroll[:, None].astype(np.float32), 4.0)[:, 0], -10.0, 10.0)
         self.head_w = _smooth(np.maximum(head_w, sw * 0.40)[:, None], 12.0)[:, 0]   # ears hide under hair/hijab → stabilise
         self.sw = _smooth(sw[:, None], 12.0)[:, 0]
         self._mc = {}

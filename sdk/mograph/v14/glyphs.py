@@ -27,7 +27,10 @@ import cairo
 import numpy as np
 
 from .. import text as _T
-import uharfbuzz as hb
+try:
+    import uharfbuzz as hb
+except ImportError:
+    from .. import hbc as hb
 
 BASE_STYLES = {
     "thin":   {"font": "YekanBakh-Light.ttf", "scale": 1.0, "color": "@ink", "glow": 0.0},
@@ -106,13 +109,13 @@ def _is_neutral_ltr(ch):
     return (0x06F0 <= o <= 0x06F9 or 0x0660 <= o <= 0x066C or o < 0x0590 or ch in "%٪+-−.,/:")
 
 
-def _shape(word, fp):
+def _shape_single(word, fp):
     f = _T._font(fp)
     buf = hb.Buffer()
     buf.add_str(word)
     buf.guess_segment_properties()
     if all(_is_neutral_ltr(ch) for ch in word):
-        buf.direction = "ltr"            # numbers (۱۲۳, ۴۵٪) and latin read left→right even inside RTL lines
+        buf.direction = "ltr"
     hb.shape(f.hb, buf, {"kern": True, "liga": True})
     inv = 1.0 / f.upem
     out, x = [], 0.0
@@ -120,6 +123,24 @@ def _shape(word, fp):
         out.append((info.codepoint, x + pos.x_offset * inv, -pos.y_offset * inv))
         x += pos.x_advance * inv
     return out, x, buf.direction == "rtl"
+
+
+def _shape(word, fp):
+    if "\u200c" in word:
+        parts = [p for p in word.split("\u200c") if p]
+        if len(parts) > 1:
+            # In RTL, HarfBuzz returns glyphs ordered left-to-right (visual order: last sub-word first)
+            sub_res = [_shape_single(p, fp) for p in parts]
+            rtl = any(r[2] for r in sub_res)
+            ordered = list(reversed(sub_res)) if rtl else sub_res
+            out, x = [], 0.0
+            zwnj_gap = 0.04
+            for idx, (gls, adv, _) in enumerate(ordered):
+                for gid, gx, gy in gls:
+                    out.append((gid, x + gx, gy))
+                x += adv + (zwnj_gap if idx + 1 < len(ordered) else 0.0)
+            return out, x, rtl
+    return _shape_single(word, fp)
 
 
 class Glyph:
@@ -457,7 +478,62 @@ class Field:
             A = float(kw.get("amp", 0.3)); W = float(kw.get("width", 400))
             f = 1 + A * x / W
             return np.stack([x, y * f, z], 1)
+        if k == "bezier_path":   # Ported from EffectCraft `crates/text/src/path_text.rs` (`PathMeasure`)
+            pts = np.asarray(kw.get("points", [[-300, 0], [0, -90], [300, 0]]), dtype=np.float32)
+            if len(pts) < 2:
+                return P
+            diffs = np.diff(pts, axis=0)
+            segl = np.hypot(diffs[:, 0], diffs[:, 1])
+            cum = np.concatenate([[0.0], np.cumsum(segl)])
+            tot = float(cum[-1])
+            if tot <= 1e-5:
+                return P
+            s_raw = x + tot * 0.5 + float(kw.get("margin", 0.0))
+            s_q = np.clip(s_raw, 0.0, tot)
+            idx = np.clip(np.searchsorted(cum, s_q, side="right") - 1, 0, len(diffs) - 1)
+            tx = diffs[idx, 0] / np.maximum(1e-5, segl[idx])
+            ty = diffs[idx, 1] / np.maximum(1e-5, segl[idx])
+            extra = s_raw - s_q
+            px = np.interp(s_q, cum, pts[:, 0]) + extra * tx
+            py = np.interp(s_q, cum, pts[:, 1]) + extra * ty
+            if kw.get("perp", True):
+                nx, ny = -ty, tx
+                return np.stack([px + y * nx, py + y * ny, z], 1)
+            return np.stack([px, py + y, z], 1)
         return P
+
+
+def eval_selector(u: float, t: float, cfg: dict) -> float:
+    """
+    Ported from EffectCraft `crates/text/src/selectors.rs`:
+    Evaluates After Effects Range (`square`, `ramp_up`, `ramp_down`, `triangle`, `round`, `smooth`)
+    and `wiggly` text selector weight in [-1, 1] for unit position `u in [0, 1]` at time `t`.
+    """
+    kind = cfg.get("shape", "smooth")
+    if kind == "wiggly":
+        freq = float(cfg.get("wiggles_per_sec", 3.0))
+        corr = float(cfg.get("correlation", 0.5))
+        phase = t * freq * 2.0 * math.pi + u * (1.0 - corr) * 19.7
+        return float(math.sin(phase) * 0.65 + math.cos(phase * 1.618 + 1.3) * 0.35)
+    st = float(cfg.get("start", 0.0)) + float(cfg.get("offset", 0.0))
+    en = float(cfg.get("end", 1.0)) + float(cfg.get("offset", 0.0))
+    span = max(1e-5, en - st)
+    r = (u - st) / span
+    if r < 0.0 or r > 1.0:
+        return 0.0
+    if kind == "ramp_up":
+        v = r
+    elif kind == "ramp_down":
+        v = 1.0 - r
+    elif kind == "triangle":
+        v = 1.0 - abs(2.0 * r - 1.0)
+    elif kind == "round":
+        v = math.sqrt(max(0.0, 1.0 - (2.0 * r - 1.0) ** 2))
+    elif kind == "smooth":
+        v = 0.5 * (1.0 - math.cos(2.0 * math.pi * r))
+    else:
+        v = 1.0
+    return float(v * float(cfg.get("amount", 1.0)))
 
 
 def project(P, f=1600.0):
