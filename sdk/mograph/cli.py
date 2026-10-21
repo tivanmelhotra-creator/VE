@@ -29,7 +29,8 @@ python -m mograph <command> spec.json [options]
   dna-plan <topic_or_spec>                   v13.5: generate Visual-DNA 5-part blueprint & 3D asset prompts
   before-after raw.mp4 after.mp4 --out out.mp4  v13.8: render @novadent-style BEFORE/AFTER split-card showcase
   img2mesh <image.png> --out model.ply       v14.4: 2D image → volumetric .ply point cloud (normals + colour)
-  turntable3d <image.png|preset|tree.json> [--out sheet.png]  v14.4: 3D audit sheet (10 yaw angles)
+  turntable3d <three_model|script.js|image.png> [--out sheet.png]  v20: 3D audit sheet (10 yaw/pitch/explode angles)
+  three3d-list  ·  three3d-sheet <model|script.js> [--out s.png]  ·  three3d-selftest   v20: Procedural Three.js 3D engine
   pbr3d-search <words> [hdri]  ·  pbr3d-fetch <id ...>  ·  pbr3d-sheet <id|model.glb>   v14.6: PHOTOREAL scanned PBR 3D (EffectCraft)
   sculpt-check <tree.json|preset>            v14.4: strict ObjectSculptSpec gate (ids, materials, ≥3 parts …)
   sculpt-compare <tree.json> <ref.png> [--t yaw] [--out cmp.png]  v14.4: auto camera-match + reference | render | IoU
@@ -269,10 +270,28 @@ def main(argv=None):
         from . import pbr3d
         print(pbr3d.audit_sheet(a.spec, a.out))
         return 0
+    if a.cmd in ("three3d-list", "three3d_list"):
+        from . import three3d
+        for k in three3d.list_models():
+            sc = three3d.get_model(k)
+            print(f"{k:24s} {len(sc.parts):2d} parts · {sc.tri_count:5d} tris")
+        return 0
+    if a.cmd in ("three3d-sheet", "three3d_sheet"):
+        from . import three3d
+        out_p = a.out or "three3d_sheet.png"
+        print(three3d.audit_sheet(a.spec or "hourglass_3d", out_p))
+        return 0
+    if a.cmd in ("three3d-selftest", "three3d_selftest"):
+        from . import three3d
+        return three3d.selftest()            # selftest() already returns a process exit code (0 = all pass)
     if a.cmd in ("turntable3d", "audit3d"):
-        from .obj3d import audit_sheet
+        from . import three3d
         out_p = a.out or "turntable3d.png"
-        audit_sheet(a.spec, out_p)
+        if a.spec and (three3d.resolve_model_name(a.spec) or str(a.spec).endswith(".js")):
+            three3d.audit_sheet(a.spec, out_p)
+        else:
+            from .obj3d import audit_sheet
+            audit_sheet(a.spec, out_p)
         print(out_p)
         return 0
     if a.cmd in ("dna-plan", "dnaplan"):

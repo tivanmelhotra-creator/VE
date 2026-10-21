@@ -2,24 +2,32 @@
 mograph.v14.object3d — `object_3d` layer: a REAL turning 3D object inside the v14 talking-head engine.
 
     {"type": "object_3d", "t": "w:لپ‌تاپ", "out": "we:قیمت+0.3",
-     "model": "croissant",                   # v14.6 PHOTOREAL scanned PBR model (pbr3d) — preferred — or —
-     "src": "laptop_3d.png",                 # any RGBA image (assets_3d / project path)  — or —
-     "preset": "laptop_pro_3d",              # procedural sculpt3d model (laptop_pro_3d | ozempic_pen_3d | trophy_3d)
-     "geometry": "auto",                     # auto | slab | badge | cushion | multiview (image sources)
+     "three_model": "hourglass_3d",          # v20 PROCEDURAL Three.js 3D mesh (360° true PBR + glass) — or —
+     "three_script": "custom_model.js",      # v20 custom JavaScript Three.js procedural generator script — or —
+     "model": "croissant",                   # v14.6 PHOTOREAL scanned PBR model (pbr3d) — or —
+     "preset": "laptop_pro_3d",              # procedural sculpt3d model (laptop_pro_3d | ozempic_pen_3d | trophy_3d) — or —
+     "src": "laptop_3d.png",                 # auto-upgraded to three3d when a matching 3D model exists!
+     "geometry": "auto",                     # auto | three3d | slab | badge | cushion | multiview
      "anchor": "hand_r", "offset": [0.2, -0.6],   # or "anchor": "screen", "x": 760, "y": 640
      "size": 1.4,                            # diameter in HEAD WIDTHS when anchored, px when anchor == screen
      "motion": "hover",                      # turntable_osc | spin_360 | spring_entry | hover | none
      "yaw": -20, "pitch": 12,                # base angles;  "turn_on": "w:…" → one 360° spin at that word
+     "explode": 0.0,                         # v20: sub-part explosion factor (0.0 .. 1.0)
      "enter": "spring_pop" | "drop" | "fade",  "exit": "pop_out" | "fall" | "fade",
      "pass": "front" | "back"}
 
-v14.8: fast spin-ins / drops / falls get a velocity-driven 180° shutter motion blur ("motion_blur": false to opt out).
-Entrance = jelly spring scale + a quick spin-in (the object TURNS into view — never a flat fade).
-Contact shadow + a soft accent glow keep it sitting in the scene; it respects the layout guard (never on the face).
+v20 upgrade:
+  * Supports `"three_model"` and `"three_script"` powered by `mograph.three3d` (true 360° procedural Three.js geometry
+    with two-pass metallic/glass PBR shading).
+  * Automatically upgrades known `"src"` sprites (`hourglass_3d.png`, `pen_3d.png`, `tree_3d.png`, `star_3d.png`,
+    `shield_3d.png`, `cash_3d.png`, `warn_3d.png`, `laptop_3d.png`) to true 3D procedural meshes unless
+    `"allow_slab": true` is explicitly set.
+  * Skips heavy 3D rasterisation during the 1×1 dummy emission prepass (`F.prepass`), cutting render time by ~2×.
 """
 from __future__ import annotations
 
 import math
+import os
 
 from . import physics as ph
 
@@ -100,7 +108,12 @@ def _blur_vector(L, F, lt, olt, size, yaw, sc, dy):
 
 
 def draw_object_3d(ctx, L, F, pos, out_lt):
+    # Skip ONLY the compositor's 1×1 emission pre-pass (F.ectx set).  v14/qa.py also sets F.prepass=True but renders
+    # on a full-size A8 surface with F.ectx=None to measure ink (frame-edge / face checks) — it must still see us.
+    if getattr(F, "prepass", False) and getattr(F, "ectx", None) is not None:
+        return
     from .. import obj3d as O
+    from .. import three3d as T3
     lt = F.t - L["_t0"]
     olt = out_lt(L, F)
     if lt < 0 or (olt is not None and olt > 0.5):
@@ -123,7 +136,6 @@ def draw_object_3d(ctx, L, F, pos, out_lt):
     vec = _blur_vector(L, F, lt, olt, size, yaw, sc, dy)
 
     def _paint(ctx):
-        # soft accent glow behind (sits the object in the light of the scene) — emission pass when available
         glow = float(L.get("glow", 0.35))
         if glow > 0 and F.pass_ == L.get("pass", "front"):
             import cairo
@@ -138,18 +150,39 @@ def draw_object_3d(ctx, L, F, pos, out_lt):
             ctx.fill()
             ctx.restore()
         shadow = bool(L.get("shadow", True))
-        if L.get("model"):                         # v14.6 photoreal: scanned PBR model rendered by EffectCraft
+
+        # 1. Explicit v20 Three.js procedural model or .js script
+        t_script = L.get("three_script")
+        if t_script:
+            sp = T3.resolve_script_ref(t_script, base)
+            T3.paint(ctx, sp, x, y, size, yaw=yaw, pitch=pitch, roll=roll,
+                     explode=float(L.get("explode", 0.0)), alpha=a, shadow=shadow, ssaa=int(L.get("ssaa", 2)))
+            return
+        t_model = L.get("three_model")
+        if not t_model and not L.get("allow_slab", False) and L.get("geometry", "auto") in ("auto", "three3d"):
+            t_model = T3.resolve_model_name(L.get("src"))
+        if t_model:
+            T3.paint(ctx, t_model, x, y, size, yaw=yaw, pitch=pitch, roll=roll,
+                     explode=float(L.get("explode", 0.0)), alpha=a, shadow=shadow, ssaa=int(L.get("ssaa", 2)))
+            return
+
+        # 2. v14.6 Photoreal scanned PBR model (EffectCraft)
+        if L.get("model"):
             _draw_pbr(ctx, L, F, x, y, size, sc, a, shadow)
             return
+
+        # 3. v14.4 Sculpt3D component tree
         if L.get("preset") or L.get("tree"):
             from .. import sculpt3d as S
             tree = L.get("_tree")
-            if tree is None:                       # resolve once (preset name | tree dict | tree .json path)
+            if tree is None:
                 tree = L["_tree"] = S.get_tree(L.get("tree"), L.get("preset", "laptop_pro_3d"), base_dir=base,
                                                open_dur=float(L.get("open_dur", 1.1)))
             S.render_sculpt3d_scene(ctx, tree, x, y, size, t=lt, yaw_deg=yaw, pitch_deg=pitch, roll_deg=roll,
                                     alpha=a, shadow=shadow, ssaa=int(L.get("ssaa", 2)))
             return
+
+        # 4. Multiview or fallback 2D sprite slab extrusion
         src = L.get("src", "laptop_3d.png")
         geom = L.get("geometry", "auto")
         views = L.get("views") or (O.find_views(src, base) if geom in ("auto", "multiview") else None)

@@ -25,7 +25,7 @@ _HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))         # sd
 _SCAN = ["v14/layers.py", "v14/craftlayers.py", "v14/subs.py", "v14/object3d.py", "v14/glassbadge.py", "v14/stage.py",
          "v14/bokeh.py", "v14/motionblur.py", "v14/compositor.py", "v14/glyphs.py", "v14/director.py",
          "motion/bridge.py", "motion/saber.py", "motion/character.py", "motion/lipsync.py", "aecomp/bridge.py",
-         "aefx/bridge.py", "aefx/textanim.py", "pro/broll.py"]
+         "aefx/bridge.py", "aefx/textanim.py", "pro/broll.py", "three3d.py"]
 HERO = {"kinetic_title", "halo", "disc", "glass_shape", "frame_box", "shatter_text"}   # props (object_3d) accompany
 LOWER = {"disc", "glass_shape", "tracked_tag"}
 TOP = {"type", "id", "t", "out", "pass", "z", "anchor", "offset", "size", "text", "styles", "clamp_y", "clamp_x",
@@ -136,6 +136,20 @@ def lint(spec_path):
                     E.append(f"{nm}: {kk}='{L[kk]}' unknown{_sugg(L[kk], TRANSITIONS)}")
         if ty == "saber" and SABER_P is not None and L.get("preset") and L["preset"] not in SABER_P:
             E.append(f"{nm}: saber preset '{L['preset']}' unknown{_sugg(L['preset'], SABER_P)}")
+        if ty == "object_3d":
+            from .. import three3d as _T3
+            if L.get("three_model") and not _T3.resolve_model_name(L["three_model"]):
+                E.append(f"{nm}: three_model '{L['three_model']}' unknown{_sugg(L['three_model'], _T3.list_models())}")
+            if L.get("three_script"):
+                sp, fn = _T3.split_script_ref(L["three_script"])
+                if not sp.endswith(".js"):
+                    E.append(f"{nm}: three_script must be a .js file (optionally 'file.js:builderName'), got {sp}")
+                elif not os.path.exists(rel(sp)) and not os.path.exists(os.path.join(_HERE, sp)):
+                    E.append(f"{nm}: three_script file not found: {sp}")
+                elif fn and not _T3._JS_IDENT.match(fn):
+                    E.append(f"{nm}: three_script builder '{fn}' is not a valid JS function name")
+            if L.get("allow_slab") and (float(L.get("yaw_amp", 28)) > 25 or L.get("motion") == "spin_360"):
+                Wn.append(f"{nm}: 2D slab extrusion with large yaw rotation looks flat past 45° — use three_model / three3d instead")
     if E:
         return E, Wn
     # ---- times (renderer load only: anchors, retime — no frame rendered)

@@ -203,7 +203,7 @@ class Tracks:
                            (eye_l[:, 1] + eye_r[:, 1]) / 2 - head_w * 0.05 / asp], 1)
         chin = np.stack([nose[:, 0], nose[:, 1] + head_w * 0.55 / asp], 1)
         shoulders = (sh_l + sh_r) / 2
-        A = {"head_top": np.stack([head_c[:, 0], head_c[:, 1] - head_w * 0.95 / asp], 1),
+        A = {"head_top": np.stack([head_c[:, 0], np.maximum(0.14, head_c[:, 1] - head_w * 0.95 / asp)], 1),
              "head_c": head_c, "face": (eye_l + eye_r) / 4 + nose / 2, "nose": nose, "chin": chin,
              "neck": shoulders * 0.6 + chin * 0.4, "shoulders": shoulders,
              "chest": np.stack([shoulders[:, 0], shoulders[:, 1] + sw * 0.42 / asp], 1),

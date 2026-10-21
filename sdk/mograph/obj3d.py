@@ -26,6 +26,7 @@ import glob
 import math
 import os
 import re
+from collections import OrderedDict
 from functools import lru_cache
 
 import cairo
@@ -211,6 +212,10 @@ def _over(acc, src):
 
 
 # ============================================================================================ extruded sprite
+_EXTRUDE_CACHE = OrderedDict()          # LRU of rendered extrusions (float32 D×D×4 each → keep it small)
+_EXTRUDE_CACHE_MAX = 48
+
+
 def render_extruded_sprite_array(path, size, yaw=0.0, pitch=10.0, roll=0.0, depth=0.16, round_=0.25,
                                  bulge=0.0, specular=0.7, rim_color=(1.0, 1.0, 1.0), back="solid",
                                  F=FOCAL, res=None):
@@ -218,6 +223,13 @@ def render_extruded_sprite_array(path, size, yaw=0.0, pitch=10.0, roll=0.0, dept
     depth   total thickness (fraction of the sprite size)       round_  0 = sharp slab edge … 1 = full half-round
     bulge   front-face dome (0 = flat badge, 0.5 = plump cushion) back    "solid" | "mirror" (show sprite mirrored)
     """
+    # exact size (not quantised: D depends on it and callers centre on D) + angles quantised to 0.5° for hits
+    q_key = (path, round(float(size), 1), round(yaw * 2.0) / 2.0, round(pitch * 2.0) / 2.0, round(roll * 2.0) / 2.0,
+             round(depth, 3), round(round_, 3), round(bulge, 3), round(specular, 3), tuple(rim_color), back, F, res)
+    hit = _EXTRUDE_CACHE.get(q_key)
+    if hit is not None:
+        _EXTRUDE_CACHE.move_to_end(q_key)
+        return hit
     D = max(24, int(round(size * 1.30)))
     res = int(res or min(420, max(160, int(size * 0.95))))
     pr = _prep_sprite(path, res)
@@ -252,7 +264,7 @@ def render_extruded_sprite_array(path, size, yaw=0.0, pitch=10.0, roll=0.0, dept
         k_f = F / max(F * 0.2, F - cf[2])
         k_b = F / max(F * 0.2, F - cb[2])
         disp_px += abs(k_f - k_b) * unit
-        n_sl = int(np.clip(math.ceil(disp_px * 1.15) + 2, 3, 120))
+        n_sl = int(np.clip(math.ceil(disp_px * 0.8) + 2, 3, 40))     # v20: was ×1.15 ≤120; ≤18 left gaps in thick walls
         r_px = float(np.clip(round_, 0, 1)) * min(T * res * 0.5, pr["dmax"] * 0.6)   # rounding radius (src px)
         nx, ny, dist, wall = pr["nx"], pr["ny"], pr["dist"], pr["wall"]
         rimc = np.array(rim_color[::-1], np.float32) * 255.0      # BGR
@@ -314,6 +326,9 @@ def render_extruded_sprite_array(path, size, yaw=0.0, pitch=10.0, roll=0.0, dept
             acc_face = None if H is None else cv2.warpPerspective(sl, H, (D, D), flags=cv2.INTER_LINEAR)
         if acc_face is not None:
             _over(acc, acc_face)
+    _EXTRUDE_CACHE[q_key] = (acc, D)
+    while len(_EXTRUDE_CACHE) > _EXTRUDE_CACHE_MAX:
+        _EXTRUDE_CACHE.popitem(last=False)
     return acc, D
 
 

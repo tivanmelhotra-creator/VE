@@ -1,11 +1,11 @@
-# AGENT_INDEX — one page: "user asks X → open file Y, use key Z"   (VE / mograph v19 Pro Editor)
+# AGENT_INDEX — one page: "user asks X → open file Y, use key Z"   (VE / mograph v20 Procedural 3D & Pro Editor)
 
 ## 0. Every session (2 commands)
 ```bash
 cd /home/user/webapp/sdk && python3 -m mograph.pro doctor --fix      # deps · binaries · fonts · footage · tracking cache · 5 selftests
 python3 -m mograph.motion resolve "<the user's sentence in Persian/English>"   # words → engine keys
 ```
-`doctor` must end with `ALL GOOD ✓` (v14 9/9 · aefx 9/9 · aecomp 13/13 · motion 10/10 · pro 12/12 = 53 tests).
+`doctor` must end with `ALL GOOD ✓` (v14 9/9 · aefx 9/9 · aecomp 13/13 · motion 10/10 · pro 12/12 · three3d 7/7 = 60 tests).
 The tracking cache (normally 9 min of MODNet/MediaPipe) is restored in seconds from `work/input/raw.mp4.v14pack/`.
 
 ## 1. Which engine?
@@ -31,7 +31,8 @@ The tracking cache (normally 9 min of MODNet/MediaPipe) is restored in seconds f
 | تایتل تمام‌صفحه | `{"type":"aecomp","title_style":"burst_hero","hero"}` | `aecomp title-sheet` | AECOMP_GUIDE |
 | حلقه متن دور سر / هاله / دیسک / شیشه / کادر | `orbit_ring` · `halo` · `disc` · `glass_shape` · `frame_box` | `v14 sheet` | V14_GUIDE §3 |
 | برچسب ترک‌شده روی دست/شانه | `tracked_tag` `"anchor":"hand_r"` | | V14_GUIDE §3 |
-| شی سه‌بعدی واقعی | `object_3d` `"model"` | `python3 -m mograph pbr3d-search` | V14_3D_GUIDE |
+| **شی سه‌بعدی واقعی (اسکریپتی Three.js / PBR)** | `object_3d` `"three_model":"hourglass_3d"` or `"three_script":"my.js:buildFn"` | `python3 -m mograph three3d-list` · `three3d-sheet` | V14_3D_GUIDE |
+| شی سه‌بعدی اسکن‌شده (Poly Haven GLB) | `object_3d` `"model"` | `python3 -m mograph pbr3d-search` | V14_3D_GUIDE |
 | خرد شدن کلمه / پاپت / مورف شکل | `shatter_text` · `puppet_sticker` · `morph_shape` | | V14_GUIDE v15.1 |
 | **رنگ‌بندی / لوک سینمایی** | `"grade":{"look":"teal_orange"}` (10 looks) | `pro looks --spec edit.json` | PRO_EDITOR_GUIDE |
 | **LUT مشتری** | `"grade":{"lut":"x.cube","lut_strength":.8}` | `pro lut-info x.cube` | PRO_EDITOR_GUIDE |

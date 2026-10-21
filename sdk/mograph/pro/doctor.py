@@ -167,7 +167,7 @@ def doctor(fix=False, tests=True, log=print):
         log(f"{_ok(ok)} tracking cache {os.path.relpath(v, ROOT)} ({how if ok else 'missing — run with --fix'})")
         bad += not ok
     if tests:
-        for m in ("v14", "aefx", "aecomp", "motion", "pro"):
+        for m in ("v14", "aefx", "aecomp", "motion", "pro", "three3d"):
             r = subprocess.run([sys.executable, "-m", f"mograph.{m}", "selftest"], cwd=SDK, capture_output=True, text=True)
             last = [l for l in (r.stdout + r.stderr).splitlines() if "selftest" in l and "pass" in l]
             good = r.returncode == 0 and bool(last)
