@@ -111,3 +111,14 @@
   10. **SIGGRAPH 2005 As-Rigid-As-Possible (`ARAP`) 2D Puppet Mesh Solver (`mograph/puppet_arap.py`) & 3D Extruded Shatter Physics (`mograph/shatter3d.py`)**: Ported from `effectcraft/crates/effects/src/puppet/arap.rs` and `sim2.rs`.
   11. **Composable AE Range & Wiggly Text Selectors + Arbitrary Bezier Path Text (`v14/glyphs.py` `eval_selector` & `Field("bezier_path")`)**: Ported from `effectcraft/crates/text/src/{selectors.rs, path_text.rs}`.
 - Verified: All 20 modules pass `py_compile`, `auto-edit` produces `QA clean ✓` on `maghale`, and 6-panel visual audit sheet `/tmp/v15_craft_omni_audit_sheet.jpg` verified via `view_file`.
+
+
+## 2026-10-21 — v18.1 Omni-Polish: Retime Numeric-Anchor Mapping, Subtitle Freeze-Frame Cap, Halo/FrameBox Edge Guards & Character-Sub Guard
+- Trigger: Auditing `VE-18-motion-kit` (`v15.1` + `v16 AE-FX` + `v17 AE-Comp` + `v18 Motion Kit`) across all 7 `projects/maghale/edit_*.json` and `sdk/tests/v16..v18` specs.
+- Root causes found & fixed:
+  1. `motion/retime.py` (`RetimedTimeline.resolve`): plain numeric timestamps (`"out": 15.85`, `"hide": [[..., 16.1]]`, `"camera.keys": [[15.9, ...]]`) in `edit_v18_retime.json` were returned un-retimed while `"w:مقدمه"` and `"w:نه"` moved to `16.08s` and `17.04s`, giving `hex` (`-0.23s`) and `na` (`-1.19s`) negative durations so both vanished. Mapped edited-range numeric times (`0 < v <= base.duration + 0.25`) through `self.rt.out(v)` (with `"s:..."` prefix available for raw screen seconds).
+  2. `v14/subs.py` (`prepare_subs`): when `retime` stretched a 4-word clause across a `speed_ramp` + `freeze_frame`, the phrase duration reached `3.7s` (`> 3.5s` QA limit). Added a `2.85s` phrase-split check and `t0 + 3.40s` cap.
+  3. `v14/layers.py` (`_halo_geo` & `draw_frame_box`): added horizontal safe-frame clamping (`safe_side = 28`) on `halo` and top-left 45° diamond-badge clearance (`0.42 * hw`) on `frame_box`.
+  4. `motion/bridge.py` (`draw_character_layer`): added automatic subtitle-zone clearance (`y <= 0.72 * H` when `R.subs` is present) so screen-space characters (`bean`) never cover the lower-third subtitle capsule.
+  5. `mograph/qa.py`: registered `v16 AE-FX` (`fx`, `preset`, `preset_dur`, `preset_out`, `animators`, `selectors`), `v17 AE-Comp` (`aecomp`), and `v18 Motion Kit` (`saber`, `character`, `mouth`) keys in `COMMON_KEYS` and `ELEMENT_KEYS`.
+- Verified: 41/41 self-tests pass (`v14 9/9`, `aefx 9/9`, `aecomp 13/13`, `motion 10/10`) and all 7 `projects/maghale/edit_*.json` specs pass `v14 qa` with `0 warnings` (`QA clean ✓`).

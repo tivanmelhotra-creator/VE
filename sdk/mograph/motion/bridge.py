@@ -63,6 +63,8 @@ def draw_saber_layer(ctx, L, F):
     if L.get("anchor", "screen") != "screen" or L.get("core") in ("text", "shape"):
         x, y, k = LY.pos(L, F)
     sp = _saber_spec(L, t0, t1, t, x, y, k)
+    if L.get("start_anchor") or L.get("end_anchor"):        # v19: blade glued to tracked points (hand_r → …)
+        _anchor_blade(sp, L, F)
     if "color" in sp and isinstance(sp["color"], str) and sp["color"].startswith("@"):
         sp["color"] = L["_pal"].get(sp["color"][1:], "#4fc3ee")
     if getattr(F, "prepass", False):                     # emission pre-pass → light the speaker
@@ -84,6 +86,29 @@ def draw_saber_layer(ctx, L, F):
     fx = _cached(L, F, sp, t)
     SB.blit_cairo(ctx, fx)
     return None
+
+
+def _anchor_blade(sp, L, F):
+    """"start_anchor": "hand_r", "end_anchor": "hand_r", "end_offset": [0, -2.2] (head widths) → a lightsaber
+    held by the speaker.  When only start_anchor is given the blade points along "angle" (deg, -90 = up) with
+    "length" head widths (offsets in head widths, screen axes)."""
+    hw = max(20.0, F.head_px())
+    sp["core"] = "saber"
+
+    def pt(name, off):
+        ax, ay = F.anchor(name)
+        return [ax + float(off[0]) * hw, ay + float(off[1]) * hw]
+    sa = L.get("start_anchor") or L.get("end_anchor")
+    S = pt(sa, L.get("start_offset", [0, 0]))
+    if L.get("end_anchor"):
+        E = pt(L["end_anchor"], L.get("end_offset", [0, -2.2]))
+    else:
+        a = math.radians(float(L.get("angle", -90)))
+        ln = float(L.get("length", 2.2)) * hw
+        E = [S[0] + math.cos(a) * ln, S[1] + math.sin(a) * ln]
+    sp["start"], sp["end"] = S, E
+    sp.pop("x", None)
+    sp.pop("y", None)
 
 
 def _cached(L, F, sp, t):
@@ -120,6 +145,8 @@ def draw_character_layer(ctx, L, F):
         x, y, k = LY.pos(L, F)
     else:
         x, y, k = float(L.get("x", F.W / 2)), float(L.get("y", F.H * 0.85)), 1.0
+        if getattr(R, "subs", None) and L.get("guard_subs", True) and y > F.H * 0.73:
+            y = F.H * 0.72
     t = F.t
     if t < L["_t0"] - 0.01:
         return None

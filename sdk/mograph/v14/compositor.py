@@ -107,6 +107,15 @@ class Timeline:
         if m:
             base = self.word(m.group(2), end=(m.group(1) == "we"))
             return base + (float(m.group(3)) if m.group(3) else 0.0)
+        m = re.match(r"^[es]:(-?\d*\.?\d+)$", v)             # "e:3.2" edited / "s:3.2" screen (same without retime)
+        if m:
+            return float(m.group(1))
+        m = re.match(r"^src:(\d*\.?\d+)$", v)                 # v19 "src:12.4" = SOURCE-file seconds (raw.mp4 clock)
+        if m:
+            o = self.to_out(float(m.group(1)))
+            if o is None:
+                raise KeyError(f"'{v}': source time is inside a removed (cut) range")
+            return o
         return float(v)
 
 
@@ -444,6 +453,8 @@ class Renderer:
             self._gmatch = (match_reference_grade(fr0.copy(), reference_frame(rp, float(gm.get("at", 0.5))),
                                                   max_skin_deg=float(gm.get("max_skin_deg", 8.0))),
                             float(gm.get("strength", 0.8)))
+        from ..pro.color import Grader                            # v19: look / .cube LUT / wb / grain / letterbox
+        self.grader = Grader(spec.get("grade", {}), base_dir)
         mc = src.get("morph_cuts")
         self.morph = None
         if mc and self.tl.cuts:                                   # v15.1 optical-flow morph cuts (flow_cut.py)
@@ -519,6 +530,8 @@ class Renderer:
         if self._gmatch is not None:
             from .palette import apply_grade_match
             plate = apply_grade_match(plate, *self._gmatch)
+        if self.grader.active:
+            plate = self.grader.apply_lut(plate)
         if mat is None and rt_matte is not None:
             mat = rt_matte
         A = cv2.warpAffine(self.tracks.matte(idx) if mat is None else mat, M, (W, H), flags=cv2.INTER_LINEAR,
@@ -640,6 +653,8 @@ class Renderer:
         # ---------------- v16 AE-FX frame stack: post.aefx (glow / path_blur / motion presets on the whole frame)
         if self.post.get("aefx") or self.spec["source"].get("cut_presets"):
             out_u8 = self._aefx_post(out_u8, t)
+        if self.grader.active:
+            out_u8 = self.grader.finish(out_u8, int(round(t * self.fps)))
         fade = self.post.get("fade")
         if fade:
             fi, fo = float(fade[0]), float(fade[1])

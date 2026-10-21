@@ -489,15 +489,25 @@ class RetimedTimeline:
         if v is None:
             return default
         if isinstance(v, (int, float)):
-            return float(v)
+            fv = float(v)                                              # plain number = EDITED seconds (guide)
+            if fv <= 0.0:
+                return fv
+            if fv >= self.base.duration:                               # past the end: keep the same tail offset
+                return self.duration + (fv - self.base.duration)
+            return self.rt.out(fv)
         v = str(v).strip()
         m = re.match(r"^(we?):(.+?)([+-]\d*\.?\d+)?$", v)
         if m:
             return self.word(m.group(2), end=(m.group(1) == "we")) + (float(m.group(3)) if m.group(3) else 0.0)
         m = re.match(r"^e:(\d*\.?\d+)$", v)                         # "e:3.2" = EDITED time 3.2 s (before retime)
         if m:
-            return self.rt.out(float(m.group(1)))
-        return float(v)
+            return self.resolve(float(m.group(1)))
+        if v.startswith("src:"):                                   # v19 source-file seconds → edited → screen
+            return self.resolve(self.base.resolve(v))
+        m = re.match(r"^s:(-?\d*\.?\d+)$", v)                       # "s:3.2" = raw ON-SCREEN seconds (no mapping)
+        if m:
+            return float(m.group(1))
+        return self.resolve(float(v))                                  # "3.2" string = same as number
 
 
 def install_v14(R):

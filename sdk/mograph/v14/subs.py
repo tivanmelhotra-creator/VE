@@ -48,7 +48,7 @@ def prepare_subs(cfg, R):
     else:
         cur = []
         for i, w in enumerate(words):
-            if cur and (len(cur) >= maxw or w["t"] - cur[-1]["end"] > 0.35 or w["t"] in R.tl.cuts):
+            if cur and (len(cur) >= maxw or w["t"] - cur[-1]["end"] > 0.35 or w["t"] in R.tl.cuts or w["end"] - cur[0]["t"] > 2.85):
                 phrases.append(cur)
                 cur = []
             cur.append(w)
@@ -62,7 +62,7 @@ def prepare_subs(cfg, R):
         for ph_ in phrases:
             dur = ph_[-1]["end"] - ph_[0]["t"]
             if merged and (dur < 0.45 or len(ph_) == 1) and len(merged[-1]) + len(ph_) <= maxw + 1 \
-                    and ph_[0]["t"] not in R.tl.cuts:
+                    and ph_[0]["t"] not in R.tl.cuts and (ph_[-1]["end"] - merged[-1][0]["t"]) <= 3.1:
                 merged[-1] = merged[-1] + ph_
             else:
                 merged.append(ph_)
@@ -71,7 +71,7 @@ def prepare_subs(cfg, R):
     for i, ws in enumerate(phrases):
         t0 = ws[0]["t"] - 0.06
         t1 = (phrases[i + 1][0]["t"] - 0.06) if i + 1 < len(phrases) else ws[-1]["end"] + 0.6
-        t1 = min(t1, ws[-1]["end"] + 0.9)
+        t1 = min(t1, ws[-1]["end"] + 0.9, t0 + 3.40)
         txt = " ".join(("*" + w["w"].strip("،,.!?؟") + "*") if w["n"] in emph else w["w"].strip("،,.") for w in ws)
         b = G.typeset(txt, float(cfg.get("size", 46)), cfg.get("styles", {
             "thin": {"font": "Doran-Medium.ttf", "color": "@ink"},
