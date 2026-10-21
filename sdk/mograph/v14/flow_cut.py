@@ -142,11 +142,16 @@ class MorphCuts:
         if i in self._cache:
             return self._cache[i]
         R = self.R
-        a_end = R.tl.seg[i][1]
-        b_start = R.tl.seg[i + 1][0]
-        fa, ia = R.src_frame(max(0.0, a_end - 1.0 / R.sfps))
+        # A = the live frame at the window START, B = the live frame at the window END (both sides of the cut)
+        # → the morph joins the live video seamlessly on both edges.  (v15.1 first draft used the last/first
+        # frame AT the cut: the video then jumped back 0.12 s when the window ended — measured frame diff 31.)
+        c = R.tl.cuts[i]
+        h = self.dur / 2
+        a_src = min(R.tl.seg[i][1] - 0.5 / R.sfps, R.tl.to_src(c - h))
+        b_src = max(R.tl.seg[i + 1][0], R.tl.to_src(min(R.tl.duration - 1e-3, c + h)))
+        fa, ia = R.src_frame(a_src)
         fa = fa.copy()
-        fb, ib = R.src_frame(b_start)
+        fb, ib = R.src_frame(b_src)
         fb = fb.copy()
         work_w = 320
         H, W = fa.shape[:2]
