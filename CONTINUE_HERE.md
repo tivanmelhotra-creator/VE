@@ -19,7 +19,7 @@ Then read `/home/user/webapp/AGENT_INDEX.md` (request → file → key).
   · `pro chapters` · `pro thumbnail` · `pro reformat --to 1:1` · `pro platform` · `pro looks` · `pro lut-export`
 - test edit: projects/maghale/edit_v19_pro.json (QA clean, lint clean)
 - merged: the other agent's v18.1 omni-polish patch (retime numeric anchors, subtitle 3.4 s cap, halo/frame_box edge
-  guards, character-vs-subtitle guard, qa keys) — all 8 maghale edits QA clean except a pre-existing edge note on pbr3d
+  guards, character-vs-subtitle guard, qa keys) — all 9 maghale edits QA clean + lint clean (pbr3d obj_tooth edge fixed)
 - next ideas: lip sync from audio only (whisper word timings), character rigs from user PNG parts (puppet_arap),
   QA for optical-flow ghosting, Saber shared-noise speed-up
 

@@ -540,10 +540,10 @@
    "out": 15.85,
    "anchor": "shoulder_l",
    "offset": [
-    -0.85,
+    -0.55,
     -0.45
    ],
-   "size": 0.9,
+   "size": 0.8,
    "motion": "turntable_osc",
    "yaw_amp": 35,
    "pitch": 14,
