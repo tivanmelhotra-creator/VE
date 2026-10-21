@@ -161,8 +161,10 @@ First, after any change or reset: `python3 -m mograph.v14 selftest` → must pri
 | `god_rays` | rotating volumetric rays behind a hero | `radius, rays, spin, beam_deg, alpha` (pass: back) |
 
 **Rules learnt**
-- Morph cuts only suit small head moves (jump cuts in one take). If the median flow is > `max_motion` px, the
-  cut stays hard; the director's punch-zoom + flash covers it.
+- Morph cuts only suit small head moves (jump cuts in one take). If the median flow is > `max_motion` px or the
+  flow agreement is < `min_agree` (0.5), the cut stays hard; the director's punch-zoom + flash covers it (on maghale:
+  cut 1 morphs, cut 2 is skipped automatically). Geometry glides over `dur`; the colour switches A→B on one frame
+  (`switch: 0`). A 50/50 mix of two mouth poses = a ghost face, so never use a linear cross-fade.
 - `grade.match` is a LOOK transfer, not a replacement for `grade.bg/fg`. Keep strength at 0.6–0.85; the skin guard
   keeps the face natural even with an extreme reference.
 - Procedural music is already composed to the edit, so it is not remixed. A `music.file` is remixed automatically.

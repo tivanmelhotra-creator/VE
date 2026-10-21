@@ -110,6 +110,15 @@ def track_planar_homography(prev_bgr: np.ndarray, cur_bgr: np.ndarray, quad_pts:
 
 
 # ====================================================================================== v15.1 renderer integration
+def _interp_sim(M, a):
+    """Fraction `a` of a 2D similarity transform M (3×3): rotation/scale/translation interpolated."""
+    sc = float(np.hypot(M[0, 0], M[1, 0]))
+    th = float(np.arctan2(M[1, 0], M[0, 0]))
+    s_a = sc ** a
+    c, s_ = np.cos(th * a) * s_a, np.sin(th * a) * s_a
+    return np.array([[c, -s_, M[0, 2] * a], [s_, c, M[1, 2] * a], [0, 0, 1]], np.float64)
+
+
 class MorphCuts:
     """Optical-flow MORPH CUT on every jump cut of the EDL (Premiere "Morph Cut" idea) — spec:
 
@@ -118,7 +127,8 @@ class MorphCuts:
     Inside a window of `dur` seconds centred on cut c the renderer shows morph_cut_frame(A, B, α) instead of the
     raw source frame, where A = last frame before the cut, B = first frame after it and α = SILK ramp 0 → 1.
     The two frames and BOTH dense flows are computed once per cut (cached) → each frame costs 2 remaps (~25 ms).
-    Cuts whose median flow is larger than `max_motion` px (speaker moved a lot / different shot) are skipped —
+    Unreliable flow regions fall back to a GLOBAL similarity warp of both frames (no ghost).
+    Cuts whose median flow is larger than `max_motion` px or whose mean flow agreement < `min_agree` are skipped —
     a morph would smear; those keep the hard cut (+ the director's punch-zoom + flash).
     The matte is blended with the same α (A·(1−α) + B·α) so the depth sandwich stays clean."""
 
@@ -127,6 +137,8 @@ class MorphCuts:
         self.R = R
         self.dur = float(cfg.get("dur", 0.24))
         self.max_motion = float(cfg.get("max_motion", 60.0))
+        self.min_agree = float(cfg.get("min_agree", 0.5))       # mean forward/backward flow agreement
+        self.switch = float(cfg.get("switch", 0.0))             # colour cross-over width (0 = hard, aligned)
         allow = cfg.get("cuts")
         self.cuts = [(i, c) for i, c in enumerate(R.tl.cuts) if allow is None or i in allow]
         self._cache = {}
@@ -162,14 +174,30 @@ class MorphCuts:
         f10 = cv2.calcOpticalFlowFarneback(gb, ga, None, 0.5, 4, 21, 3, 5, 1.2, 0)
         sx, sy = W / work_w, H / work_h
         med = float(np.median(np.hypot(f01[..., 0] * sx, f01[..., 1] * sy)))
-        ok = med <= self.max_motion
         fb_err = np.hypot(f01[..., 0] + f10[..., 0], f01[..., 1] + f10[..., 1])
-        agree = cv2.resize(np.exp(-fb_err / 2.5).astype(np.float32), (W, H), interpolation=cv2.INTER_LINEAR)
+        agree_s = np.exp(-fb_err / 2.5).astype(np.float32)
+        # GLOBAL similarity transform A→B fitted on reliable flow vectors (the head move between two takes is
+        # close to rigid).  v15.1: where the dense flow is unreliable the fallback is this global warp — the
+        # v15.0 fallback was a plain cross-dissolve → a visible double image ("ghost") at α = 0.5.
+        yy_s, xx_s = np.mgrid[0:work_h:4, 0:work_w:4]
+        good = agree_s[::4, ::4] > 0.6
+        src = np.column_stack([xx_s[good], yy_s[good]]).astype(np.float32)
+        dst = src + f01[::4, ::4][good]
+        Mg = None
+        if len(src) >= 12:
+            Mg, inl = cv2.estimateAffinePartial2D(src, dst, method=cv2.RANSAC, ransacReprojThreshold=1.5)
+        if Mg is None:
+            Mg = np.array([[1, 0, 0], [0, 1, 0]], np.float64)
+        Mg[:, 2] *= [sx, sy]                                      # to full-res pixels
+        agree_mean = float(agree_s.mean())
+        ok = med <= self.max_motion and agree_mean >= self.min_agree
+        agree = cv2.resize(agree_s, (W, H), interpolation=cv2.INTER_LINEAR)
         u01 = cv2.resize(f01, (W, H), interpolation=cv2.INTER_LINEAR) * np.array([sx, sy], np.float32)
         u10 = cv2.resize(f10, (W, H), interpolation=cv2.INTER_LINEAR) * np.array([sx, sy], np.float32)
         yy, xx = np.mgrid[0:H, 0:W].astype(np.float32)
-        ent = {"ok": ok, "median_px": round(med, 1), "fa": fa, "fb": fb, "ia": ia, "ib": ib,
-               "u01": u01, "u10": u10, "agree": agree[..., None], "xx": xx, "yy": yy}
+        ent = {"ok": ok, "median_px": round(med, 1), "agree_mean": round(agree_mean, 3), "fa": fa, "fb": fb,
+               "ia": ia, "ib": ib, "u01": u01, "u10": u10, "agree": agree[..., None], "xx": xx, "yy": yy,
+               "Mg": Mg}
         self._cache = {i: ent}                       # keep only the current cut (RAM: ~4 full-res float planes)
         return ent
 
@@ -185,10 +213,23 @@ class MorphCuts:
                        cv2.INTER_LINEAR, borderMode=cv2.BORDER_REFLECT)
         wb = cv2.remap(e["fb"], e["xx"] - (1 - a) * e["u10"][..., 0], e["yy"] - (1 - a) * e["u10"][..., 1],
                        cv2.INTER_LINEAR, borderMode=cv2.BORDER_REFLECT)
-        flow_mix = cv2.addWeighted(wa, 1.0 - a, wb, a, 0.0)
-        cross = cv2.addWeighted(e["fa"], 1.0 - a, e["fb"], a, 0.0)
+        # v15.1 anti-ghost: the GEOMETRY moves with a (warps above), but the colour switches from A to B over a
+        # band of width `switch` around α = .5 (default 0 = a clean switch on one frame) instead of a linear mix — two different mouth / eye poses are
+        # never shown half-and-half (that is the classic morph-cut "double face").
+        sw = float(self.switch)
+        q = float(np.clip((a - 0.5 + sw / 2) / max(1e-6, sw), 0.0, 1.0)) if sw > 0 else float(a >= 0.5)
+        ac = q * q * (3.0 - 2.0 * q)                              # colour switch (geometry keeps `a`)
+        flow_mix = cv2.addWeighted(wa, 1.0 - ac, wb, ac, 0.0)
+        # fallback: both frames moved along the interpolated GLOBAL similarity (A forward by a, B back by 1−a)
+        Mg = np.vstack([e["Mg"], [0, 0, 1]])
+        Ma = _interp_sim(Mg, a)                                   # maps A → in-between
+        Mb = Ma @ np.linalg.inv(Mg)                               # maps B → in-between
+        H_, W_ = e["fa"].shape[:2]
+        ga = cv2.warpAffine(e["fa"], Ma[:2], (W_, H_), flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_REFLECT)
+        gb = cv2.warpAffine(e["fb"], Mb[:2], (W_, H_), flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_REFLECT)
+        cross = cv2.addWeighted(ga, 1.0 - ac, gb, ac, 0.0)
         ag = e["agree"]
         out = (flow_mix.astype(np.float32) * ag + cross.astype(np.float32) * (1 - ag) + 0.5).astype(np.uint8)
         ma = self.R.tracks.matte(e["ia"])
         mb = self.R.tracks.matte(e["ib"])
-        return out, (ma * (1.0 - a) + mb * a).astype(np.float32)
+        return out, (ma * (1.0 - ac) + mb * ac).astype(np.float32)

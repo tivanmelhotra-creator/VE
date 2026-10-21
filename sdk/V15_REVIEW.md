@@ -32,7 +32,7 @@ Every claim below is checked by `python3 -m mograph.v14 selftest` (9/9 pass).
 | v15.0 function | problem | v15.1 spec key |
 |---|---|---|
 | `match_reference_grade` | computed numbers, nothing applied them | `"grade": {"match": {"ref": "...mp4/jpg", "strength": 0.8}}` (64³ delta LUT) |
-| `flow_cut.morph_cut_frame` | never called | `"source": {"morph_cuts": {"dur": 0.24, "max_motion": 60}}`: flows cached per cut, matte blended too, large-motion cuts skipped |
+| `flow_cut.morph_cut_frame` | never called; its cross-dissolve fallback = a ghost face | `"source": {"morph_cuts": {"dur": 0.24, "max_motion": 60}}`: A/B anchored at the window edges (seamless), global-similarity fallback, colour switch instead of 50/50, unreliable cuts skipped. Measured on maghale cut 1: hard 18.4 → morph 9.6 mean frame diff, no double image |
 | `eval_selector` | never called | `"selectors": [{"shape", "start", "end", "offset": [t0, t1, o0, o1], "props": {...}}]` on every text layer |
 | `shatter3d` | never called | layer `shatter_text` (`break_at`) |
 | `puppet_arap` | never called | layer `puppet_sticker` (pins with `wiggle` / `to`) |
