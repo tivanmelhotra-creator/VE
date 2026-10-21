@@ -244,7 +244,11 @@ def build_layers(tl, tw, scores, beats, duration, seg_of):
                            "offset": [0, -0.62], "size": 78 if ln <= 6 else 66, "pass": "back",
                            "text": (f"{ctx}|*{hero}*" if ctx else f"*{hero}*"), "enter": "drop_bounce", "exit": "pop_out",
                            "idle": "float", "plane_in": {"rx": -70}, "extrude": {"depth": 10, "light": 0.7},
-                           "hero_hit": hero_hit, "stagger": 0.03})
+                           "hero_hit": hero_hit, "stagger": 0.03,
+                           # v15.1 AE-style selector: a light wave runs through the line once after the drop
+                           "selectors": [{"shape": "smooth", "start": 0.0, "end": 0.35,
+                                          "offset": [0.55, 1.25, -0.4, 1.05],
+                                          "props": {"ty": -14, "glow": 0.9, "scale": 0.08}}]})
         elif kind == "orbit_ring":
             tail = " ".join(_trim(post[:3]) or pre[-2:])
             layers.append({"type": "orbit_ring", "id": lid, "t": t0, "out": t1, "anchor": "head_top",
@@ -395,10 +399,11 @@ def auto_edit(words_path, video_path, out_path, theme="doran", qa=True, log=prin
     heroes = [_txt(tw[b]) for b in beats]
     rel = lambda p: os.path.relpath(os.path.abspath(p), base)   # noqa: E731
     spec = {
-        "_about": "v14.8 AUTO-EDIT (mograph.v14.director): breath cuts + scored hero words + depth rotation. "
+        "_about": "v15.1 AUTO-EDIT (mograph.v14.director): breath cuts + scored hero words + depth rotation. "
                   "Edit freely — every time is a word anchor.",
         "meta": {"w": 1080, "h": 1920, "fps": 30, "theme": theme, "palette": "auto"},
-        "source": {"src": rel(video_path), "words": rel(words_path), "segments": segs},
+        "source": {"src": rel(video_path), "words": rel(words_path), "segments": segs,
+                   "morph_cuts": {"dur": 0.24, "max_motion": 60}},
         "grade": {"bg": {"blur": 7, "dim": 0.42, "desat": 0.22, "tint": "#3A2414", "tint_amt": 0.24,
                          "vignette_bg": 0.35},
                   "fg": {"contrast": 1.07, "warm": 0.035, "sat": 1.04, "lift": 0.0},
@@ -408,10 +413,11 @@ def auto_edit(words_path, video_path, out_path, theme="doran", qa=True, log=prin
                       "hide": hides},
         "layers": layers,
         "post": {"bloom": 1.0, "spill": 1.3, "wrap_bg": 0.5, "wrap_glow": 1.8, "vignette": 0.3, "grain": 0.016,
-                 "fade": [0.0, 0.35], "glass": {"refract": 4.0, "chroma": 1.5, "caustic": 0.55},
+                 "fade": [0.0, 0.35], "glass": {"refract": 4.0, "chroma": 1.5, "caustic": 0.55, "fresnel": 0.35},
+                 "decontaminate": 0.75,
                  "motion_blur": {"shutter": 180}},
         "audio": {"voice_gain": 1.0, "music": {"style": "lofi", "bpm": 92, "key": "D", "scale": "minor", "gain": 0.16},
-                  "sfx_gain": 0.55, "lufs": -14, "denoise": "auto"},
+                  "sfx_gain": 0.55, "lufs": -14, "denoise": "auto", "multiband": True, "vocal_booth_reverb": 0.04},
     }
     remaining = []
     if qa:
