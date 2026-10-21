@@ -232,7 +232,7 @@ def _smoothstep(edge0: float, edge1: float, x: np.ndarray) -> np.ndarray:
 
 def match_reference_grade(src_bgr: np.ndarray, ref_bgr: np.ndarray,
                           person_alpha: np.ndarray | None = None,
-                          max_skin_deg: float = 8.0) -> dict:
+                          max_skin_deg: float = 8.0, max_dL: float = 0.05) -> dict:
     """
     Ported from FilmCraft `crates/render/src/color_match.rs`:
     1. Downsamples both frames (<= 96px wide) and converts to Oklab.
@@ -287,6 +287,13 @@ def match_reference_grade(src_bgr: np.ndarray, ref_bgr: np.ndarray,
             for k in shifts:
                 shifts[k][1:] *= scale_cast
 
+    # v15.1 guards (v15.0 limited only the skin HUE): a strong reference could still crush the face (midtone
+    # ΔL = −0.12 measured on ref_novadent) or over-saturate it (sat ×1.45 kept even when the cast was scaled to 9 %).
+    #   * |ΔL| ≤ max_dL per range,  * saturation follows the same skin guard and stays in [0.8, 1.3].
+    for k in shifts:
+        shifts[k][0] = float(np.clip(shifts[k][0], -max_dL, max_dL))
+    sat_ratio = 1.0 + (sat_ratio - 1.0) * scale_cast
+    sat_ratio = float(np.clip(sat_ratio, 0.8, 1.3))
     return {
         "shadows_dab": [round(float(x), 4) for x in shifts["shadows"]],
         "midtones_dab": [round(float(x), 4) for x in shifts["midtones"]],
@@ -296,17 +303,18 @@ def match_reference_grade(src_bgr: np.ndarray, ref_bgr: np.ndarray,
     }
 
 
-def apply_grade_match(bgr: np.ndarray, m: dict, strength: float = 1.0, work: float = 0.5) -> np.ndarray:
-    """v15.1: APPLY a match_reference_grade() result (v15.0 only computed it — nothing used the numbers).
+_GM_LUT = {}
 
-    Per pixel (Oklab): Δ = w_sh(L)·shadows_dab + w_md(L)·midtones_dab + w_hi(L)·highlights_dab, chroma × sat_scale.
-    Computed at `work` resolution as a colour DELTA, then upsampled and added to the full frame (the correction is a
-    smooth function of colour → half-res is visually identical and 4× cheaper: ≈35 ms per 1080×1920 frame)."""
-    if strength <= 0.001:
-        return bgr
-    H, W = bgr.shape[:2]
-    sm = cv2.resize(bgr, (max(8, int(W * work)), max(8, int(H * work))), interpolation=cv2.INTER_AREA)
-    lab = bgr_to_oklab(sm)
+
+def grade_match_lut(m: dict, strength: float = 1.0, n: int = 64) -> np.ndarray:
+    """Colour-only correction → a DELTA 3D LUT (n³ × 3 int16, indexed by BGR >> shift).  Built once per match."""
+    key = (json.dumps(m, sort_keys=True), round(float(strength), 4), n)
+    if key in _GM_LUT:
+        return _GM_LUT[key]
+    v = (np.arange(n, dtype=np.float32) + 0.5) * (256.0 / n)
+    b, g, r = np.meshgrid(v, v, v, indexing="ij")
+    grid = np.clip(np.stack([b, g, r], -1).reshape(-1, 1, 3), 0, 255).astype(np.uint8)
+    lab = bgr_to_oklab(grid)
     L = lab[..., 0]
     w_sh = _smoothstep(0.55, 0.15, L)
     w_hi = _smoothstep(0.45, 0.85, L)
@@ -315,10 +323,30 @@ def apply_grade_match(bgr: np.ndarray, m: dict, strength: float = 1.0, work: flo
          w_md[..., None] * np.asarray(m["midtones_dab"], np.float32) +
          w_hi[..., None] * np.asarray(m["highlights_dab"], np.float32)) * float(strength)
     out = lab + d
-    sat = 1.0 + (float(m.get("sat_scale", 1.0)) - 1.0) * float(strength)
-    out[..., 1:] *= sat
-    delta = oklab_to_bgr(out).astype(np.int16) - sm.astype(np.int16)
-    delta = cv2.resize(delta.astype(np.float32), (W, H), interpolation=cv2.INTER_LINEAR)
+    out[..., 1:] *= 1.0 + (float(m.get("sat_scale", 1.0)) - 1.0) * float(strength)
+    lut = (oklab_to_bgr(out).astype(np.int16) - grid.astype(np.int16)).reshape(n, n, n, 3)
+    _GM_LUT.clear()
+    _GM_LUT[key] = lut
+    return lut
+
+
+def apply_grade_match(bgr: np.ndarray, m: dict, strength: float = 1.0, work: float = 0.5) -> np.ndarray:
+    """v15.1: APPLY a match_reference_grade() result (v15.0 only computed it — nothing used the numbers).
+
+    Oklab per pixel: Δ = w_sh(L)·shadows_dab + w_md(L)·midtones_dab + w_hi(L)·highlights_dab, chroma × sat_scale.
+    The correction depends on colour only → baked into a 64³ delta LUT once; per frame = one gather at `work`
+    resolution + upsample + add (≈15 ms on 1080×1920 instead of 187 ms for direct Oklab maths)."""
+    if strength <= 0.001:
+        return bgr
+    n = 64
+    sh = 8 - int(round(math.log2(n)))
+    lut = grade_match_lut(m, strength, n)
+    H, W = bgr.shape[:2]
+    sm = cv2.resize(bgr, (max(8, int(W * work)), max(8, int(H * work))), interpolation=cv2.INTER_AREA) if work < 1 else bgr
+    q = sm >> sh
+    delta = lut[q[..., 0], q[..., 1], q[..., 2]]
+    if work < 1:
+        delta = cv2.resize(delta.astype(np.float32), (W, H), interpolation=cv2.INTER_LINEAR)
     return np.clip(bgr.astype(np.float32) + delta, 0, 255).astype(np.uint8)
 
 
