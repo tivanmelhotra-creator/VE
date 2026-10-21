@@ -15,6 +15,16 @@ Then: `cd /home/user/webapp/projects/maghale && PYTHONPATH=/home/user/webapp/sdk
 - `projects/maghale/edit_v14.json` = the edit of the user's raw video (words.json = transcript, edited time 16.02 s)
 - `work/input/` = raw.mp4, ref_novadent.mp4, brief_v14.md (the user's inputs)
 
+## v18 — Motion Kit (mograph/motion) — see sdk/MOTION_GUIDE.md
+- FIRST after any reset: `cd sdk && python3 -m mograph.motion selftest` → 10/10 (glossary, easing, retime, flow, saber,
+  saber_time, lipsync, character, bridges).  Also aefx 9/9 · aecomp 13/13 · v14 9/9 still pass.
+- user's brief = sdk/mograph/motion/glossary.yaml (5 concepts) — `python3 -m mograph.motion resolve "…"` maps words → keys
+- reference: Video Copilot Saber 1.0.40 (parameter list + 52 preset names read from the plugin binary; NOT in repo;
+  rar password www.bitgraph.ir, needs 7zz ≥ 21).  Our saber.py is an own implementation of that parameter set.
+- tests: sdk/tests/v18_motion.json (v5 scene) · projects/maghale/edit_v18_retime.json (v14 retime)
+- next: saber on tracked hands (anchor hand_r → blade start/end), viseme from audio only (no transcript),
+  more rigs (cutout from user PNG parts via puppet_arap), retime in v5 footage element
+
 ## v17 — AE-Comp (mograph/aecomp) — see sdk/AECOMP_GUIDE.md
 - FIRST after any reset: `cd sdk && python3 -m mograph.aecomp selftest` → 12/12 (keyframes, ellipse, trim, fill, merge,
   merge_line, repeater, trim_anim, matte, generators, lower3rds, titles)
@@ -35,7 +45,7 @@ Then: `cd /home/user/webapp/projects/maghale && PYTHONPATH=/home/user/webapp/sdk
   generators per category (titles from Titles Factory study: per-char delay, venetian blinds, minimax "outspace")
 
 ## v16 — AE-FX (mograph/aefx) — see sdk/AEFX_GUIDE.md
-- FIRST after any reset: `cd sdk && python3 -m mograph.aefx selftest` → 9/9 (keyframes, prproj fit, libraries, selector,
+- FIRST after any reset: `cd sdk && python3 -m mograph.aefx selftest` → 10/10 (keyframes, prproj fit, libraries, selector,
   textanim, cursive, deepglow, pathblur, bridge)
 - presets: aefx/presets/{motion_presets,text_presets,catalog}.json + CATALOG.md (measured).  Pick with
   `python3 -m mograph.aefx suggest …` / `sheet …`; apply with `"fx": [{"motion": KEY}]`, `"preset": KEY` (v14 titles),
@@ -44,7 +54,7 @@ Then: `cd /home/user/webapp/projects/maghale && PYTHONPATH=/home/user/webapp/sdk
 - ⚠ sandbox RAM: v14.track (MediaPipe+MODNet) takes ~55 % RAM → do NOT run builds/renders in parallel with it.
 
 ## v15.1 — Craft-Omni (audited merge of the v15.0 patch) — see sdk/V15_REVIEW.md + sdk/V14_GUIDE.md "v15.1 additions"
-- FIRST after any reset: `cd sdk && python3 -m mograph.v14 selftest` → 9/9 pass (multiband, remix, ARAP, morph, Oklab,
+- FIRST after any reset: `cd sdk && python3 -m mograph.v14 selftest` → 10/10 pass (multiband, remix, ARAP, morph, Oklab,
   decontam, path text, varstroke, selectors)
 - new spec keys: source.morph_cuts · grade.match · post.decontaminate · post.glass.fresnel · audio.multiband ·
   audio.music.file (bar-grid remix) · "selectors" on text layers · field bezier_path

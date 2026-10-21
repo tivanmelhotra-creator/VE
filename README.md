@@ -1,4 +1,4 @@
-# VE — mograph: automatic video editor & motion-graphics SDK (v17 AE-Comp)
+# VE — mograph: automatic video editor & motion-graphics SDK (v18 Motion Kit)
 
 An agent-driven engine for editing **Persian talking-head footage** and making **vector motion graphics**,
 designed to run inside a small sandbox (2 vCPU, ~1 GB RAM, no GPU).
@@ -12,6 +12,7 @@ The agent writes one JSON spec; the engine does the drawing, word-locked timing,
 | `sdk/mograph/v14/` | v14 "Studio Depth" footage engine: physics, vector 3D type, MODNet matte, glass/light compositor, subtitles |
 | `sdk/mograph/v14/{remix,flow_cut,craftlayers,selftest}.py`, `sdk/mograph/{varstroke,autotrace,puppet_arap,shatter3d}.py` | **v15.1** Craft engines (bar-grid music remix, morph cuts, ARAP puppet, shape morph, shatter, tapered strokes, Oklab look match) — `python3 -m mograph.v14 selftest` |
 | `sdk/mograph/aefx/` | **v16 AE-FX**: AE keyframes (speed/influence), 351 AE text animators (range/wiggly selectors, Persian-aware), 352 Premiere-style in/out/fx motion presets, deep_glow, path_blur, `"fx"` stack on any layer, measured catalogue + `suggest` — `python3 -m mograph.aefx selftest` · guide `sdk/AEFX_GUIDE.md` |
+| `sdk/mograph/motion/` | **v18 Motion Kit**: glossary resolver (Persian/English → keys), unified easing (cubic-bezier / AE speed-influence / spring / steps + graph editor), retime (slow/fast motion, speed ramp, freeze, reverse, optical-flow in-betweens, audio remap), Saber-style light (51 presets, blade/path/shape/text/alpha cores, glow, flicker, smoke/fluid/energy distortion, lightning), rubber-hose characters (animation principles, on twos) and Preston-Blair lip sync — `python3 -m mograph.motion selftest` · guide `sdk/MOTION_GUIDE.md` |
 | `sdk/mograph/aecomp/` | **v17 AE-Comp**: After-Effects shape-layer engine (trim, repeater, merge, zigzag, twist, round corners, pucker, offset, mattes, parenting, AE keyframes/loopOut/wiggle/controls) + 12 own shape elements + 4 box-free RTL lower thirds + 4 full-frame titles; `{"type": "aecomp", ...}` in v5–13 and v14 — `python3 -m mograph.aecomp selftest` · guide `sdk/AECOMP_GUIDE.md` |
 | `sdk/mograph/pbr3d.py` | **v14.6** photoreal 3D: scanned CC0 PBR models rendered by the bundled EffectCraft CLI (HDRI + real shadow) |
 | `sdk/mograph/real3d.py`, `sculpt3d.py`, `obj3d.py` | earlier procedural 3D engines (fallback) |
@@ -41,6 +42,7 @@ bash ../../sdk/tools/render_chunks.sh edit_v14.json 4                # resumable
 ```
 
 ## Docs
+- `sdk/MOTION_GUIDE.md` — **v18** Motion Kit: glossary, easing, retime, saber, character, lip sync
 - `sdk/AECOMP_GUIDE.md` — **v17** AE-Comp: shape elements, lower thirds, comp JSON, measured timing rules
 - `sdk/AEFX_GUIDE.md` — **v16** AE-FX: text/motion presets, glow, path blur, fx stacks, preset gallery (`public/aefx/`)
 - `CONTINUE_HERE.md` — resume point / changelog v14.2 → v15.1

@@ -130,9 +130,13 @@ def get_ease(e) -> Callable[[float], float]:
         return e
     if e is None:
         return ease_in_out
-    if e not in EASINGS:                     # v12: tolerant (unknown name → smooth in/out, QA lints it)
+    if isinstance(e, str) and e in EASINGS:
+        return EASINGS[e]
+    try:                                     # v18: cubic-bezier(...) / [x1,y1,x2,y2] / {"type": ...} / easeOutBack
+        from .motion.easing import ease as _m_ease
+        return _m_ease(e)
+    except Exception:  # noqa: BLE001        # v12: tolerant (unknown name → smooth in/out, QA lints it)
         return ease_in_out
-    return EASINGS[e]
 
 
 # ---------------------------------------------------------------------------
