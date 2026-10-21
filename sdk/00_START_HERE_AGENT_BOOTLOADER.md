@@ -1,3 +1,11 @@
+# 🎬 v18 MOTION KIT — easing · retime · Saber light · cartoon characters · lip sync → read `MOTION_GUIDE.md`
+> FIRST map the user's words: `python3 -m mograph.motion resolve "اسلوموشن با نئون روی متن"` → canonical keys + params.
+> `{"type": "saber", "preset": "neon", "core": "text", …}` (51 Saber presets: `saber sheet` → LOOK) · `"fx": [{"saber": …}]`
+> `"source": {"retime": [{"op": "speed_ramp"|"slow_motion"|"fast_motion"|"freeze_frame"|"reverse", …}]}` (v14, optical flow)
+> `"ease"` everywhere now takes `cubic-bezier(…)`, `[x1,y1,x2,y2]`, `{"type": "elastic"…}`, Persian names (`ease graph`).
+> `{"type": "character", "rig": "bean", "actions": [...], "lip_sync": {...}, "timing": "twos"}` · `{"type": "mouth"}`
+> `python3 -m mograph.motion selftest` must say 9/9.
+
 # 🔷 v17 AE-Comp — After-Effects SHAPE-LAYER engine + box-free lower thirds → read `AECOMP_GUIDE.md`
 > 12 own shape elements (burst, confetti, arcs, arrow trace, slides, wipes, loops…) + 4 RTL lower thirds + 4 full-frame titles (`"title_style"`) (zero-box,
 > Doran) via `{"type": "aecomp", "gen": "burst"}` / `{"type": "aecomp", "lower_third": "line_reveal", "title": …}` in
