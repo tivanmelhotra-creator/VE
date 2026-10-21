@@ -55,8 +55,8 @@
 ## 5. Known gaps / backlog (add yours; remove when done)
 - [ ] Matte prep is slow (~1.5 fps on CPU) — could run MODNet at 384 px or reuse every 2nd frame with optical-flow warp.
 - [ ] Glass/stage are per-frame CPU (≈2 s/frame) — a numba/vectorised glass blur would halve render time.
-- [ ] No automatic "edit director" yet: picking WHICH words get which element is still the agent's job
-      (idea: keyword scoring from the transcript → suggested layer list).
+- [x] ~~No automatic "edit director"~~ → v14.8 `python3 -m mograph.v14 auto-edit words.json raw.mp4 -o edit_auto.json`
+      (director.py). Next: semantic scoring with an LLM pass, B-roll / object picking beyond the bundled assets_3d.
 - [ ] Ring text only supports a horizontal cylinder; tilted orbit around shoulders not implemented.
 - [ ] The music bed is procedural (beat.py) — a licensed-music picker would sound better.
 - [ ] DeepFilterNet on extreme noise still leaves a slightly thin voice; a voice-restoration model (e.g. resemble-enhance)

@@ -64,3 +64,33 @@
   center/arc/auto, arc_text, VFX (shock ring, flicker, breathing glow, light sweep, rim bloom/spill).
 - Lesson: when the user sends a reference crop, list its ANATOMY (layers, alpha, position vs. anchors, where the text
   sits, effects) as a checklist and encode each item as a default — not as per-spec numbers.
+
+
+## 2026-10-20 — v14.7: Offline Sandbox Resilience, Doran ZWNJ Fix, Chest-Hero 3D Guard & 7x Compositor Speedup
+- Trigger: Auditing VE (v14.6) in an offline sandbox on `projects/maghale/edit_v14.json` and `edit_v14_3d.json`, plus merging `FilmCraft` + `EffectCraft` (`craft_bridge.py`).
+- Root causes found & fixed:
+  1. `v14/glyphs.py` hard-imported `uharfbuzz` instead of falling back to `mograph/hbc.py` (`ctypes.CDLL("libharfbuzz.so.0")`).
+  2. `Doran-Regular.ttf` broke medial cursive joins (`م` and `ی`) whenever a word contained `\u200c` (ZWNJ, e.g. `می‌خونید`, `می‌نویسید`). Fixed `_shape()` in `v14/glyphs.py` to split on `\u200c`, shape each sub-word with full cursive joining, and place them with a `0.04 em` half-space.
+  3. `v14/track.py` lacked an offline fallback when `mediapipe` was absent, and needed anatomical left/right ordering (`eye_l.x > eye_r.x`, `sh_l.x > sh_r.x`) + `[-12°, +12°]` roll clamping so titles never invert.
+  4. `v14/stage.py` (`guard`) only checked `face_zone`, allowing `side` 3D objects (`object_3d`) at chest height to overlap centered chest hero widgets (`disc`, `glass_shape`). Added chest-hero collision avoidance to `guard()`.
+  5. `v14/compositor.py` allocated 22 full-res float32 arrays and ran `sigma=38..60` blurs at half-res; optimized light transport to quarter-res (`270x480`) + 256-entry `cv2.LUT` + `uint16` alpha blend (`7x` faster).
+  6. `zraster.py` and `pbr3d.py` upgraded with vectorized NumPy triangle bbox rasterizers (`_raster_vec_np`, `55ms` without `numba`) and an offline pure-Python glTF PBR + HDRI software fallback (`_render_gltf_software_fallback`).
+  7. `v14/subs.py` pre-pop word alpha raised from `0.22` to `0.72` for full phrase legibility inside dark glass capsules.
+- Verified: `qa` clean, 6-frame sheets `/tmp/ve_v14_6frames_grid_fixed.jpg` & `/tmp/ve_v14_3d_guard_verified.jpg`, full renders `maghale_v14_7_studio_depth_master.mp4` & `maghale_v14_7_before_after_showcase.mp4`.
+
+
+## 2026-10-21 — v14.8: Studio Optical (refractive glass, shutter motion blur, bokeh dust) & Auto-Director
+- Built on v14.7 (c7eb7a0). 4 upgrades from the co-engineering brief:
+  1. `compositor.glass()` → `_glass_optics`: distance-to-rim band, inward normal from the blurred shape mask, cv2.remap
+     lens bend (4 px) + R/B split (1.5 px) + top-left caustic. Cost ≈3–6 ms per glass element (crop-local only).
+  2. `motionblur.py` + `glyphs.draw_block(mblur=…)`: per-glyph displacement over a 180° shutter (motion evaluated at
+     t − 1/60 s through a `_ShiftT` frame proxy) → line-kernel streak on a premultiplied offscreen ROI. Lesson: never
+     re-evaluate `pos()` for the earlier instant — the layout guard keeps per-frame smoothing state; only `t` shifts.
+     `object3d` refactored into `_motion_state` (pure) + `_blur_vector` (yaw rim speed + drop/fall + spring scale).
+  3. `bokeh.py`: depth-sandwich dust — BACK slot after the back pass (speaker occludes it), FRONT slot before bloom,
+     parallax relative to the t=0 camera matrix (0.7× / 1.3×), front discs faded over `stage.face_zone`.
+  4. `director.py` (`auto-edit` CLI): breath cuts, linguistic word scoring (stop/verb penalties, numbers, emphasis
+     lexicon, topic repetition, phrase-final + slow-speech stress), greedy 2.5–3.5 s beats, depth rotation, camera
+     keys with punch-in on cuts, grade keys, subtitles.hide, and a QA auto-fix loop (`qa.qa_warnings`).
+- Verified: QA clean on edit_v14 / edit_v14_3d / edit_auto (edit_v14_pbr3d keeps its pre-existing obj_tooth edge
+  warning from v14.7). A/B frames v14.7 vs v14.8 at the same t: streaks on drop_bounce / swing_3d only, glass rims refract.

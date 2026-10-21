@@ -32,6 +32,8 @@ LAYER TYPES
   sweep_light     light streak across a layer (shine)
   flash           full-frame light flash (cut accent)
   progress        thin progress line at the top
+  ambient_bokeh   v14.8: depth-sandwich out-of-focus octagonal dust (12 behind her, 6 large in front, 1.3x parallax)
+                  for a time window — {"type": "ambient_bokeh", "t": 0, "out": 6.0, "back": 12, "front": 6} (bokeh.py)
   object_3d       v14.4: a REAL turning 3D object (any RGBA image → solid extruded/cushion/multiview object, or a
                   procedural sculpt3d model) glued to a tracked point; spring-pop + spin-in entrance (object3d.py)
 """
@@ -298,6 +300,55 @@ def _out_lt(L, F):
 
 
 # =========================================================================================== kinetic_title
+class _ShiftT:
+    """Frame proxy at an earlier instant (motion blur: the block one shutter interval ago).  Only `t` differs —
+    tracked positions are NOT re-evaluated (the layout guard keeps per-frame state; the speaker moves slowly)."""
+    __slots__ = ("t", "_F")
+
+    def __init__(self, F, t):
+        self.t, self._F = t, F
+
+    def __getattr__(self, k):
+        return getattr(self._F, k)
+
+
+def _mblur_for(L, F, b, k, lt, olt, plane_fn=None, x=None, y=None):
+    """v14.8 motion-blur descriptor for G.draw_block (None when off / not moving)."""
+    if F.prepass:
+        return None
+    from . import motionblur as MB
+    cfg = MB.config(L, F)
+    if cfg is None:
+        return None
+    if cfg["auto"]:                          # automatic: only during fast physics entrances / exits
+        fast_in = (L.get("enter") in MB.AUTO_ENTERS or L.get("plane_in")) and lt < 1.1 + b.nwords * 0.06
+        fast_out = olt is not None and olt > 0 and L.get("exit") in MB.AUTO_EXITS
+        if not (fast_in or fast_out):
+            return None
+    dt = MB.shutter_dt(cfg, F.R.fps)
+    Fp = _ShiftT(F, F.t - dt)
+    olt_p = (olt - dt) if olt is not None else None
+    if olt_p is not None and olt_p <= 0:
+        olt_p = None
+    return {"motion": _glyph_motion(L, Fp, b, k, lt - dt, olt_p), "plane": plane_fn(Fp.t, lt - dt) if plane_fn else None,
+            "x": x, "y": y, "cfg": cfg}
+
+
+def _title_plane(L, t, lt):
+    plane = dict(L.get("plane", {}))
+    sway = L.get("sway", 1.0)
+    if sway:
+        plane["ry"] = plane.get("ry", 0) + ph.osc(t, 0.18, 7 * sway, 3)
+        plane["rx"] = plane.get("rx", 0) + ph.osc(t, 0.14, 4 * sway, 9)
+    plane["rz"] = plane.get("rz", 0) + L.get("_roll", 0.0)
+    pin = L.get("plane_in")              # {"ry": 70} → block swings in from that angle with a jelly spring
+    if pin:
+        p = ph.sp(lt, L.get("plane_spring", "jelly"))
+        for kk, vv in pin.items():
+            plane[kk] = plane.get(kk, 0) + vv * (1 - p)
+    return plane
+
+
 def draw_kinetic_title(ctx, L, F):
     x, y, k = pos(L, F)
     b = blk(L)
@@ -306,18 +357,8 @@ def draw_kinetic_title(ctx, L, F):
     if olt is not None and olt > 0.9:
         return
     sc = k * float(L.get("scale", 1.0))
-    plane = dict(L.get("plane", {}))
-    # whole-block 3D sway (real perspective, not a 2D rotate)
-    sway = L.get("sway", 1.0)
-    if sway:
-        plane["ry"] = plane.get("ry", 0) + ph.osc(F.t, 0.18, 7 * sway, 3)
-        plane["rx"] = plane.get("rx", 0) + ph.osc(F.t, 0.14, 4 * sway, 9)
-    plane["rz"] = plane.get("rz", 0) + L.get("_roll", 0.0)
-    pin = L.get("plane_in")              # {"ry": 70} → block swings in from that angle with a jelly spring
-    if pin:
-        p = ph.sp(lt, L.get("plane_spring", "jelly"))
-        for kk, vv in pin.items():
-            plane[kk] = plane.get(kk, 0) + vv * (1 - p)
+    # whole-block 3D sway (real perspective, not a 2D rotate) + plane_in swing
+    plane = _title_plane(L, F.t, lt)
     field = None
     fd = L.get("field")
     if fd:
@@ -326,9 +367,10 @@ def draw_kinetic_title(ctx, L, F):
         if kind in ("wave", "jelly"):
             kw["phase"] = F.t * float(kw.pop("speed", 4.0))
         field = G.Field(kind, **kw)
+    mb = _mblur_for(L, F, b, k, lt, olt, lambda t_, lt_: _title_plane(L, t_, lt_), x, y)
     G.draw_block(ctx, b, x, y, motion=_glyph_motion(L, F, b, k, lt, olt), field=field, plane=plane, pal=L["_pal"],
                  ectx=F.ectx, extrude=L.get("extrude"), scale=sc, shadow=L.get("shadow", {"alpha": 0.35, "dy": 4}),
-                 stroke=L.get("stroke"))
+                 stroke=L.get("stroke"), mblur=mb)
 
 
 # =========================================================================================== orbit_ring
@@ -664,7 +706,8 @@ def draw_glass_shape(ctx, L, F):
     path = _shape_path(shape, x, y, ww, hh, float(L.get("round", 0.18)), rot)
     if F.pass_ == "front":
         glass(ctx, F, path, (x - ww, y - hh, x + ww, y + hh), blur=float(L.get("blur", 18)),
-              tint=tuple(L.get("tint", (0.05, 0.05, 0.06, 0.38))), lift=float(L.get("lift", 0.04)), alpha=a)
+              tint=tuple(L.get("tint", (0.05, 0.05, 0.06, 0.38))), lift=float(L.get("lift", 0.04)), alpha=a,
+              refract=L.get("refract"), chroma=L.get("chroma"), caustic=L.get("caustic"))
     else:
         ctx.save(); path(ctx); ctx.set_source_rgba(0.05, 0.05, 0.06, 0.55 * a); ctx.fill(); ctx.restore()
     # stroke (gold) + inner highlight
@@ -1179,3 +1222,12 @@ def draw_object_3d(ctx, L, F):
 
 
 DRAW["object_3d"] = draw_object_3d
+
+
+# =========================================================================================== ambient_bokeh (v14.8)
+def draw_ambient_bokeh(ctx, L, F):
+    """Rendered by the compositor (bokeh.py) in the two depth slots; nothing to draw on the layer canvases."""
+    return None
+
+
+DRAW["ambient_bokeh"] = draw_ambient_bokeh

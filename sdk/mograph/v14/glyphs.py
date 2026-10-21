@@ -27,7 +27,10 @@ import cairo
 import numpy as np
 
 from .. import text as _T
-import uharfbuzz as hb
+try:
+    import uharfbuzz as hb
+except ImportError:
+    from .. import hbc as hb
 
 BASE_STYLES = {
     "thin":   {"font": "YekanBakh-Light.ttf", "scale": 1.0, "color": "@ink", "glow": 0.0},
@@ -106,13 +109,13 @@ def _is_neutral_ltr(ch):
     return (0x06F0 <= o <= 0x06F9 or 0x0660 <= o <= 0x066C or o < 0x0590 or ch in "%٪+-−.,/:")
 
 
-def _shape(word, fp):
+def _shape_single(word, fp):
     f = _T._font(fp)
     buf = hb.Buffer()
     buf.add_str(word)
     buf.guess_segment_properties()
     if all(_is_neutral_ltr(ch) for ch in word):
-        buf.direction = "ltr"            # numbers (۱۲۳, ۴۵٪) and latin read left→right even inside RTL lines
+        buf.direction = "ltr"
     hb.shape(f.hb, buf, {"kern": True, "liga": True})
     inv = 1.0 / f.upem
     out, x = [], 0.0
@@ -120,6 +123,24 @@ def _shape(word, fp):
         out.append((info.codepoint, x + pos.x_offset * inv, -pos.y_offset * inv))
         x += pos.x_advance * inv
     return out, x, buf.direction == "rtl"
+
+
+def _shape(word, fp):
+    if "\u200c" in word:
+        parts = [p for p in word.split("\u200c") if p]
+        if len(parts) > 1:
+            # In RTL, HarfBuzz returns glyphs ordered left-to-right (visual order: last sub-word first)
+            sub_res = [_shape_single(p, fp) for p in parts]
+            rtl = any(r[2] for r in sub_res)
+            ordered = list(reversed(sub_res)) if rtl else sub_res
+            out, x = [], 0.0
+            zwnj_gap = 0.04
+            for idx, (gls, adv, _) in enumerate(ordered):
+                for gid, gx, gy in gls:
+                    out.append((gid, x + gx, gy))
+                x += adv + (zwnj_gap if idx + 1 < len(ordered) else 0.0)
+            return out, x, rtl
+    return _shape_single(word, fp)
 
 
 class Glyph:
@@ -496,25 +517,96 @@ def _poly(ctx, q, x, y):
 
 
 def draw_block(ctx, blk, x, y, motion=None, field=None, plane=None, f=1600.0, pal=None, ectx=None, depth=None,
-               extrude=None, scale=1.0, alpha=1.0, stroke=None, shadow=None):
+               extrude=None, scale=1.0, alpha=1.0, stroke=None, shadow=None, mblur=None):
     """Draw block at screen (x, y).
     motion(g) → GS   per-glyph animation        field   Field                 plane {rx, ry, rz, z}
     extrude {depth, color, steps, light}         depth "back" | "front"      (z > 0 = behind the speaker)
-    ectx  emission context: glowing glyphs are ALSO painted there (→ bloom, light-wrap, light spill)."""
+    ectx  emission context: glowing glyphs are ALSO painted there (→ bloom, light-wrap, light spill).
+    mblur v14.8 {"motion": motion_prev, "plane": plane_prev, "x": x_prev, "y": y_prev, "cfg": {...}} — the block's
+          state one SHUTTER interval earlier; glyphs whose projected displacement exceeds cfg["threshold"] px are
+          drawn with a 1-D directional streak along their own velocity (motionblur.py, 180° shutter)."""
     pal = pal or PALETTE
     Rp = rot3(plane.get("rx", 0), plane.get("ry", 0), plane.get("rz", 0)) if plane else None
     pz = float(plane.get("z", 0)) if plane else 0.0
 
-    def world(cs):
+    def world(cs, _Rp=Rp, _pz=pz):
         if scale != 1.0:
             cs = [c * scale for c in cs]
         if field is not None:
             cs = [field(c) for c in cs]
-        if Rp is not None:
-            cs = [c @ Rp.T for c in cs]
-        if pz:
-            cs = [c + np.array([0, 0, pz], np.float32) for c in cs]
+        if _Rp is not None:
+            cs = [c @ _Rp.T for c in cs]
+        if _pz:
+            cs = [c + np.array([0, 0, _pz], np.float32) for c in cs]
         return cs
+
+    mb_prev = None
+    if mblur and mblur.get("motion") is not None and mblur.get("cfg"):
+        pp = mblur.get("plane")
+        mb_Rp = rot3(pp.get("rx", 0), pp.get("ry", 0), pp.get("rz", 0)) if pp else None
+        mb_pz = float(pp.get("z", 0)) if pp else 0.0
+        mb_prev = (mblur["motion"], mb_Rp, mb_pz, float(mblur.get("x", x)), float(mblur.get("y", y)), mblur["cfg"])
+
+    def _paint_glyph(c_, g, gs, cs, ectx_, emission_only=False):
+        """One glyph: extrusion, shadow, fill/gradient/stroke on c_ (+ emission on ectx_).  Returns fill extents."""
+        st = g.style
+        col = rgba(gs.color or st.get("color", "@ink"), pal)
+        a = gs.alpha * alpha * col[3] * float(st.get("alpha", 1.0))
+        e = (0.0, 0.0, 0.0, 0.0)
+        if not emission_only:
+            ex = st.get("extrude") or extrude
+            if ex and float(ex.get("depth", 0)) > 0.5:
+                dep = float(ex["depth"])
+                steps = int(ex.get("steps", max(5, min(18, dep / 2.0))))
+                ec = rgba(ex["color"], pal) if ex.get("color") else (col[0] * .42, col[1] * .32, col[2] * .22, 1)
+                for si in range(steps, 0, -1):
+                    cc = world(_local(g, gs, extra_z=dep * si / steps / max(scale, 1e-6)))
+                    sh = 0.5 + 0.5 * (1 - si / steps) * float(ex.get("light", 0.6))
+                    c_.new_path()
+                    for c in cc:
+                        _poly(c_, project(c, f), x, y)
+                    c_.set_source_rgba(ec[0] * sh, ec[1] * sh, ec[2] * sh, a)
+                    c_.fill()
+            c_.new_path()
+            for c in cs:
+                _poly(c_, project(c, f), x, y)
+            e = c_.fill_extents()
+            if shadow:
+                c_.save()
+                c_.translate(float(shadow.get("dx", 0)), float(shadow.get("dy", 5)))
+                c_.set_source_rgba(0, 0, 0, a * float(shadow.get("alpha", .5)))
+                c_.fill_preserve()
+                c_.restore()
+            fa = gs.fill_alpha * float(st.get("fill_alpha", 1.0))
+            grad = st.get("gradient")
+            if grad:
+                lg = cairo.LinearGradient(0, e[1], 0, e[3])
+                for i, gc in enumerate(grad):
+                    rc = rgba(gc, pal)
+                    lg.add_color_stop_rgba(i / max(1, len(grad) - 1), rc[0], rc[1], rc[2], a * fa)
+                c_.set_source(lg)
+            else:
+                c_.set_source_rgba(col[0], col[1], col[2], a * fa)
+            stk = gs.stroke or st.get("stroke") or stroke
+            if stk:
+                if fa > 0.003:
+                    c_.fill_preserve()
+                sc = rgba(stk.get("color", "@ink"), pal)
+                c_.set_source_rgba(sc[0], sc[1], sc[2], a * sc[3])
+                c_.set_line_width(float(stk.get("width", 2.0)))
+                c_.set_line_join(cairo.LINE_JOIN_ROUND)
+                c_.stroke()
+            else:
+                c_.fill()
+        glow = gs.glow if gs.glow is not None else float(st.get("glow", 0.0))
+        if ectx_ is not None and glow > 0.003:
+            ectx_.new_path()
+            for c in cs:
+                _poly(ectx_, project(c, f), x, y)
+            gc = rgba(st.get("glow_color", gs.color or st.get("color", "@ink")), pal)
+            ectx_.set_source_rgba(gc[0], gc[1], gc[2], a * min(1.0, glow))
+            ectx_.fill()
+        return e
 
     items = []
     for g in blk.glyphs:
@@ -525,64 +617,36 @@ def draw_block(ctx, blk, x, y, motion=None, field=None, plane=None, f=1600.0, pa
         zc = float(np.mean([c[:, 2].mean() for c in cs]))
         if (depth == "back" and zc <= 0) or (depth == "front" and zc > 0):
             continue
-        items.append((zc, g, gs, cs))
+        vec = None
+        if mb_prev is not None:
+            mprev, pRp, ppz, px_, py_, mcfg = mb_prev
+            gp = mprev(g)
+            P1 = np.concatenate([project(c, f) for c in cs]) + np.array([x, y], np.float32)
+            if gp.visible and gp.alpha > 0.003:
+                cp = world(_local(g, gp), pRp, ppz)
+                P0 = np.concatenate([project(c, f) for c in cp]) + np.array([px_, py_], np.float32)
+                if len(P0) == len(P1):
+                    from .motionblur import principal_displacement
+                    dvx, dvy = principal_displacement(P0, P1)
+                    if math.hypot(dvx, dvy) >= float(mcfg["threshold"]):
+                        vec = (dvx, dvy, float(mcfg["max"]), P1)
+        items.append((zc, g, gs, cs, vec))
     items.sort(key=lambda it: -it[0])
     bb = [1e9, 1e9, -1e9, -1e9]
-    for zc, g, gs, cs in items:
-        st = g.style
-        col = rgba(gs.color or st.get("color", "@ink"), pal)
-        a = gs.alpha * alpha * col[3] * float(st.get("alpha", 1.0))
-        ex = st.get("extrude") or extrude
-        if ex and float(ex.get("depth", 0)) > 0.5:
-            dep = float(ex["depth"])
-            steps = int(ex.get("steps", max(5, min(18, dep / 2.0))))
-            ec = rgba(ex["color"], pal) if ex.get("color") else (col[0] * .42, col[1] * .32, col[2] * .22, 1)
-            for si in range(steps, 0, -1):
-                cc = world(_local(g, gs, extra_z=dep * si / steps / max(scale, 1e-6)))
-                sh = 0.5 + 0.5 * (1 - si / steps) * float(ex.get("light", 0.6))
-                ctx.new_path()
-                for c in cc:
-                    _poly(ctx, project(c, f), x, y)
-                ctx.set_source_rgba(ec[0] * sh, ec[1] * sh, ec[2] * sh, a)
-                ctx.fill()
-        ctx.new_path()
-        for c in cs:
-            _poly(ctx, project(c, f), x, y)
-        e = ctx.fill_extents()
+    for zc, g, gs, cs, vec in items:
+        if vec is not None:
+            P1 = vec[3]
+            ext = 8.0 + (float((g.style.get("extrude") or extrude or {}).get("depth", 0)) * 1.2) + \
+                (abs(float(shadow.get("dy", 5))) + abs(float(shadow.get("dx", 0))) if shadow else 0.0)
+            gbox = (float(P1[:, 0].min()) - ext, float(P1[:, 1].min()) - ext,
+                    float(P1[:, 0].max()) + ext, float(P1[:, 1].max()) + ext)
+            from .motionblur import paint_blurred
+            paint_blurred(ctx, lambda c, _g=g, _gs=gs, _cs=cs: _paint_glyph(c, _g, _gs, _cs, None),
+                          gbox, vec[0], vec[1], vec[2])
+            bb = [min(bb[0], gbox[0]), min(bb[1], gbox[1]), max(bb[2], gbox[2]), max(bb[3], gbox[3])]
+            if ectx is not None:
+                _paint_glyph(None, g, gs, cs, ectx, emission_only=True)
+            continue
+        e = _paint_glyph(ctx, g, gs, cs, ectx)
         bb = [min(bb[0], e[0]), min(bb[1], e[1]), max(bb[2], e[2]), max(bb[3], e[3])]
-        if shadow:
-            ctx.save()
-            ctx.translate(float(shadow.get("dx", 0)), float(shadow.get("dy", 5)))
-            ctx.set_source_rgba(0, 0, 0, a * float(shadow.get("alpha", .5)))
-            ctx.fill_preserve()
-            ctx.restore()
-        fa = gs.fill_alpha * float(st.get("fill_alpha", 1.0))
-        grad = st.get("gradient")
-        if grad:
-            lg = cairo.LinearGradient(0, e[1], 0, e[3])
-            for i, gc in enumerate(grad):
-                rc = rgba(gc, pal)
-                lg.add_color_stop_rgba(i / max(1, len(grad) - 1), rc[0], rc[1], rc[2], a * fa)
-            ctx.set_source(lg)
-        else:
-            ctx.set_source_rgba(col[0], col[1], col[2], a * fa)
-        stk = gs.stroke or st.get("stroke") or stroke
-        if stk:
-            if fa > 0.003:
-                ctx.fill_preserve()
-            sc = rgba(stk.get("color", "@ink"), pal)
-            ctx.set_source_rgba(sc[0], sc[1], sc[2], a * sc[3])
-            ctx.set_line_width(float(stk.get("width", 2.0)))
-            ctx.set_line_join(cairo.LINE_JOIN_ROUND)
-            ctx.stroke()
-        else:
-            ctx.fill()
-        glow = gs.glow if gs.glow is not None else float(st.get("glow", 0.0))
-        if ectx is not None and glow > 0.003:
-            ectx.new_path()
-            for c in cs:
-                _poly(ectx, project(c, f), x, y)
-            gc = rgba(st.get("glow_color", gs.color or st.get("color", "@ink")), pal)
-            ectx.set_source_rgba(gc[0], gc[1], gc[2], a * min(1.0, glow))
-            ectx.fill()
     return tuple(bb)

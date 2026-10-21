@@ -18,6 +18,8 @@ import tarfile
 import tempfile
 import urllib.request
 
+_OFFLINE_DETECTED = False
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 SDK = os.path.dirname(HERE)
 ROOT = os.path.dirname(SDK)
@@ -61,6 +63,9 @@ def _sha(p):
 
 
 def _get(url, dst):
+    global _OFFLINE_DETECTED
+    if _OFFLINE_DETECTED:
+        raise RuntimeError("offline sandbox")
     # disk temp dir next to the target (NEVER /tmp: tmpfs = RAM in the sandbox)
     req = urllib.request.Request(url, headers={"User-Agent": "mograph-sdk"})
     with urllib.request.urlopen(req, timeout=120) as r, open(dst, "wb") as f:
@@ -88,7 +93,8 @@ def ensure(name, log=print, verify=True):
         try:
             _get(a["url"], dl)
             mirror = False
-        except Exception as e:  # noqa: BLE001  upstream gone → our own release mirror (raw file)
+        except Exception as e:
+            _OFFLINE_DETECTED = True  # upstream gone -> mirror
             log(f"[assets] upstream failed ({e}) → mirror")
             _get(MIRROR + name, dl)
             mirror = True

@@ -75,6 +75,20 @@ def guard(L, F, x, y, r, kind=None):
         else:                                     # side: push away horizontally
             s = 1 if x >= zx else -1
             tx = zx + s * (rx + r + 6)
+    # Also prevent "side" elements (object_3d, tracked_tag) from overlapping active chest hero widgets (disc, glass_shape)
+    if mode == "side" and hasattr(F, "R") and hasattr(F.R, "layers"):
+        for other in F.R.layers:
+            if other is L or other.get("type") not in ("disc", "glass_shape"):
+                continue
+            if other.get("_t0", 9e9) - 0.05 <= F.t <= other.get("_t1", -9e9) + 0.05:
+                cx_c, cy_c = F.anchor(other.get("anchor", "chest"))
+                hw_c = F.head_px()
+                off_c = other.get("offset", [0, 0.35])
+                cy_c += off_c[1] * hw_c
+                rc_c = hw_c * 0.85
+                if abs(ty - cy_c) < (rc_c + r * 0.85) and abs(tx - cx_c) < (rc_c + r * 0.75):
+                    s = 1 if tx >= cx_c else -1
+                    tx = cx_c + s * (rc_c + r * 0.75 + 12)
     # safe frame
     W, H = F.W, F.H
     tx = min(max(tx, r * 0.55 + 40), W - r * 0.55 - 40)

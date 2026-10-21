@@ -15,6 +15,11 @@ Then: `cd /home/user/webapp/projects/maghale && PYTHONPATH=/home/user/webapp/sdk
 - `projects/maghale/edit_v14.json` = the edit of the user's raw video (words.json = transcript, edited time 16.02 s)
 - `work/input/` = raw.mp4, ref_novadent.mp4, brief_v14.md (the user's inputs)
 
+## v14.8 — Studio Optical & Auto-Director — see sdk/V14_GUIDE.md "v14.8 additions"
+- refractive glass (compositor._glass_optics) · 180° shutter motion blur (v14/motionblur.py) · bokeh dust (v14/bokeh.py,
+  layer `ambient_bokeh` or post.bokeh_dust) · AUTO EDIT: `cd projects/maghale && PYTHONPATH=../../sdk python3 -m mograph.v14 auto-edit words.json media/raw.mp4 -o edit_auto.json`
+- generated example: projects/maghale/edit_auto.json (QA clean) · patch: ve_v14_8.patch (repo root)
+
 ## v14.6 — pbr3d (PHOTOREAL scanned PBR 3D via bundled EffectCraft CLI) — see sdk/V14_3D_GUIDE.md §0 + sdk/CRAFT_REPOS_ANALYSIS.md
 - `sdk/bin/effectcraft-cli`, `sdk/mograph/bin/deep-filter`, `sdk/mograph/models/modnet.onnx` are NOT in git (repo < 100 MB) →
   `setup_env.sh` / `python3 -m mograph.fetch_assets` downloads them (also auto on first use). v14.2 zip/mp4 → release `v14.2-deliverables`. Models: sdk/mograph/pbr_assets/models/
