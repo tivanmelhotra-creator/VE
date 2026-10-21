@@ -57,7 +57,7 @@ v14 spec (times = EDITED seconds or word anchors; `"e:3.2"` = edited time explic
  "t": "w:مقاله", "out": "we:مقاله+1.2", "anchor": "head_top", "offset": [0, -0.7], "reveal": {"dur": 0.5}}
 {"type": "saber", "preset": "default", "start": [140, 760], "end": [940, 640], "core_size": 1.2, "reveal": {"dur": 0.4}}
 {"type": "saber", "preset": "electric", "core": "shape", "shape": "circle|rect|hex|triangle|star|heart|line", "w": 380}
-{"type": "saber", "preset": "energy", "core": "path", "paths": [[[x,y],…]], "closed": true, "offset": {"k": [[0,0],[2,100]]}}
+{"type": "saber", "preset": "energy", "core": "path", "paths": [[[x,y],…]], "closed": true, "evolution": {"k": [[0,0],[2,100]]}}
 "fx": [{"saber": {"preset": "fire"}, "t": 2.0, "dur": 1.5}]          ← glow ANY layer from its own alpha
 ```
 Cores: saber (blade, start/end size, roundness) · path (= masks) · shape · text (`text_mode` outline neon | fill) · alpha.
@@ -66,7 +66,7 @@ flicker_speed distortion (smoke|fluid|energy|none) distortion_amount distortion_
 noise_speed noise_complexity noise_aspect wind_speed wind_dir core_distortion lightning{bolts,rate,jitter,branches,width}
 glows [[i,s]×4] ramp (heat colour ramp) gamma brightness saturation alpha_boost composite (transparent|black).
 Any scalar may be keyframed `{"k": [[t, v], …], "ease": "out_back"}`. Text reveal wipes RTL (Persian).
-v14: light is ADDED and also written to the emission buffer → it spills / wraps on the speaker (`"spill": false` to stop).
+v14: light is ADDED over the plate; `"spill": true` (+ `"spill_amount": 0.12`) also lights the speaker via the emission buffer (keep it low: the v14 bloom re-glows it and can fill text counters).
 Cost: ≈0.4–0.7 s per 1080×1920 frame (`"quality": 0.35` faster). Capabilities → presets: `saber list`.
 
 ## 4. Character — `motion/character.py`

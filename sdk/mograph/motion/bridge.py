@@ -65,17 +65,19 @@ def draw_saber_layer(ctx, L, F):
     if "color" in sp and isinstance(sp["color"], str) and sp["color"].startswith("@"):
         sp["color"] = L["_pal"].get(sp["color"][1:], "#4fc3ee")
     if getattr(F, "prepass", False):                     # emission pre-pass → light the speaker
-        if F.ectx is not None and L.get("spill", True):
+        if F.ectx is not None and L.get("spill", False):            # opt-in: the v14 bloom re-glows it
             fx = _cached(L, F, sp, t)
             import cairo
             h2, w2 = F.H // 2, F.W // 2
             import cv2
-            small = np.ascontiguousarray(cv2.resize(fx, (w2, h2), interpolation=cv2.INTER_AREA))
+            # spill = soft glow only (the sharp core would be re-bloomed by the compositor and smear the letters)
+            small = cv2.GaussianBlur(cv2.resize(fx, (w2, h2), interpolation=cv2.INTER_AREA), (0, 0), 14)
+            small = np.ascontiguousarray(small)
             s = cairo.ImageSurface.create_for_data(memoryview(small), cairo.FORMAT_ARGB32, w2, h2)
             F.ectx.save()
             F.ectx.identity_matrix()
             F.ectx.set_source_surface(s, 0, 0)
-            F.ectx.paint_with_alpha(float(L.get("spill_amount", 0.6)))
+            F.ectx.paint_with_alpha(float(L.get("spill_amount", 0.12)))     # v14 bloom amplifies emission a lot
             F.ectx.restore()
         return None
     fx = _cached(L, F, sp, t)

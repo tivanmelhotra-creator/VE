@@ -14,7 +14,8 @@ Cores ("core"):
     "shape"  generated shape  "shape": "circle|rect|hex|star|heart|triangle|line", "x","y","w","h","rot"
     "text"   text layer       "text", "font", "size", "x", "y", "text_mode": "outline" (neon tube) | "fill"
     "alpha"  any layer alpha  (used by the fx stack: {"fx": [{"saber": {...}}]} glows the layer itself)
-Animation:  "core_start"/"core_end" (0–100 %, trim along the path — the light-saber ignition),
+Animation:  "core_start"/"core_end" (0–100 %, trim along the path — the light-saber ignition), "evolution" (0–100 %,
+            Saber "Mask Evolution": the lit segment travels around a closed path/shape),
             "reveal": {"t": 0, "dur": 0.6, "ease": "out_expo"}  → core_end 0→100 (paths) / RTL wipe (text, alpha)
             "out": {"t": 3.0, "dur": 0.4} retract;  every scalar also accepts a keyframe curve {"k": [[t, v], ...]}
 Look:       "glow_intensity" "glow_spread" "glow_bias" (0 coloured → 1 white-hot) "core_size" "core_softness"
@@ -325,7 +326,7 @@ def core_mask(p, t, W, H, k=0.5, alpha=None):
         else:
             polys = [np.asarray(q, np.float32) for q in p.get("paths", [])]
             closed = bool(p.get("closed", True))
-        off = float(_val(p.get("offset", 0.0), t, 0.0)) / 100.0               # Mask Evolution: run along a loop
+        off = float(_val(p.get("evolution", 0.0), t, 0.0)) / 100.0            # Mask Evolution: run along a loop (%)
         out = []
         for P in polys:
             if closed and abs(off) > 1e-6:

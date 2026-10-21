@@ -1,0 +1,411 @@
+{
+ "_about": "v14 Studio Depth — raw talking head 'مقاله نویسی: چکیده آخر، مقدمه اول' → professional reel. Every effect is tracked to the speaker (zero-lag pose), drawn in true depth (behind/front of her), with physics motion and light spill.",
+ "meta": {
+  "w": 1080,
+  "h": 1920,
+  "fps": 30,
+  "theme": "doran",
+  "palette": "auto"
+ },
+ "source": {
+  "src": "media/raw.mp4",
+  "words": "words.json",
+  "segments": [
+   [
+    1.12,
+    7.14
+   ],
+   [
+    7.44,
+    12.06
+   ],
+   [
+    12.24,
+    17.62
+   ]
+  ],
+  "retime": [
+   {
+    "op": "speed_ramp",
+    "t": "w:مقاله",
+    "dur": 0.3,
+    "from": 1,
+    "to": 0.3,
+    "hold": 0.3,
+    "back": 0.3
+   },
+   {
+    "op": "freeze_frame",
+    "t": "we:چکیده",
+    "dur": 0.7
+   }
+  ],
+  "interpolate": "flow"
+ },
+ "grade": {
+  "bg": {
+   "blur": 7,
+   "dim": 0.42,
+   "desat": 0.22,
+   "tint": "#3A2414",
+   "tint_amt": 0.24,
+   "vignette_bg": 0.35
+  },
+  "fg": {
+   "contrast": 1.07,
+   "warm": 0.035,
+   "sat": 1.04,
+   "lift": 0.0
+  },
+  "keys": [
+   [
+    "w:نگارش-0.2",
+    {
+     "dim": 0.5
+    }
+   ],
+   [
+    "w:دقیقا",
+    {
+     "dim": 0.62,
+     "blur": 11,
+     "tint": "#1C0B0B"
+    }
+   ],
+   [
+    "we:صف+0.3",
+    {
+     "dim": 0.44,
+     "blur": 7,
+     "tint": "#2A1C12"
+    }
+   ],
+   [
+    "w:شروع-0.3",
+    {
+     "dim": 0.72,
+     "blur": 12,
+     "tint": "#160606",
+     "desat": 0.7
+    }
+   ],
+   [
+    "w:مقدمه-0.2",
+    {
+     "dim": 0.5,
+     "blur": 9,
+     "tint": "#22180E",
+     "desat": 0.5
+    }
+   ]
+  ]
+ },
+ "camera": {
+  "keys": [
+   [
+    0.0,
+    1.08,
+    0.5,
+    0.42
+   ],
+   [
+    "w:مقاله",
+    1.16,
+    0.5,
+    0.4,
+    "silk"
+   ],
+   [
+    "w:چکیده",
+    1.06,
+    0.5,
+    0.4,
+    "expo"
+   ],
+   [
+    "w:مواجه",
+    1.14,
+    0.48,
+    0.42,
+    "silk"
+   ],
+   [
+    "w:اما-0.01",
+    1.14,
+    0.48,
+    0.42,
+    "step"
+   ],
+   [
+    "w:اما",
+    1.3,
+    0.47,
+    0.4,
+    "step"
+   ],
+   [
+    "w:برای",
+    1.1,
+    0.48,
+    0.42,
+    "jelly"
+   ],
+   [
+    "w:دقیقا",
+    1.04,
+    0.48,
+    0.47,
+    "silk"
+   ],
+   [
+    "w:آخر",
+    1.12,
+    0.48,
+    0.47,
+    "expo"
+   ],
+   [
+    "we:صف+0.15",
+    1.08,
+    0.47,
+    0.43,
+    "silk"
+   ],
+   [
+    "w:شروع",
+    1.24,
+    0.46,
+    0.41,
+    "expo"
+   ],
+   [
+    "w:مقدمه",
+    1.05,
+    0.47,
+    0.46,
+    "jelly"
+   ],
+   [
+    "w:نه",
+    1.2,
+    0.47,
+    0.43,
+    "expo"
+   ],
+   [
+    15.9,
+    1.24,
+    0.47,
+    0.43,
+    "silk"
+   ]
+  ],
+  "shakes": [
+   [
+    "w:اما",
+    0.25,
+    9
+   ],
+   [
+    "w:آخر",
+    0.3,
+    7
+   ],
+   [
+    "w:شروع",
+    0.3,
+    8
+   ],
+   [
+    "w:نه",
+    0.35,
+    10
+   ]
+  ]
+ },
+ "post": {
+  "bloom": 1.0,
+  "spill": 1.35,
+  "wrap_bg": 0.5,
+  "wrap_glow": 1.8,
+  "vignette": 0.3,
+  "grain": 0.016,
+  "fade": [
+   0.0,
+   0.35
+  ]
+ },
+ "subtitles": {
+  "anchor": "chest",
+  "offset": [
+   0,
+   0.95
+  ],
+  "size": 44,
+  "max_words": 4,
+  "emph": [
+   "مقاله",
+   "چکیده",
+   "نگارش",
+   "آخر",
+   "مقدمه",
+   "شروع"
+  ],
+  "hide": [
+   [
+    "w:دقیقا-0.05",
+    "we:صف+0.25"
+   ],
+   [
+    "w:مقدمه-0.1",
+    16.1
+   ],
+   [
+    "w:مقاله-0.4",
+    "w:چکیده-0.15"
+   ],
+   [
+    "w:بخشی#2-0.25",
+    "w:مقاله#3+0.1"
+   ]
+  ]
+ },
+ "layers": [
+  {
+   "type": "progress",
+   "id": "prog",
+   "t": 0,
+   "h": 6,
+   "color": "@accent"
+  },
+  {
+   "type": "orbit_ring",
+   "id": "ring",
+   "t": "w:چکیده-0.08",
+   "out": "w:مواجه",
+   "anchor": "head_top",
+   "offset": [
+    0,
+    0.15
+   ],
+   "size": 80,
+   "radius": 1.4,
+   "tilt": -14,
+   "spin": 48,
+   "phase": 160,
+   "text": "*چکیده* = اولین بخش",
+   "styles": {
+    "hero": {
+     "scale": 1.45
+    }
+   },
+   "extrude": {
+    "depth": 7,
+    "light": 0.6
+   },
+   "max_copies": 2,
+   "sep": 1.0,
+   "max_radius": 1.6
+  },
+  {
+   "type": "tracked_tag",
+   "id": "tag1",
+   "t": "w:مقاله-0.45",
+   "out": "w:چکیده-0.2",
+   "anchor": "shoulder_r",
+   "offset": [
+    0.15,
+    -0.75
+   ],
+   "size": 40,
+   "text": "*۱* ^مرحله^",
+   "pass": "front",
+   "styles": {
+    "hero": {
+     "scale": 1.35,
+     "glow": 0.5
+    },
+    "tiny": {
+     "scale": 0.75
+    }
+   }
+  },
+  {
+   "type": "saber",
+   "id": "neon_word",
+   "preset": "neon",
+   "core": "text",
+   "text": "مقاله",
+   "size": 190,
+   "anchor": "head_top",
+   "offset": [
+    0,
+    -0.75
+   ],
+   "t": "w:مقاله",
+   "out": "we:مقاله+0.6",
+   "reveal": {
+    "dur": 0.5
+   }
+  },
+  {
+   "type": "saber",
+   "id": "ring_e",
+   "preset": "electric",
+   "core": "shape",
+   "shape": "circle",
+   "w": 360,
+   "anchor": "head_top",
+   "offset": [
+    0,
+    0.35
+   ],
+   "t": "w:چکیده",
+   "out": "w:اولین",
+   "pass": "back"
+  },
+  {
+   "type": "character",
+   "id": "bean",
+   "rig": "bean",
+   "anchor": "screen",
+   "x": 860,
+   "y": 1820,
+   "size": 300,
+   "t": 0,
+   "actions": [
+    {
+     "do": "enter",
+     "t": "w:درسته",
+     "from": "right"
+    },
+    {
+     "do": "hop",
+     "t": "w:مقاله"
+    },
+    {
+     "do": "talk",
+     "t": "w:چکیده",
+     "dur": 3
+    }
+   ],
+   "lip_sync": {
+    "words": "words.json"
+   },
+   "timing": "twos"
+  }
+ ],
+ "audio": {
+  "voice_gain": 1.0,
+  "music": {
+   "style": "lofi",
+   "bpm": 92,
+   "key": "D",
+   "scale": "minor",
+   "gain": 0.16
+  },
+  "sfx_gain": 0.55,
+  "lufs": -14,
+  "denoise": "auto"
+ }
+}
