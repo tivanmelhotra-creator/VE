@@ -27,7 +27,10 @@ import cairo
 import numpy as np
 
 from .. import text as _T
-import uharfbuzz as hb
+try:
+    import uharfbuzz as hb
+except ImportError:
+    from .. import hbc as hb
 
 BASE_STYLES = {
     "thin":   {"font": "YekanBakh-Light.ttf", "scale": 1.0, "color": "@ink", "glow": 0.0},
@@ -106,13 +109,13 @@ def _is_neutral_ltr(ch):
     return (0x06F0 <= o <= 0x06F9 or 0x0660 <= o <= 0x066C or o < 0x0590 or ch in "%٪+-−.,/:")
 
 
-def _shape(word, fp):
+def _shape_single(word, fp):
     f = _T._font(fp)
     buf = hb.Buffer()
     buf.add_str(word)
     buf.guess_segment_properties()
     if all(_is_neutral_ltr(ch) for ch in word):
-        buf.direction = "ltr"            # numbers (۱۲۳, ۴۵٪) and latin read left→right even inside RTL lines
+        buf.direction = "ltr"
     hb.shape(f.hb, buf, {"kern": True, "liga": True})
     inv = 1.0 / f.upem
     out, x = [], 0.0
@@ -120,6 +123,24 @@ def _shape(word, fp):
         out.append((info.codepoint, x + pos.x_offset * inv, -pos.y_offset * inv))
         x += pos.x_advance * inv
     return out, x, buf.direction == "rtl"
+
+
+def _shape(word, fp):
+    if "\u200c" in word:
+        parts = [p for p in word.split("\u200c") if p]
+        if len(parts) > 1:
+            # In RTL, HarfBuzz returns glyphs ordered left-to-right (visual order: last sub-word first)
+            sub_res = [_shape_single(p, fp) for p in parts]
+            rtl = any(r[2] for r in sub_res)
+            ordered = list(reversed(sub_res)) if rtl else sub_res
+            out, x = [], 0.0
+            zwnj_gap = 0.04
+            for idx, (gls, adv, _) in enumerate(ordered):
+                for gid, gx, gy in gls:
+                    out.append((gid, x + gx, gy))
+                x += adv + (zwnj_gap if idx + 1 < len(ordered) else 0.0)
+            return out, x, rtl
+    return _shape_single(word, fp)
 
 
 class Glyph:

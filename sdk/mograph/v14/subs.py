@@ -168,7 +168,7 @@ def draw_subs(ctx, S, F):
         gl = t - wt + 0.08 - g.wpos * 0.008
         if gl <= 0:
             s.visible = True
-            s.alpha = 0.22
+            s.alpha = 0.72
             return s
         q = ph.sp(gl, "jelly")
         s.sx = s.sy = 0.55 + 0.45 * q

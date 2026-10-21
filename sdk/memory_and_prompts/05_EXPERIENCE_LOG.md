@@ -64,3 +64,16 @@
   center/arc/auto, arc_text, VFX (shock ring, flicker, breathing glow, light sweep, rim bloom/spill).
 - Lesson: when the user sends a reference crop, list its ANATOMY (layers, alpha, position vs. anchors, where the text
   sits, effects) as a checklist and encode each item as a default — not as per-spec numbers.
+
+
+## 2026-10-20 — v14.7: Offline Sandbox Resilience, Doran ZWNJ Fix, Chest-Hero 3D Guard & 7x Compositor Speedup
+- Trigger: Auditing VE (v14.6) in an offline sandbox on `projects/maghale/edit_v14.json` and `edit_v14_3d.json`, plus merging `FilmCraft` + `EffectCraft` (`craft_bridge.py`).
+- Root causes found & fixed:
+  1. `v14/glyphs.py` hard-imported `uharfbuzz` instead of falling back to `mograph/hbc.py` (`ctypes.CDLL("libharfbuzz.so.0")`).
+  2. `Doran-Regular.ttf` broke medial cursive joins (`م` and `ی`) whenever a word contained `\u200c` (ZWNJ, e.g. `می‌خونید`, `می‌نویسید`). Fixed `_shape()` in `v14/glyphs.py` to split on `\u200c`, shape each sub-word with full cursive joining, and place them with a `0.04 em` half-space.
+  3. `v14/track.py` lacked an offline fallback when `mediapipe` was absent, and needed anatomical left/right ordering (`eye_l.x > eye_r.x`, `sh_l.x > sh_r.x`) + `[-12°, +12°]` roll clamping so titles never invert.
+  4. `v14/stage.py` (`guard`) only checked `face_zone`, allowing `side` 3D objects (`object_3d`) at chest height to overlap centered chest hero widgets (`disc`, `glass_shape`). Added chest-hero collision avoidance to `guard()`.
+  5. `v14/compositor.py` allocated 22 full-res float32 arrays and ran `sigma=38..60` blurs at half-res; optimized light transport to quarter-res (`270x480`) + 256-entry `cv2.LUT` + `uint16` alpha blend (`7x` faster).
+  6. `zraster.py` and `pbr3d.py` upgraded with vectorized NumPy triangle bbox rasterizers (`_raster_vec_np`, `55ms` without `numba`) and an offline pure-Python glTF PBR + HDRI software fallback (`_render_gltf_software_fallback`).
+  7. `v14/subs.py` pre-pop word alpha raised from `0.22` to `0.72` for full phrase legibility inside dark glass capsules.
+- Verified: `qa` clean, 6-frame sheets `/tmp/ve_v14_6frames_grid_fixed.jpg` & `/tmp/ve_v14_3d_guard_verified.jpg`, full renders `maghale_v14_7_studio_depth_master.mp4` & `maghale_v14_7_before_after_showcase.mp4`.

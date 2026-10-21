@@ -1,5 +1,5 @@
 # TOOLS_INDEX — auto-generated inventory of the SDK
-_generated 2026-10-20 by `python3 sdk/tools/build_tools_index.py` — do not edit by hand; edit docstrings instead. The curated guide is `SKILL_TOOLBOX.md`._
+_generated 2026-10-21 by `python3 sdk/tools/build_tools_index.py` — do not edit by hand; edit docstrings instead. The curated guide is `SKILL_TOOLBOX.md`._
 
 
 ## v14 engine — talking-head footage (USE THIS FOR REAL VIDEO)
@@ -207,6 +207,30 @@ Each layer is a JSON dict.  Common keys:
 | `draw_counter_badge(ctx, L, F)` |  |
 | `draw_sweep_light(ctx, L, F)` |  |
 | `draw_tracked_tag(ctx, L, F)` | MOTION-TRACKING SHOWCASE: a small glass chip glued to a tracked point (hand / shoulder) with a curved |
+| `draw_object_3d(ctx, L, F)` |  |
+
+### `mograph.v14.object3d`  (sdk/mograph/v14/object3d.py)
+mograph.v14.object3d — `object_3d` layer: a REAL turning 3D object inside the v14 talking-head engine.
+
+<details><summary>details</summary>
+
+```
+{"type": "object_3d", "t": "w:لپ‌تاپ", "out": "we:قیمت+0.3",
+     "model": "croissant",                   # v14.6 PHOTOREAL scanned PBR model (pbr3d) — preferred — or —
+     "src": "laptop_3d.png",                 # any RGBA image (assets_3d / project path)  — or —
+     "preset": "laptop_pro_3d",              # procedural sculpt3d model (laptop_pro_3d | ozempic_pen_3d | trophy_3d)
+     "geometry": "auto",                     # auto | slab | badge | cushion | multiview (image sources)
+     "anchor": "hand_r", "offset": [0.2, -0.6],   # or "anchor": "screen", "x": 760, "y": 640
+     "size": 1.4,                            # diameter in HEAD WIDTHS when anchored, px when anchor == screen
+     "motion": "hover",                      # turntable_osc | spin_360 | spring_entry | hover | none
+     "yaw": -20, "pitch": 12,                # base angles;  "turn_on": "w:…" → one 360° spin at that word
+     "enter": "spring_pop" | "drop" | "fade",  "exit": "pop_out" | "fall" | "fade",
+```
+</details>
+
+| function / class | what |
+|---|---|
+| `draw_object_3d(ctx, L, F, pos, out_lt)` |  |
 
 ### `mograph.v14.palette`  (sdk/mograph/v14/palette.py)  · CLI: `python3 -m mograph.v14.palette …`
 mograph.v14.palette — AUTOMATIC colour design from the footage (no reference needed).
@@ -659,6 +683,28 @@ CPU cores and lets QA render any single frame instantly.
 | `color(c, alpha_mul)` | Accept '#fff', '#ffffffcc', (r,g,b), (r,g,b,a) with 0..1 floats; multiply alpha. |
 | `with_alpha(c, a)` |  |
 
+### `mograph.craft_bridge`  (sdk/mograph/craft_bridge.py)
+mograph/craft_bridge.py — FilmCraft + EffectCraft Native Studio Bridge (v14 Master)
+
+<details><summary>details</summary>
+
+```
+===================================================================================
+Ports the core mathematical, color, 3D geometry, layer-style, and broadcast audio DSP
+engines from `storytold/filmcraft` and `storytold/effectcraft` into `mograph`.
+```
+</details>
+
+| function / class | what |
+|---|---|
+| `effectcraft_iris_bokeh(bgr, radius, highlight_gain, highlight_thresh, sides)` |  |
+| `filmcraft_lumetri_grade(bgr, person_alpha, bg_dim, bg_tint_bgr, bokeh_radius, dof_speaker_blur, …)` |  |
+| `composite_speaker_with_auto_light_wrap(canvas_bgra, fg_bgr, person_alpha, wrap_strength, defringe)` |  |
+| `filmcraft_compressor_curve_db(x_db, threshold_db, ratio, knee_db)` |  |
+| `filmcraft_expander_curve_db(x_db, threshold_db, ratio, range_db)` |  |
+| `synthesize_studio_music_bed(duration_s, sr, bpm)` |  |
+| `filmcraft_master_reel_audio(raw_mp4_path, segments, sfx_events, out_wav_path, sr)` |  |
+
 ### `mograph.creative_reels`  (sdk/mograph/creative_reels.py)
 mograph.creative_reels — v13.9 (@novadent 100/100 Master + Creative Viral Reels Engine).
 
@@ -824,6 +870,28 @@ and dynamically by `@element("tactile_3d")` when given a raw AI-generated image.
 |---|---|
 | `key_3d_rgba(bgr, bg_mode)` | Convert a BGR image of an isolated 3D object on a solid black, green, or white |
 | `extract_3d_sheet(src_path, names, grid, bg_mode, out_dir)` | Slice a grid sprite sheet (e.g. 2x2, 1x1, 2x3) and save clean RGBA PNGs into assets_3d. |
+
+### `mograph.fetch_assets`  (sdk/mograph/fetch_assets.py)  · CLI: `python3 -m mograph.fetch_assets …`
+Large binaries kept OUT of git (repo must stay < 100 MB) — downloaded once on demand, sha256-verified.
+
+<details><summary>details</summary>
+
+```
+python3 -m mograph.fetch_assets          # fetch all (also run by tools/setup_env.sh)
+    python3 -m mograph.fetch_assets --check  # show status only
+
+Every file is byte-identical to the copy that used to be committed (sha256 below).
+Archived deliverables of v14.2 (old SDK zip, final/showcase mp4) live in the GitHub Release
+`v14.2-deliverables` — see `python3 -m mograph.fetch_assets --deliverables`.
+```
+</details>
+
+| function / class | what |
+|---|---|
+| `ok(name)` |  |
+| `ensure(name, log, verify)` | Return the local path of asset `name`, downloading + verifying it the first time. |
+| `try_ensure(name, log)` | Like ensure() but returns None instead of raising (offline → caller uses its fallback). |
+| `deliverables(dst)` |  |
 
 ### `mograph.fx`  (sdk/mograph/fx.py)
 mograph.fx — v11 "Studio Pantheon": real-footage editing & compositing inside the vector engine.
@@ -1180,6 +1248,41 @@ mograph.media — real footage inside the vector world.
 | `punch_zoom(scene, el, t)` | 1.0 ↔ 1+punch alternating at every jump cut (spec._cuts) → no visible jump cut. |
 | `el_talking_head(ctx, el, s)` |  |
 
+### `mograph.obj3d`  (sdk/mograph/obj3d.py)
+mograph.obj3d — v14.4 core 3D object renderer (pure NumPy + OpenCV + Cairo, CPU, no GPU).
+
+<details><summary>details</summary>
+
+```
+Replaces the v13.9 prototypes in sam3d_bridge.py (which are kept as thin wrappers) with ONE correct,
+fast renderer:
+
+  render_extruded_sprite()   any RGBA sprite (assets_3d/*.png, image_gen output) → solid 3D object:
+                             • correct perspective (front face nearer than back face — v13.9 had it inverted)
+                             • front / back face visibility (past 90° you see the BACK, not a mirrored front)
+                             • gap-free side wall: slice count follows the projected depth in px (no stripes)
+                             • rounded profile (bevel → cushion) by distance-field inset (no Lanczos moiré)
+                             • per-pixel wall normals + key/rim light + moving specular sheen on the face
+                             • works at OUTPUT resolution → 5-10× faster than v13.9 (≈40-90 ms @ 300 px)
+```
+</details>
+
+| function / class | what |
+|---|---|
+| `resolve_asset(src, base_dir)` | Find an asset file: absolute path, relative to the scene/project dir, cwd, or mograph/assets_3d. |
+| `load_rgba(path)` | BGRA uint8 (straight alpha).  3-channel images are keyed (black / white / green background). |
+| `find_views(src, base_dir)` | Auto-detect multi-view siblings:  laptop_3d.png → laptop_yaw_m45.png, laptop_yaw_p15.png … |
+| `rot_matrix(yaw, pitch, roll)` |  |
+| `paint_premul(ctx, pm, x0, y0, alpha)` | Paint a premultiplied float/uint8 BGRA array at (x0, y0) on a cairo context. |
+| `contact_shadow(ctx, cx, cy, w, alpha, strength, …)` |  |
+| `render_extruded_sprite_array(path, size, yaw, pitch, roll, depth, …)` | Return (premultiplied float32 BGRA D×D, D) of the sprite turned into a solid 3D object. |
+| `render_extruded_sprite(ctx, src, cx, cy, size, yaw, …)` |  |
+| `render_flat_sprite_array(bgra, size, yaw, pitch, roll, F)` |  |
+| `view_weights(angs, yaw, dissolve, switch)` | Which real views are visible at `yaw` → [(index, weight, residual_yaw)]. |
+| `render_multiview(ctx, views, cx, cy, size, yaw, …)` |  |
+| `motion_angles(el, lt, yaw0, pitch0)` | Shared yaw/pitch motion presets for every 3D element. |
+| `audit_sheet(src, out_png, angles, cell, pitch)` | 3D QA sheet: one row per geometry (slab / cushion / multiview) for an image, or the sculpt3d preset |
+
 ### `mograph.omni`  (sdk/mograph/omni.py)
 mograph.omni — Gemini Omni Flash bridge: realistic shots where vector code is the wrong tool.
 
@@ -1207,6 +1310,43 @@ Spec (top level, times are absolute seconds or word anchors):
 | `plan(scene)` |  |
 | `run(spec_path, yes, only, provider, log)` |  |
 | `load_plates(scene)` | Spec omni jobs whose clip exists → scene.plates (used by render_frame). |
+
+### `mograph.pbr3d`  (sdk/mograph/pbr3d.py)
+mograph.pbr3d — v14.6 PHOTOREAL 3D objects: real scanned/PBR models (glTF/GLB/OBJ/FBX/STL) rendered by the
+
+<details><summary>details</summary>
+
+```
+EffectCraft Advanced-3D software rasteriser (Cook-Torrance GGX, HDRI image-based lighting, PCF shadow maps, 2x2 SSAA).
+
+WHY (the v14.5 problem): real3d/sculpt3d build objects from procedural primitives + procedural noise textures →
+they look like "3D icons" (clean, plastic, synthetic).  Photoreal needs (a) real geometry detail, (b) real
+PBR texture maps (albedo / normal / roughness-metal / AO from photogrammetry) and (c) image-based lighting from a
+real HDRI.  pbr3d gets (a)+(b) from free CC0 scans (Poly Haven, 500+ models, `fetch`) or any glTF the agent
+generates/imports, and (c) from EffectCraft's renderer — a single static 75 MB CLI binary, no GPU, ~270 MB RAM,
+~0.15–0.4 s per 600 px frame on 2 vCPU.  (github.com/storytold/effectcraft, MIT/Apache-2.0)
+
+Design for a low-resource agent sandbox:
+  * one CLI call renders a WHOLE pose sequence (per-frame yaw/pitch/roll baked into an expression lookup table),
+```
+</details>
+
+| function / class | what |
+|---|---|
+| `ec_bin()` | Path to effectcraft-cli (bundled in sdk/bin, $EFFECTCRAFT_CLI, PATH, or auto-download once). |
+| `search(query, category, kind)` | Search the Poly Haven CC0 catalogue → [(id, name, categories)].  kind = models / hdris. |
+| `fetch(asset, res, kind)` | Download a Poly Haven model (glTF + 1k PBR maps, typically 0.5–3 MB) or HDRI.  Returns the local path. |
+| `resolve_model(src, base_dir, auto_fetch)` | Model reference → local file.  Accepts a path (abs / project-relative / models dir) or a Poly Haven id. |
+| `prepare_model(src, base_dir)` | Normalise a model so its bounding sphere is centred on the origin with radius 1 (predictable size + pivot). |
+| `hdri_path(name)` |  |
+| `render_sequence(model, size, poses, hdri, light, env_rot, …)` | Render poses [(yaw, pitch[, roll]), …] → lazy list of float32 frames H×W×5 = (R, G, B, alpha, shadow): |
+| `render_pose(model, size, yaw, pitch, roll)` |  |
+| `to_bgra_premul(fr, shadow_strength, shadow_color, shadow_gain)` | frame (RGB, alpha[, shadow]) → premultiplied BGRA float 0..255 (object over its own cast shadow). |
+| `paint(ctx, fr, cx, cy, alpha, shadow_strength)` |  |
+| `comp_over(img_bgr_f, fr, cx, cy, shadow_strength)` | Composite one frame over a float BGR image (0..1) in place (numpy path, no cairo). |
+| `audit_sheet(src, out, size, bg, hdri)` |  |
+| `track(model, size, angles_fn, t0, t1, fps)` | Pre-render a whole on-screen interval at once: angles_fn(local_t) → (yaw, pitch, roll). |
+| `paint_scaled(ctx, fr, cx, cy, scale, alpha, …)` | cairo paint of a frame centred at (cx, cy) with an extra scale (springs / pops without re-rendering). |
 
 ### `mograph.promo`  (sdk/mograph/promo.py)
 mograph.promo — v9 Studio Apex: kinetic-promo, 3D and SaaS-UI mockup widgets (pure JSON, zero scripting).
@@ -1297,6 +1437,84 @@ All return plain lists/dicts so the agent can read them and fix issues in the sp
 | `report(scene, overlaps, audit)` | Human-readable QA summary; returns (text, n_errors). |
 | `review_video(path, expect_duration, expect_fps, sample_step, sheet_path)` | Decode the rendered mp4 and check: duration/fps, black stretches, frozen stretches |
 
+### `mograph.real3d`  (sdk/mograph/real3d.py)
+mograph.real3d — v14.5 TRUE 3D product renderer (textured meshes, deferred PBR, shadow map, SSAO, bump).
+
+<details><summary>details</summary>
+
+```
+Why: a single image "thickened" (image_to_3d slab/cushion) is not a 3D object — it breaks as soon as it turns.
+real3d rebuilds the object from REAL geometry (img2threejs idea: component tree of procedural primitives) and gives
+every part a procedural texture whose palette is sampled from the reference photo.  Every angle (360° yaw, any pitch,
+top, bottom, back) is a real view of a closed solid.
+
+Pipeline per frame (CPU, numba z-buffer from zraster.py):
+  meshes (pos, normal, uv, local pos) → rotate → perspective G-buffer (2× SSAA) → per-pixel materials
+  (albedo / roughness / metalness / height) → screen-space bump → lights (key + fill + rim, hemisphere ambient,
+  studio softbox environment for reflections) → key-light SHADOW MAP (toppings shadow the cheese, the arrow shadows
+  the card) → SSAO → ACES tone map → sRGB → downsample (anti-aliased alpha).
+```
+</details>
+
+| function / class | what |
+|---|---|
+| `noise_tex(seed, n, sigma)` |  |
+| `samp(tex, u, v)` | Bilinear, wrapping sample of a 2D texture at texture-repeat coords (u, v) (any shape). |
+| `fbm(u, v, oct, seed, gain)` |  |
+| `smooth(e0, e1, x)` |  |
+| `srgb()` | sRGB 0..255 → linear 0..1 (np array). |
+| `Mesh` | v (n,3) n (n,3) uv (n,2) f (m,3).  Local coordinates (texture space = local position). |
+| `grid_faces(rows, cols, wrap)` | Quads of a rows×cols vertex grid → triangles. |
+| `lathe(profile, segs)` | Surface of revolution around +Y.  profile = [(r, y), ...] from bottom centre → outward → top centre. |
+| `from_sculpt(v, f, n)` | Wrap a sculpt3d mesh; orient normals outward (flip if most point inward). |
+| `rbox(w, h, d, bevel, subdiv)` |  |
+| `prism(shape, depth)` |  |
+| `cyl_z(r, depth, segs, bevel)` | Cylinder along Z (disc / joint / button), optional rounded edge. |
+| `xform(m, R, t)` | Apply a rigid transform to a mesh's positions/normals but KEEP its texture space (uv + local pos). |
+| `rot(rx, ry, rz)` | R = Rz · Rx · Ry (degrees). |
+| `env(R, rough)` | Studio environment radiance for reflection vector R (n,3), roughness (n,). |
+| `aces(x)` |  |
+| `Model` | parts = [(Mesh, material_name)];  materials = {name: fn(ctx) -> dict} |
+| `render(model, size, yaw, pitch, roll, ssaa, …)` | → (rgba float32 D×D×4 straight alpha 0..1, D).  `size` = on-screen diameter of the bounding sphere. |
+| `to_bgra_premul(rgba)` | straight RGBA float 0..1 → premultiplied BGRA float 0..255 (for obj3d.paint_premul / cairo). |
+| `paint(ctx, model_name, cx, cy, size, yaw, …)` |  |
+
+### `mograph.real3d_models`  (sdk/mograph/real3d_models.py)
+mograph.real3d_models — procedural TRUE-3D product models (geometry + procedural textures sampled from the
+
+<details><summary>details</summary>
+
+```
+reference photo).  Every model is a closed solid: it can turn 360° / be seen from above, below and behind.
+
+  soda_can      lathe body (dome bottom, stand ring, chime, neck, double-seam rim, recessed lid) + pull tab + rivet,
+                brushed aluminium + condensation droplets (bump + gloss)
+  pizza_slice   polar height-field slab (melted cheese lumps, sauce at the edges, baked dough underside and cut walls),
+                puffy lumpy crust tube with pores, pepperoni (cupped, oily, fat specks), mushroom slices, olive ring,
+                green pepper strip
+  growth_card   two stacked rounded cards (matte plastic) with embossed UI bars / dots and an extruded, bevelled
+                zig-zag growth arrow
+
+Reference palette (sampled from work/input/three_objects/ref.jpg): crust (177,109,62) cheese (223,189,143)
+```
+</details>
+
+| function / class | what |
+|---|---|
+| `vnormals(v, f)` |  |
+| `oriented(v, f, expect)` | Mesh with geometric normals, flipped (normals AND winding) so they agree with `expect` (n,3) or (3,). |
+| `merge()` |  |
+| `rbox(w, h, d, b, n_in, n_b)` | Rounded box with ANALYTIC normals and dense samples inside the bevel band (smooth highlights). |
+| `bevel_prism(outer, inner, depth, b)` | Extrude a 2D polygon along +Z with a 45° chamfer.  `inner` = the same polygon inset by b (same vertex |
+| `stroke_arrow(pts, w, head_w, head_len)` | Polyline → simple polygon of a thick stroke with an arrow head at the end (miter joins). |
+| `disc_y(r, t, bevel, dome, cup, segs)` | Flat disc on the XZ plane (axis +Y): rounded edge, optional dome (top bulge) / cup (rim raised). |
+| `torus_y(R, r, su, sv)` |  |
+| `cells(u, v, nu, nv, seed, density)` | Cellular dots: for each point → (distance to the cell's dot centre / cell size, dot radius frac, present). |
+| `soda_can()` |  |
+| `pizza_slice()` |  |
+| `growth_card()` |  |
+| `get_model(name)` |  |
+
 ### `mograph.reelfx`  (sdk/mograph/reelfx.py)
 mograph.reelfx — v13 "Visual-DNA & Creative Director" (Zero-Box Edition).
 
@@ -1363,6 +1581,44 @@ Speed design
 | `auto_workers(scale)` | CPU count, capped by RAM (each worker = cairo frame + its own x264 encoder). |
 | `render_video(scene, out_path, preview, workers, start, end, …)` |  |
 
+### `mograph.sam3d_bridge`  (sdk/mograph/sam3d_bridge.py)
+mograph.sam3d_bridge — Native CPU Renderer for `facebookresearch/sam-3d-objects` Exports (`.ply` Gaussian Splats & `.obj` Meshes).
+
+<details><summary>details</summary>
+
+```
+While the heavy PyTorch/CUDA DiT inference of `facebookresearch/sam-3d-objects` requires an external
+NVIDIA GPU (32 GB VRAM) to reconstruct an object from a photo (`output["gs"].save_ply("splat.ply")`),
+its exported `.ply` (3D Gaussian Splat / Point Cloud) and `.obj` (3D Mesh) files CAN be rendered,
+lit, and rotated 360° in real time inside `mograph` using pure vectorized NumPy + PyCairo!
+
+Usage in `spec.json`:
+  {
+    "type": "sam3d_object",
+    "id": "obj1",
+    "src": "assets_3d/splat.ply",
+```
+</details>
+
+| function / class | what |
+|---|---|
+| `load_ply_or_obj(path)` | Loads either: |
+| `el_sam3d_object(ctx, el, s)` | Renders a true 3D `.ply` Gaussian Splat (exported from `facebookresearch/sam-3d-objects`) |
+| `reconstruct_3d_from_image(src_name, work_res, depth_amount)` | Converts ANY single 2D RGBA image (e.g. generated by `image_gen` or in `assets_3d/`) |
+| `export_image_to_ply(src_name, out_ply, work_res, depth_amount)` | Exports the reconstructed 3D volumetric model of a 2D image to a standard `.ply` 3D file! |
+| `render_reconstructed_3d(ctx, src_name, cx, cy, size, yaw_deg, …)` | Renders a single-image reconstructed 3D Volumetric Model at `(cx, cy)` with: |
+| `el_image_to_3d(ctx, el, s)` | `image_to_3d` — ANY 2D RGBA image (assets_3d/*.png, image_gen output, project path) shown as a solid 3D |
+| `render_machined_3d_slab(ctx, src_name, cx, cy, size, yaw_deg, …)` |  |
+| `render_true3d_inflated_cushion(ctx, src_name, cx, cy, size, yaw_deg, …)` |  |
+| `render_multiview_turntable_3d(ctx, views, cx, cy, size, yaw_deg, …)` |  |
+| `render_machined_3d_slab_v139(ctx, src_name, cx, cy, size, yaw_deg, …)` | LEGACY v13.9 (kept for A/B only).  Known bugs: inverted perspective (back face projected larger than the |
+| `infer_depth_anything_onnx(bgr_img, model_path)` | Cloned from `fabio-sim/Depth-Anything-ONNX` (`infer.py`) for `onnx-community/depth-anything-v2-small` (27.3 MB): |
+| `bilateral_normal_integration_cpu(normal_map, mask, k, max_iter, tol)` | Adapted from `xucao-42/bilateral_normal_integration` (ECCV 2022 Official CPU Implementation): |
+| `render_true3d_sphere(ctx, tex_rgba, cx, cy, radius, yaw_deg, …)` | Mode 1 (`geometry="sphere"`): |
+| `render_true3d_cylinder_capsule(ctx, tex_rgba, cx, cy, radius, height, …)` | Mode 2 (`geometry="capsule"` / `"cylinder"`): |
+| `render_true3d_inflated_cushion_v139(ctx, src_name, cx, cy, size, yaw_deg, …)` | LEGACY v13.9 (kept for A/B only — slow, moiré on the side wall; use render_true3d_inflated_cushion). |
+| `render_multiview_turntable_3d_v139(ctx, views, cx, cy, size, yaw_deg, …)` | Mode 4 (`geometry="turntable_4view"`): |
+
 ### `mograph.scene`  (sdk/mograph/scene.py)
 mograph.scene — compile a JSON/dict spec into a renderable Scene.
 
@@ -1386,6 +1642,50 @@ Spec skeleton (see examples/demo_spec.json and SPEC_REFERENCE.md):
 |---|---|
 | `Scene` |  |
 | `load_spec(path_or_dict)` |  |
+
+### `mograph.sculpt3d`  (sdk/mograph/sculpt3d.py)
+mograph.sculpt3d — v14 `img2threejs`-Compatible Procedural 3D `ObjectSculptSpec` Engine &
+
+<details><summary>details</summary>
+
+```
+Native Python Z-Buffered Triangle-Mesh PBR Renderer.
+
+Inspired by `https://github.com/img2threejs/img2threejs` ("Rebuild the object in a reference image
+as a code-only, procedural, quality-gated, animation-ready 3D model"):
+  * Instead of warping a flat 2D bitmap or requiring a 32GB-VRAM GPU, objects are constructed from
+    a hierarchical 3D component tree (`ObjectSculptSpec`) of true 3D triangle-mesh primitives:
+      - `box` / `rounded_box` (3D beveled box with 6 faces + chamfered edges)
+      - `cylinder` / `cone` (3D cylinder/frustum with top/bottom caps)
+      - `sphere` / `ellipsoid` (3D UV sphere / ellipsoid)
+      - `torus` (3D torus ring)
+      - `lathe` (3D surface of revolution spun 360° from a 2D profile `[(r, y), ...]`)
+```
+</details>
+
+| function / class | what |
+|---|---|
+| `mesh_lathe(profile_ry, segs_u)` | Revolves a 2D profile `[(r0, y0), (r1, y1), ...]` 360° around the Y axis to create a |
+| `mesh_cylinder(r_top, r_bot, height, segs)` | 3D Cylinder / Cone / Frustum centered at origin along Y axis with top and bottom caps. |
+| `mesh_capsule(radius, height, segs, cap_rings)` | 3D Capsule (cylinder + hemispherical top and bottom domes). |
+| `mesh_sphere(rx, ry, rz, segs_u, segs_v)` | 3D Sphere / Ellipsoid with radii `(rx, ry, rz)`. |
+| `mesh_torus(R, r, segs_u, segs_v)` | 3D Torus ring in the X-Z plane (or X-Y plane). |
+| `mesh_rounded_box(w, h, d, bevel, subdiv)` | 3D Rounded/Beveled Box `(w, h, d)` with subdivided faces and smooth chamfered edges |
+| `build_node_geometry(node, t, parent_R, parent_T)` | Recursively evaluates a hierarchical `ObjectSculptSpec` node and its `children` at time `t`, |
+| `render_sculpt3d_array(root_node, scale_px, t, yaw_deg, pitch_deg, roll_deg, …)` | Rasterise a hierarchical ObjectSculptSpec → (BGRA uint8 premultiplied D×D, D). |
+| `render_sculpt3d_scene(ctx, root_node, cx, cy, scale_px, t, …)` | Render a hierarchical ObjectSculptSpec 3D model at (cx, cy) — see render_sculpt3d_array. |
+| `spec_laptop_pro_3d(lid_open_t0, lid_open_dur)` | `img2threejs`-style hierarchical `ObjectSculptSpec` + Step 2c Texture Projection for a 3D Ultrabook Laptop: |
+| `spec_ozempic_pen_3d(cap_open_t0, cap_open_dur)` | `img2threejs`-style hierarchical `ObjectSculptSpec` for a 3D Medical Injection Pen (Ozempic/Spartina): |
+| `spec_chalice_trophy_3d()` | `img2threejs`-style Lathed 3D Golden Trophy Goblet + Orbiting Torus Ring + Glowing Core Sphere! |
+| `el_sculpt3d(ctx, el, s)` | Declarative `mograph` Element `@element("sculpt3d")`: |
+| `resolve_material(mat)` |  |
+| `mesh_extrude(shape, depth, bevel)` | Extrude a 2D polygon `[(x, y), ...]` (object units, CCW or CW) along Z — logos, badges, keys, plates. |
+| `get_tree(tree, preset, base_dir, open_dur)` | Resolve a sculpt tree: dict / path to an ObjectSculptSpec .json / preset name. |
+| `validate_tree(tree, strict)` | Deterministic gate (img2threejs `validate_sculpt_spec --strict-quality` idea): returns (errors, warnings). |
+| `json_key(d)` |  |
+| `silhouette_iou(render_bgra, ref_bgra)` | IoU of the two alpha silhouettes after fitting both bounding boxes to the same square (scale/position |
+| `fit_pose(tree, ref_bgra, t, yaws, pitches)` | Camera match (img2threejs `solve_camera_pose` idea): coarse grid → local refine of yaw/pitch that maximises |
+| `comparison_sheet(tree, ref_path, out_png, yaw, pitch, t, …)` | img2threejs `make_comparison_sheet` equivalent: reference / render at the reference angle / silhouette |
 
 ### `mograph.showcase`  (sdk/mograph/showcase.py)
 mograph.showcase — v11 editor-showcase / social-reel layout widgets (refs 02–06, 08).
@@ -1740,6 +2040,25 @@ All times inside lists ("highlights", "rows", "drops") accept word anchors ("w:.
 | `strata(ctx, el, s)` | keys: w, surface: [icon names], layers (int), resources (icon name or None), drill_at, drill_x, |
 | `scale_rig(ctx, el, s)` | keys: left {label, item}, right {label}, drops: [{t, label}], max_tilt (deg), w. |
 
+### `mograph.zraster`  (sdk/mograph/zraster.py)
+mograph.zraster — tiny per-pixel Z-buffered triangle rasteriser (Gouraud colour, ID buffer) for the CPU 3D
+
+<details><summary>details</summary>
+
+```
+engines (sculpt3d).  numba-JIT when available (≈ 5-15 ms for 2-5 k triangles at 600²), pure-NumPy fallback.
+
+raster(tri_xy (N,3,2) px, tri_z (N,3) camera distance, tri_rgb (N,3,3) 0..255, tri_id (N,), W, H)
+    → color (H,W,3) float32, alpha (H,W) float32 (coverage 0/1), ids (H,W) int32 (0 = empty)
+Nearest surface wins (smaller z).  Pixel centres at +0.5.  Interpolation is perspective-correct for depth.
+```
+</details>
+
+| function / class | what |
+|---|---|
+| `raster(tri_xy, tri_z, tri_rgb, tri_id, W, H)` |  |
+| `raster_attr(tri_xy, tri_z, tri_attr, tri_id, W, H)` | → attr (H,W,K) float32, ids (H,W) int32 (0 = empty), zbuf (H,W) (1e30 = empty). |
+
 
 ## tools/ — shell & maintenance scripts
 
@@ -1805,6 +2124,16 @@ excludes renders, caches, matte caches and keys).   python3 tools/package.py v9 
 ```
 </details>
 
+### `real3d_demo`  (sdk/tools/real3d_demo.py)
+**UNDOCUMENTED — add a module docstring**
+
+| function / class | what |
+|---|---|
+| `ease(x)` |  |
+| `poses(t)` |  |
+| `bg()` |  |
+| `frame(i)` |  |
+
 
 ## shell scripts
 
@@ -1814,8 +2143,7 @@ excludes renders, caches, matte caches and keys).   python3 tools/package.py v9 
 
 ## models / binaries / assets
 
-- `mograph/models/` (5 files, 39.9 MB): LICENSE_portrait_seg.txt, hand_landmarker.task, modnet.onnx, portrait_seg.onnx, pose_landmarker_lite.task
+- `mograph/models/` (4 files, 14.1 MB): LICENSE_portrait_seg.txt, hand_landmarker.task, portrait_seg.onnx, pose_landmarker_lite.task
 - `mograph/models/rnnoise/` (6 files, 1.5 MB): README_rnnoise-models.md, bd.rnnn, cb.rnnn, lq.rnnn, mp.rnnn, sh.rnnn
-- `mograph/bin/` (1 files, 36.4 MB): deep-filter
-- `mograph/assets_3d/` (14 files, 3.2 MB): cash_3d.png, grade_a_3d.png, grade_b_3d.png, grade_c_3d.png, laptop_3d.png, logo_apple_3d.png, logo_dell_3d.png, logo_hp_3d.png, logo_surface_3d.png, pin_3d.png, pin_green_3d.png, plane_3d.png, shield_3d.png, warn_3d.png
+- `mograph/assets_3d/` (18 files, 4.0 MB): cash_3d.png, grade_a_3d.png, grade_b_3d.png, grade_c_3d.png, laptop_3d.png, laptop_yaw_m15.png, laptop_yaw_m45.png, laptop_yaw_p15.png, laptop_yaw_p45.png, logo_apple_3d.png, logo_dell_3d.png, logo_hp_3d.png, logo_surface_3d.png, pin_3d.png, pin_green_3d.png, plane_3d.png, shield_3d.png, warn_3d.png
 - `fonts/` (139 files) families: AbarHigh, AbarLow, AbarMid, AriaFaNum, Capsule, Delbar, DigiAnil, DigiGhasedak, Doran, DoranFaNum, FONT, Gohar, Hasti, IRANSansWeb, IRANSansWeb.ttf, IRANYekanBlack.ttf, IRANYekanBold.ttf, IRANYekanBoldFaNum.ttf, IRANYekanExtraBlack2.ttf, IRANYekanExtraBold.ttf, IRANYekanExtraBoldFaNum.ttf, IRANYekanLight.ttf, IRANYekanMedium.ttf, IRANYekanRegular.ttf, IRANYekanThin.ttf, IRArshia.ttf, IRDastNevis.ttf, IRFarnaz.ttf, KalamehFaNum, Miremad.ttf, Morabba, PINAR, Pelak, PelakFA, Peyda, Shoko, Titr Zebr.ttf, Vazirmatn, YekanBakh
