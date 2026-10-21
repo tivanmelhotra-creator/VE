@@ -1,0 +1,43 @@
+{
+ "palette": {
+  "accent": "#4FC3EE",
+  "accent2": "#58E4D6",
+  "alert": "#F91F2E",
+  "ink": "#F6F4EE",
+  "glow": "#1AE0FF",
+  "stage": "#19130B",
+  "grid": "#A9CAD6",
+  "mute": "#BDB8B2",
+  "accent_grad": [
+   "#7ACEFF",
+   "#4FC3EE",
+   "#00C1D6"
+  ],
+  "alert_grad": [
+   "#FF7070",
+   "#F91F2E",
+   "#C20020"
+  ],
+  "gold": "#4FC3EE",
+  "red": "#F91F2E",
+  "amber": "#58E4D6"
+ },
+ "analysis": {
+  "bg_hue": 33.6,
+  "bg_hue_strength": 0.958,
+  "bg_lum": 0.514,
+  "bg_chroma": 0.102,
+  "avoid_hues": [
+   15,
+   25,
+   345
+  ],
+  "accent_hue": 196,
+  "accent_family": "teal-cyan",
+  "contrast_vs_stage": {
+   "accent": 9.12,
+   "alert": 4.63,
+   "ink": 16.79
+  }
+ }
+}
