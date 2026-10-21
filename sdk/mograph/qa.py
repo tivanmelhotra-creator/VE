@@ -44,7 +44,7 @@ COMMON_KEYS = {"type", "id", "t", "dur", "out", "out_dur", "enter", "exit", "eas
                # v11 shared keys (tracking / depth / glow / containers)
                "follow", "follow_offset", "follow_rot", "follow_rot0", "follow_scale", "follow_lag", "follow_axis",
                "behind", "parent", "glow", "shadow", "shiver", "children", "radius", "border", "border_w", "tilt",
-               "text_color", "fill", "accent", "ink", "paper", "src", "font", "text", "sub", "sub_font", "width", "gen", "decor"}
+               "text_color", "fill", "accent", "ink", "paper", "src", "font", "text", "sub", "sub_font", "width", "gen", "decor", "fx", "preset", "preset_dur", "preset_out", "preset_out_dur", "animators", "selectors"}
 ELEMENT_KEYS = {
     "icon": {"name", "style", "fill", "width", "dashed", "detail", "label_gap", "morph_to", "morph_at", "morph_dur",
              "morph_ease", "twist"},
@@ -145,7 +145,17 @@ ELEMENT_KEYS = {
     "vignette_pulse": {"amount", "at", "decay"},
     "planar_insert": {"src", "fit", "edge", "blend", "grade", "speed"},
     "saber": {"points", "d", "target", "pad", "core", "width", "haze", "travel", "seg", "period", "loop", "flicker",
-              "additive", "r"},
+              "additive", "r", "preset", "start", "end", "core_size", "core_softness", "core_start", "core_end",
+              "reveal", "out_fx", "shape", "paths", "closed", "evolution", "glow_intensity", "glow_spread", "glow_bias",
+              "halo_intensity", "flicker_intensity", "flicker_speed", "distortion", "distortion_amount",
+              "distortion_mode", "noise_scale", "noise_speed", "noise_complexity", "noise_aspect", "wind_speed",
+              "wind_dir", "core_distortion", "lightning", "glows", "ramp", "gamma", "brightness", "saturation",
+              "alpha_boost", "composite", "text_mode", "quality", "seed", "spill", "spill_amount",
+              "start_anchor", "end_anchor", "start_offset", "end_offset", "angle", "length"},
+    "aecomp": {"gen", "comp", "lower_third", "title_style", "title", "role", "hero", "kicker", "seed", "c1", "c2", "c3",
+               "stroke", "speed", "loop", "bg", "controls"},
+    "character": {"rig", "actions", "lip_sync", "timing", "exaggeration", "look", "blink", "breathe", "outline", "seed"},
+    "mouth": {"lip_sync", "visemes", "open", "shape"},
     "flash_pulse": {"r", "rings", "rays", "ray_rot", "screen"},
     "glow_ring": {"r", "rings", "period", "width", "spread"},
     "tracked_callout": {"anchor", "box", "sub", "box_style", "elbow", "dot", "lag", "box_follow", "anchor0",

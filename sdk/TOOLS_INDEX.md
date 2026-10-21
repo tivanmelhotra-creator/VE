@@ -2365,6 +2365,69 @@ Nearest surface wins (smaller z).  Pixel centres at +0.5.  Interpolation is pers
 
 ## tools/ — shell & maintenance scripts
 
+### `batch_validate_aecomp`  (sdk/tools/batch_validate_aecomp.py)
+DEV TOOL: validate the whole Shape-Elements reference pack in one go (parallel, per-file timeout).
+
+<details><summary>details</summary>
+
+```
+python3 tools/batch_validate_aecomp.py /path/to/NM_Library_Shapes_AE -o /tmp/batch.jsonl [--j 4] [--only Arcs]
+    python3 tools/batch_validate_aecomp.py --report /tmp/batch.jsonl        # summary per category + worst items
+
+For every Shape_Elements/<cat>/<n>.aep with a Previews/Shape_Elements/<cat>/<n>.mp4 it imports the comp
+(tools/import_aep.py), measures IoU + F3 (tools/validate_aecomp.py) and appends one JSON line.
+Nothing from the pack is written into the repo — only numbers.
+```
+</details>
+
+| function / class | what |
+|---|---|
+| `one(aep, mp4, n)` |  |
+| `report(path, worst)` |  |
+| `main(argv)` |  |
+
+### `build_aefx_catalog`  (sdk/tools/build_aefx_catalog.py)
+tools/build_aefx_catalog.py — MEASURE every motion / text preset → agent-readable catalogue
+
+<details><summary>details</summary>
+
+```
+(sdk/mograph/aefx/presets/catalog.json + CATALOG.md).  The agent picks presets from measured data, not names.
+
+motion: dur, ends_identity, peak_scale, peak_rot, travel (frame widths), blur, energy → tags
+        soft / punchy / spin / 3d / blur / distort / travel / overshoot / settles-offset / stays-visible
+text:   dur, props, units, random / wiggly / 3d / blur / decode tags
+    python3 tools/build_aefx_catalog.py
+```
+</details>
+
+| function / class | what |
+|---|---|
+| `motion_stats(p)` |  |
+| `text_stats(p)` |  |
+| `main()` |  |
+
+### `build_aefx_gallery`  (sdk/tools/build_aefx_gallery.py)
+tools/build_aefx_gallery.py — static, searchable HTML gallery of all 703 AE-FX presets (animated WebP previews).
+
+<details><summary>details</summary>
+
+```
+python3 tools/build_aefx_gallery.py [--out ../public/aefx] [--only motion|text]
+    → public/aefx/index.html (+ media/*.webp, ~7 MB, git-ignored; regenerate any time, ~2 min)
+
+Served by the Hono app at /aefx/ (wrangler pages dev) or open the file directly.  Each card shows the measured tags
+from catalog.json and a copy-ready JSON snippet ({"motion": key} / "preset": key).
+```
+</details>
+
+| function / class | what |
+|---|---|
+| `motion_webp(key, path)` |  |
+| `aecomp_webp(name, path, lower_third, title)` |  |
+| `text_webp(key, path, text)` |  |
+| `main(argv)` |  |
+
 ### `build_ref_templates`  (sdk/tools/build_ref_templates.py)
 Builds templates/11..19 — one starter spec per reference video (reference_videos/ref01..ref09).
 
@@ -2399,6 +2462,86 @@ always-correct inventory underneath it.  If a module has no docstring, it is fla
 | function / class | what |
 |---|---|
 | `main()` |  |
+
+### `import_aep`  (sdk/tools/import_aep.py)
+DEV TOOL (not needed to use the SDK): convert an After Effects .aep composition into mograph.aecomp JSON.
+
+<details><summary>details</summary>
+
+```
+Used to STUDY reference packs (timing, easing, structure) and to VALIDATE our renderer against the vendor's own
+preview videos (tools/validate_aecomp.py).  Imported vendor comps are NOT shipped in the repo — the SDK ships our own
+generators (mograph/aecomp/generators.py) fitted to the measured numbers.
+
+    pip install py_aep
+    python3 tools/import_aep.py file.aep [-c COMP] [-o out.json]
+
+Supported: shape layers (group, rect, ellipse, polystar, path, fill, stroke, gradient fill/stroke, trim, repeater,
+zig zag, twist, round corners, pucker & bloat, offset, merge), null/solid/text layers, parenting, track mattes,
+blend modes, keyframes (speed/influence, per-dimension, spatial tangents, hold/linear), and the common expressions
+```
+</details>
+
+| function / class | what |
+|---|---|
+| `Ctx` |  |
+| `keyed(q, X, dims, scale)` | property → value (static / keys / control link). |
+| `translate_expr(e, base, X, dims, scale)` |  |
+| `P(group, mn)` |  |
+| `tr_group(g, X, layer)` |  |
+| `dashes(g, X)` |  |
+| `grad_stops(q, X)` |  |
+| `item(q, X)` |  |
+| `controls(L, X)` |  |
+| `convert(comp)` |  |
+| `main(argv)` |  |
+
+### `import_motion_presets`  (sdk/tools/import_motion_presets.py)
+tools/import_motion_presets.py — DEV-ONLY: Premiere "Motion Presets" .prproj templates → our compact JSON library
+
+<details><summary>details</summary>
+
+```
+(sdk/mograph/aefx/presets/motion_presets.json).  Reads ONLY keyframe numbers (reference data); no vendor code/media.
+
+    python3 tools/import_motion_presets.py "<pack>/templates/Motion Presets"
+
+Each preset = ordered stack of adjustment-layer effects (Premiere track order, bottom → top), time normalised to 0:
+    {"name", "cat", "dir": in|out|fx, "dur", "fx": [{"fx": transform|basic3d|fast_blur|wave_warp|twirl, "p": {...}}]}
+```
+</details>
+
+| function / class | what |
+|---|---|
+| `index_objects(s)` | top-level objects (tab-indented once; closing tag '\n\t</Tag>') by ObjectID / ObjectUID. |
+| `parse_prproj(path)` |  |
+| `normalise(fx)` |  |
+| `main(argv)` |  |
+
+### `import_text_presets`  (sdk/tools/import_text_presets.py)
+tools/import_text_presets.py — DEV-ONLY: AtomX "Text Animation Presets" (.atom = JSXBIN) → our JSON animator library
+
+<details><summary>details</summary>
+
+```
+(sdk/mograph/aefx/presets/text_presets.json).  Only the animator NUMBERS are read as reference data.
+
+    /tmp/jsxer/bin/release/jsxer "Text Animation Presets.atom" -o atom.js     # decompile once (github.com/AngeloD2022/jsxer)
+    python3 tools/import_text_presets.py atom.js
+
+Output per preset:  {"name", "cat", "sub", "dur", "animators": [{"sel": [...], "props": {...}}]}
+  selector  {"type": "range", "start", "end", "offset" (percent or curve), "units": "pct"|"index",
+             "based": "chars"|"chars_ns"|"words"|"lines", "mode": "add"|..., "amount" (%), "shape": "square"|
+             "ramp_up"|"ramp_down"|"triangle"|"round"|"smooth", "smooth" (%), "ease_hi", "ease_lo", "random", "seed"}
+            {"type": "wiggly", "mode", "min", "max", "freq" (wiggles/s), "corr" (%), "tphase", "sphase", "lock", "seed",
+             "based"}
+```
+</details>
+
+| function / class | what |
+|---|---|
+| `parse_preset(s)` |  |
+| `main(argv)` |  |
 
 ### `mock_apis`  (sdk/tools/mock_apis.py)
 Local mock of ElevenLabs / Gemini TTS / Gemini Omni REST APIs — test the integrations for free.
@@ -2437,6 +2580,29 @@ excludes renders, caches, matte caches and keys).   python3 tools/package.py v9 
 | `bg()` |  |
 | `frame(i)` |  |
 
+### `validate_aecomp`  (sdk/tools/validate_aecomp.py)
+DEV TOOL: measure how faithfully mograph.aecomp reproduces a reference After Effects element.
+
+<details><summary>details</summary>
+
+```
+python3 tools/validate_aecomp.py comp.json preview.mp4 [--sheet out.jpg] [--n 8]
+
+Samples n instants, renders the comp (white-on-black silhouettes) and the vendor preview at the same size,
+thresholds both and reports IoU per instant + mean.  The sheet shows  reference | ours | difference.
+Only numbers and our own renders are kept; the vendor preview is read, never copied into the repo.
+```
+</details>
+
+| function / class | what |
+|---|---|
+| `ref_frame(mp4, t, W, H)` |  |
+| `bg_level(mp4, W, H)` |  |
+| `probe(mp4)` |  |
+| `fscore(a, b, tol)` | line-art F-score: share of our pixels within tol px of the reference and vice versa (chamfer tolerance). |
+| `measure(comp, mp4, n, W, H, sheet, …)` | IoU of our render vs the reference.  The vendor previews frame/offset each element differently, so the |
+| `main(argv)` |  |
+
 
 ## shell scripts
 
@@ -2446,8 +2612,7 @@ excludes renders, caches, matte caches and keys).   python3 tools/package.py v9 
 
 ## models / binaries / assets
 
-- `mograph/models/` (5 files, 39.9 MB): LICENSE_portrait_seg.txt, hand_landmarker.task, modnet.onnx, portrait_seg.onnx, pose_landmarker_lite.task
+- `mograph/models/` (4 files, 14.1 MB): LICENSE_portrait_seg.txt, hand_landmarker.task, portrait_seg.onnx, pose_landmarker_lite.task
 - `mograph/models/rnnoise/` (6 files, 1.5 MB): README_rnnoise-models.md, bd.rnnn, cb.rnnn, lq.rnnn, mp.rnnn, sh.rnnn
-- `mograph/bin/` (1 files, 36.4 MB): deep-filter
 - `mograph/assets_3d/` (18 files, 4.0 MB): cash_3d.png, grade_a_3d.png, grade_b_3d.png, grade_c_3d.png, laptop_3d.png, laptop_yaw_m15.png, laptop_yaw_m45.png, laptop_yaw_p15.png, laptop_yaw_p45.png, logo_apple_3d.png, logo_dell_3d.png, logo_hp_3d.png, logo_surface_3d.png, pin_3d.png, pin_green_3d.png, plane_3d.png, shield_3d.png, warn_3d.png
 - `fonts/` (139 files) families: AbarHigh, AbarLow, AbarMid, AriaFaNum, Capsule, Delbar, DigiAnil, DigiGhasedak, Doran, DoranFaNum, FONT, Gohar, Hasti, IRANSansWeb, IRANSansWeb.ttf, IRANYekanBlack.ttf, IRANYekanBold.ttf, IRANYekanBoldFaNum.ttf, IRANYekanExtraBlack2.ttf, IRANYekanExtraBold.ttf, IRANYekanExtraBoldFaNum.ttf, IRANYekanLight.ttf, IRANYekanMedium.ttf, IRANYekanRegular.ttf, IRANYekanThin.ttf, IRArshia.ttf, IRDastNevis.ttf, IRFarnaz.ttf, KalamehFaNum, Miremad.ttf, Morabba, PINAR, Pelak, PelakFA, Peyda, Shoko, Titr Zebr.ttf, Vazirmatn, YekanBakh

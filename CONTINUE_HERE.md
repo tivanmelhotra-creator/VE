@@ -1,4 +1,30 @@
-# CONTINUE_HERE — v14 Studio Depth (resume point after any sandbox reset)
+# CONTINUE_HERE — VE v19 Pro Editor (resume point after any sandbox reset)
+
+## Restore in 1 command (replaces the old 3-step / 9-minute restore)
+```bash
+cd /home/user/webapp/sdk && python3 -m mograph.pro doctor --fix   # deps, binaries, fonts, media copy, tracking cache
+                                                                 # from work/input/raw.mp4.v14pack (seconds), 53 tests
+```
+Then read `/home/user/webapp/AGENT_INDEX.md` (request → file → key).
+
+## v19 — Pro Editor (mograph/pro) — see sdk/PRO_EDITOR_GUIDE.md
+- colour: `grade.look` (10 looks) / `grade.lut` (.cube) / wb / lift_gamma_gain / protect_skin / grain / halation /
+  sharpen / letterbox  (pro/color.py, wired in v14/compositor.py: plate LUT + final finish)
+- `{"type": "broll"}` full / pip / behind / split_top / split_bottom, 12 transitions, ken burns, chroma key, own grade
+  (pro/broll.py, registered via v14/layers.PREPARE + DRAW)
+- saber blade on tracked points: `start_anchor` / `end_anchor` / `start_offset` / `end_offset` / `angle` / `length`
+- time anchors: plain numbers & `"e:"` = edited (mapped through retime, fixes the v18 "hex/na vanish" bug),
+  `"s:"` = raw screen seconds, `"src:"` = seconds in the source file
+- tools: `pro lint` · `pro timeline` · `pro render -j 2` (parallel, resumable, frame-exact) · `pro captions` · `pro edl`
+  · `pro chapters` · `pro thumbnail` · `pro reformat --to 1:1` · `pro platform` · `pro looks` · `pro lut-export`
+- test edit: projects/maghale/edit_v19_pro.json (QA clean, lint clean)
+- merged: the other agent's v18.1 omni-polish patch (retime numeric anchors, subtitle 3.4 s cap, halo/frame_box edge
+  guards, character-vs-subtitle guard, qa keys) — all 9 maghale edits QA clean + lint clean (pbr3d obj_tooth edge fixed)
+- next ideas: lip sync from audio only (whisper word timings), character rigs from user PNG parts (puppet_arap),
+  QA for optical-flow ghosting, Saber shared-noise speed-up
+
+---
+# (older) v14 Studio Depth notes
 
 ## Restore in 3 commands
 ```bash

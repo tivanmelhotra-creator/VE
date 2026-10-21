@@ -49,6 +49,7 @@ from . import physics as ph
 from .compositor import glass
 
 # =========================================================================================== prepare / helpers
+PREPARE = {}                                    # type → fn(L, R) run once at prepare time (registered by bridges)
 DEFAULT_SFX = {"kinetic_title": "whoosh_pop", "orbit_ring": "whoosh", "disc": "whoosh", "glass_shape": "jelly",
                "halo": "boom", "frame_box": "pop", "strike": "scribble", "counter_badge": "tick",
                "flash": "hit", "sweep_light": "shine", "object_3d": "whoosh_pop"}
@@ -75,6 +76,9 @@ def prepare(L, R):
         pal.update(L["palette"])
     L["_pal"] = pal
     L["_theme"] = R.spec.get("meta", {}).get("theme", "doran")
+    hook = PREPARE.get(L.get("type"))           # v19: per-type prepare hooks (pro.broll …)
+    if hook is not None:
+        L = hook(L, R) or L
     return L
 
 
@@ -851,6 +855,10 @@ def _halo_geo(L, F):
     if y - rr < top:
         y = min(y + (top - (y - rr)), F.anchor("head_top")[1] + 0.05 * hw)
         rr = min(rr, max(0.5 * rr, y - top))
+    side = float(L.get("safe_side", 28))
+    if x - rr < side or x + rr > F.W - side:
+        x = min(max(x, side + rr * 0.85), F.W - side - rr * 0.85)
+        rr = min(rr, max(0.45 * rr, min(x - side, F.W - side - x)))
     return lt, olt, x, y, k, hw, rr, a
 
 
@@ -1003,6 +1011,8 @@ def draw_frame_box(ctx, L, F):
     w = float(L.get("w", 2.0)) * hw
     h = float(L.get("h", 1.3)) * hw
     rot = float(L.get("rot", -8.0)) + ph.osc(F.t, 0.22, 1.5, 3)
+    b_pad = (0.42 * hw) if L.get("badge", True) else 0.0
+    x = min(max(x, w * 0.5 + b_pad + 28), F.W - w * 0.5 - 28)
     # stroke DRAWS ON (trim path) with ease, then jelly
     dp = ph.SILK(min(1, lt / 0.55))
     a = 1.0
@@ -1385,3 +1395,7 @@ _reg_aecomp(DRAW)
 from ..motion.bridge import register_v14 as _reg_motion  # noqa: E402
 from .. import motion as _motion  # noqa: E402,F401
 _reg_motion(DRAW)
+
+# v19 pro editor: broll (cutaway / pip / behind / split) + speaker-aware layers
+from ..pro.bridge import register_v14 as _reg_pro  # noqa: E402
+_reg_pro(DRAW, PREPARE)

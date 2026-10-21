@@ -1,3 +1,9 @@
+# 🎞 v19 PRO EDITOR — colour · B-roll · delivery → read `PRO_EDITOR_GUIDE.md` (and `../AGENT_INDEX.md`: request → key)
+> After ANY reset: `python3 -m mograph.pro doctor --fix` (deps, binaries, fonts, footage, tracking cache in seconds, 53 tests).
+> `"grade": {"look": "teal_orange" | "lut": "x.cube", "grain": .2}` · `{"type": "broll", "mode": "full|pip|behind|split_top", "in": "whip_left"}`
+> `python3 -m mograph.pro lint edit.json` before every render · `python3 -m mograph.pro render edit.json -j 2` (parallel, resumable)
+> captions / edl / chapters / thumbnail / reformat --to 1:1 / platform → `python3 -m mograph.pro --help`
+
 # 🎬 v18 MOTION KIT — easing · retime · Saber light · cartoon characters · lip sync → read `MOTION_GUIDE.md`
 > FIRST map the user's words: `python3 -m mograph.motion resolve "اسلوموشن با نئون روی متن"` → canonical keys + params.
 > `{"type": "saber", "preset": "neon", "core": "text", …}` (51 Saber presets: `saber sheet` → LOOK) · `"fx": [{"saber": …}]`
