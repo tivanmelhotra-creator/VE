@@ -122,3 +122,13 @@
   4. `motion/bridge.py` (`draw_character_layer`): added automatic subtitle-zone clearance (`y <= 0.72 * H` when `R.subs` is present) so screen-space characters (`bean`) never cover the lower-third subtitle capsule.
   5. `mograph/qa.py`: registered `v16 AE-FX` (`fx`, `preset`, `preset_dur`, `preset_out`, `animators`, `selectors`), `v17 AE-Comp` (`aecomp`), and `v18 Motion Kit` (`saber`, `character`, `mouth`) keys in `COMMON_KEYS` and `ELEMENT_KEYS`.
 - Verified: 41/41 self-tests pass (`v14 9/9`, `aefx 9/9`, `aecomp 13/13`, `motion 10/10`) and all 7 `projects/maghale/edit_*.json` specs pass `v14 qa` with `0 warnings` (`QA clean ✓`).
+
+
+## 2026-10-21 — v19 Pro Editor (merge of both agent reviews + own audit)
+- Merged ve_v18_1_omni_polish.patch; improved its retime fix: EVERY plain number is edited time (also > duration →
+  shifted by the added length, ≤ 0 kept) instead of a 0..dur+0.25 window; `"e:"`/`"s:"`/`"src:"` work with AND without
+  retime (base Timeline used to crash on them).
+- Gaps a pro editor needs that were missing: colour looks/LUTs, B-roll/PiP/background replace/split/green screen,
+  transitions, caption files, EDL, reformat, parallel render, spec linter, 1-command restore → all in mograph/pro.
+- Lesson: background processes started in a Bash call can die when the call returns → use `setsid nohup …`.
+- Lesson: the sandbox reset twice in this session → commit after EVERY file, never batch.
