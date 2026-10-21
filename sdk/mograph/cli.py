@@ -283,7 +283,7 @@ def main(argv=None):
         return 0
     if a.cmd in ("three3d-selftest", "three3d_selftest"):
         from . import three3d
-        return 0 if three3d.selftest() else 1
+        return three3d.selftest()            # selftest() already returns a process exit code (0 = all pass)
     if a.cmd in ("turntable3d", "audit3d"):
         from . import three3d
         out_p = a.out or "turntable3d.png"

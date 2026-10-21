@@ -141,9 +141,13 @@ def lint(spec_path):
             if L.get("three_model") and not _T3.resolve_model_name(L["three_model"]):
                 E.append(f"{nm}: three_model '{L['three_model']}' unknown{_sugg(L['three_model'], _T3.list_models())}")
             if L.get("three_script"):
-                sp = L["three_script"].split(":", 1)[0]
-                if not os.path.exists(rel(sp)) and not os.path.exists(os.path.join(_HERE, sp)):
+                sp, fn = _T3.split_script_ref(L["three_script"])
+                if not sp.endswith(".js"):
+                    E.append(f"{nm}: three_script must be a .js file (optionally 'file.js:builderName'), got {sp}")
+                elif not os.path.exists(rel(sp)) and not os.path.exists(os.path.join(_HERE, sp)):
                     E.append(f"{nm}: three_script file not found: {sp}")
+                elif fn and not _T3._JS_IDENT.match(fn):
+                    E.append(f"{nm}: three_script builder '{fn}' is not a valid JS function name")
             if L.get("allow_slab") and (float(L.get("yaw_amp", 28)) > 25 or L.get("motion") == "spin_360"):
                 Wn.append(f"{nm}: 2D slab extrusion with large yaw rotation looks flat past 45° — use three_model / three3d instead")
     if E:

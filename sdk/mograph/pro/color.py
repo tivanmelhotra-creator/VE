@@ -320,21 +320,23 @@ class Grader:
         return out
 
 
-_GRAIN_TILE = None
+_GRAIN_TILES = {}
 
 
 def add_grain(bgr, amt, size=1.4, seed=0):
     """luma-weighted gaussian grain, strongest in mid-tones (film), deterministic per frame index (fast cached tile)."""
-    global _GRAIN_TILE
     H, W = bgr.shape[:2]
     gh, gw = max(8, int(H / size)), max(8, int(W / size))
-    if _GRAIN_TILE is None or _GRAIN_TILE.shape[0] < gh + 128 or _GRAIN_TILE.shape[1] < gw + 128:
-        _GRAIN_TILE = np.random.default_rng(1009).standard_normal((max(1600, gh + 256), max(1000, gw + 256))).astype(np.float32)
+    # tile shape is a pure function of the frame size → identical grain for frame N in `pro frame`, a single-process
+    # render and every parallel chunk worker, whatever was rendered before (a shared grow-on-demand tile is not)
+    tile = _GRAIN_TILES.get((gh, gw))
+    if tile is None:
+        tile = _GRAIN_TILES[(gh, gw)] = np.random.default_rng(1009).standard_normal((gh + 256, gw + 256)).astype(np.float32)
     rng = np.random.default_rng(1009 + int(seed))
-    oy = int(rng.integers(0, _GRAIN_TILE.shape[0] - gh))
-    ox = int(rng.integers(0, _GRAIN_TILE.shape[1] - gw))
+    oy = int(rng.integers(0, tile.shape[0] - gh))
+    ox = int(rng.integers(0, tile.shape[1] - gw))
     sgn = 1.0 if int(rng.integers(0, 2)) == 0 else -1.0
-    n = _GRAIN_TILE[oy:oy + gh, ox:ox + gw] * sgn
+    n = tile[oy:oy + gh, ox:ox + gw] * sgn
     n = cv2.resize(n, (W, H), interpolation=cv2.INTER_LINEAR)
     y = bgr[:, :, 1].astype(np.float32) * (1.0 / 255.0)
     k = (0.35 + 2.6 * y * (1.0 - y)) * (amt * 14.0)

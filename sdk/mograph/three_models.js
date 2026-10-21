@@ -143,12 +143,13 @@ function buildHourglass3D(THREE, mats) {
 function buildMicrobladingPen3D(THREE, mats) {
   const pen = new THREE.Group();
 
+  // profile runs bottom → top so LatheGeometry normals face OUTWARD (top → bottom renders inside-out)
   const capPts = [
-    new THREE.Vector2(0.001, 1.04),
-    new THREE.Vector2(0.09, 1.02),
-    new THREE.Vector2(0.165, 0.93),
-    new THREE.Vector2(0.18, 0.74),
     new THREE.Vector2(0.001, 0.74),
+    new THREE.Vector2(0.18, 0.74),
+    new THREE.Vector2(0.165, 0.93),
+    new THREE.Vector2(0.09, 1.02),
+    new THREE.Vector2(0.001, 1.04),
   ];
   const cap = new THREE.Mesh(new THREE.LatheGeometry(capPts, 40), mats.matteBlack);
   cap.userData.explodeVec = new THREE.Vector3(0, 0.45, 0);

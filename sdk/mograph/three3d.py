@@ -33,6 +33,7 @@ from __future__ import annotations
 import json
 import math
 import os
+import re
 import subprocess
 import sys
 import time
@@ -201,6 +202,8 @@ def BoxGeometry(w=1.0, h=1.0, d=1.0, bevel=0.0):
 def LatheGeometry(points, segs=32):
     segs = min(int(segs), 36)
     prof = [(p.x, p.y) if hasattr(p, "x") else (float(p[0]), float(p[1])) for p in points]
+    if len(prof) >= 2 and prof[0][1] > prof[-1][1]:
+        prof = prof[::-1]        # real3d.lathe needs bottom → top (outward normal = right of travel); Three.js accepts both
     m = lathe(prof, segs)
     return BufferGeometry(m.v, m.n, m.uv, m.f)
 
@@ -365,8 +368,10 @@ const THREE = {
 };
 const code = fs.readFileSync(process.argv[1], 'utf8');
 const fnName = process.argv[2] || '';
+if (fnName && !/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(fnName)) throw new Error('invalid builder name: ' + fnName);
 const fn = new Function('THREE', code + `\n; const mats = typeof createStudioMaterials === 'function' ? createStudioMaterials(THREE) : {};
-if ("${fnName}" && typeof ${fnName || 'undefined'} === 'function') return ${fnName}(THREE, mats);
+if (${JSON.stringify(fnName)} && typeof ${fnName || 'undefined'} === 'function') return ${fnName || 'undefined'}(THREE, mats);
+if (${JSON.stringify(fnName)}) throw new Error('builder function not found: ' + ${JSON.stringify(fnName)});
 if (typeof build === 'function') return build(THREE, mats);
 if (typeof buildHourglass3D === 'function') return buildHourglass3D(THREE, mats);
 throw new Error('No builder function found in JS script');`);
@@ -420,10 +425,47 @@ def _deserialize_js_node(d):
     return node
 
 
-@lru_cache(maxsize=16)
+_JS_IDENT = re.compile(r"^[A-Za-z_$][A-Za-z0-9_$]*$")
+
+
+def split_script_ref(ref):
+    """`"models.js:buildStarTrophy3D"` → ("models.js", "buildStarTrophy3D");  `"models.js"` → ("models.js", "")."""
+    ref = str(ref)
+    if ".js:" in ref:
+        path, fn = ref.rsplit(":", 1)
+        return path, fn.strip()
+    return ref, ""
+
+
+def resolve_script_ref(ref, base_dir=None):
+    """Absolute-path form of a `three_script` value (keeps the optional `:builderName` suffix)."""
+    path, fn = split_script_ref(ref)
+    if not os.path.isabs(path):
+        for root in ([base_dir] if base_dir else []) + [os.getcwd(), HERE]:
+            cand = os.path.normpath(os.path.join(root, path))
+            if os.path.exists(cand):
+                path = cand
+                break
+    return f"{path}:{fn}" if fn else path
+
+
 def load_three_js_script(js_path: str, fn_name: str = ""):
-    """Execute a JavaScript Three.js procedural generator file via Node.js and return a `THREE.Group` root node."""
-    res = subprocess.run(["node", "-e", _NODE_SHIM, js_path, fn_name], capture_output=True, text=True, check=True)
+    """Execute a JavaScript Three.js procedural generator file via Node.js and return a `THREE.Group` root node.
+    Cached per (path, builder, file mtime) so editing the .js file is picked up without restarting."""
+    if fn_name and not _JS_IDENT.match(fn_name):
+        raise ValueError(f"three_script builder name must be a JS identifier, got {fn_name!r}")
+    if not os.path.exists(js_path):
+        raise FileNotFoundError(f"three_script not found: {js_path}")
+    return _load_js_cached(os.path.abspath(js_path), fn_name, os.path.getmtime(js_path))
+
+
+@lru_cache(maxsize=16)
+def _load_js_cached(js_path: str, fn_name: str, _mtime: float):
+    try:
+        res = subprocess.run(["node", "-e", _NODE_SHIM, js_path, fn_name], capture_output=True, text=True,
+                             check=True, timeout=30)
+    except subprocess.CalledProcessError as e:
+        raise RuntimeError(f"three_script {os.path.basename(js_path)} failed in Node.js:\n{e.stderr[-1500:]}") from None
     return _deserialize_js_node(json.loads(res.stdout))
 
 
@@ -503,7 +545,7 @@ def build_microblading_pen_3d(mats=None):
     mats = mats or create_studio_materials()
     pen = THREE.Group()
 
-    cap_pts = [(0.001, 1.04), (0.09, 1.02), (0.165, 0.93), (0.18, 0.74), (0.001, 0.74)]
+    cap_pts = [(0.001, 0.74), (0.18, 0.74), (0.165, 0.93), (0.09, 1.02), (0.001, 1.04)]   # bottom → top
     cap = THREE.Mesh(THREE.LatheGeometry(cap_pts, 24), mats["matteBlack"])
     cap.userData["explodeVec"] = THREE.Vector3(0, 0.45, 0)
     pen.add(cap)
@@ -634,7 +676,7 @@ def _star_polyhedron_geo(n_pts=5, r_outer=0.94, r_inner=0.36, z_apex=0.26):
         ang = (i * math.pi) / n_pts
         r = r_outer if i % 2 == 0 else r_inner
         zr = 0.04 if i % 2 == 0 else -0.04
-        ring.append([r * math.sin(ang), r * Math_cos(ang), zr] if False else [r * math.sin(ang), r * math.cos(ang), zr])
+        ring.append([r * math.sin(ang), r * math.cos(ang), zr])
     verts, faces = [], []
     total = n_pts * 2
     for i in range(total):
@@ -802,13 +844,26 @@ def resolve_model_name(name_or_src):
     stem = os.path.splitext(os.path.basename(str(name_or_src)))[0].lower()
     if stem in MODELS:
         return stem
-    for k in MODELS:
-        if k in stem:
+    # whole-token match only (longest alias first): "first_step_shield_3d" → shield_3d, but "penguin" ≠ pen,
+    # "starfish" ≠ star, "open_door" ≠ pen, "warning_sign" ≠ warn
+    toks = [t for t in re.split(r"[^a-z0-9]+", stem) if t]
+    joined = "_" + "_".join(toks) + "_"
+    for k in sorted(MODELS, key=len, reverse=True):
+        if "_" + k + "_" in joined:
             return k
     return None
 
 
 # ============================================================================================ Scene Flattening & Two-Pass PBR Renderer
+def _euler_xyz(x, y, z):
+    """Three.js default Euler order 'XYZ' (radians): R = Rx · Ry · Rz.  (real3d.rot is Rz·Rx·Ry — camera only.)"""
+    cx, sx, cy, sy, cz, sz = math.cos(x), math.sin(x), math.cos(y), math.sin(y), math.cos(z), math.sin(z)
+    Rx = np.array([[1, 0, 0], [0, cx, -sx], [0, sx, cx]], np.float32)
+    Ry = np.array([[cy, 0, sy], [0, 1, 0], [-sy, 0, cy]], np.float32)
+    Rz = np.array([[cz, -sz, 0], [sz, cz, 0], [0, 0, 1]], np.float32)
+    return Rx @ Ry @ Rz
+
+
 class CompiledThreeScene:
     def __init__(self, root_node, explode=0.0):
         meshes = []
@@ -822,10 +877,7 @@ class CompiledThreeScene:
         self.tri_count = (len(self.opaque["F"]) if self.opaque else 0) + (len(self.trans["F"]) if self.trans else 0)
 
     def _collect(self, node, R_parent, t_parent, explode, out):
-        rx = math.degrees(node.rotation.x)
-        ry = math.degrees(node.rotation.y)
-        rz = math.degrees(node.rotation.z)
-        R_loc = rot(rx, ry, rz)
+        R_loc = _euler_xyz(node.rotation.x, node.rotation.y, node.rotation.z)
         pos = np.array([node.position.x, node.position.y, node.position.z], np.float32)
         ev = node.userData.get("explodeVec")
         if ev is not None and explode != 0.0:
@@ -874,8 +926,9 @@ def get_model(model_key: str, explode: float = 0.0) -> CompiledThreeScene:
 
 @lru_cache(maxsize=32)
 def get_compiled_scene(model_key: str, explode_q: int = 0) -> CompiledThreeScene:
-    if str(model_key).endswith(".js") and os.path.exists(str(model_key)):
-        return CompiledThreeScene(load_three_js_script(str(model_key)), explode=explode_q / 100.0)
+    js_path, fn_name = split_script_ref(model_key)
+    if js_path.endswith(".js"):
+        return CompiledThreeScene(load_three_js_script(js_path, fn_name), explode=explode_q / 100.0)
     fn = MODELS.get(resolve_model_name(model_key) or model_key)
     if fn is None:
         raise KeyError(f"Unknown three3d model '{model_key}'. Available: {sorted(set(MODELS))}")
@@ -1014,7 +1067,10 @@ def render_three(model_or_scene, size, yaw=0.0, pitch=15.0, roll=0.0, explode=0.
     out = np.zeros((Dh, Dh, 4), np.float32)
     vis = a_tot > 1e-4
     if np.any(vis):
-        out[vis, :3] = aces(col_lin[vis] * exposure) ** (1.0 / 2.2)
+        # col_lin is PREMULTIPLIED by coverage (glass over nothing = col_tr·a_tr) → straight colour before the
+        # tone map, otherwise to_bgra_premul multiplies by alpha a second time and the glass rim turns muddy (a²).
+        straight = col_lin[vis] / a_tot[vis][:, None]
+        out[vis, :3] = aces(straight * exposure) ** (1.0 / 2.2)
         out[vis, 3] = a_tot[vis]
 
     if ssaa > 1:
@@ -1030,26 +1086,29 @@ def render_three(model_or_scene, size, yaw=0.0, pitch=15.0, roll=0.0, explode=0.
 def paint(ctx, model_name, cx, cy, size, yaw=0.0, pitch=15.0, roll=0.0, explode=0.0, alpha=1.0, shadow=True, ssaa=2):
     """Paint a `three3d` procedural 3D model onto a Cairo context with contact shadow."""
     from .obj3d import contact_shadow, paint_premul
-    from .real3d import to_bgra_premul
     q_yaw = round(float(yaw) * 2.0) / 2.0
     q_pitch = round(float(pitch) * 2.0) / 2.0
     q_roll = round(float(roll) * 2.0) / 2.0
     q_exp = round(float(explode), 2)
     q_sz = max(24, int(round(size / 8.0) * 8))
-    rgba, D = _cached_render(str(model_name), q_sz, q_yaw, q_pitch, q_roll, q_exp, int(ssaa))
+    pm, D = _cached_render(str(model_name), q_sz, q_yaw, q_pitch, q_roll, q_exp, int(ssaa))
     if abs(size - q_sz) > 1.0:
         D_target = max(16, int(round(D * (size / q_sz))))
-        rgba = cv2.resize(rgba, (D_target, D_target), interpolation=cv2.INTER_LINEAR)
+        pm = cv2.resize(pm, (D_target, D_target), interpolation=cv2.INTER_LINEAR)   # premultiplied → no fringes
         D = D_target
     if shadow:
         contact_shadow(ctx, cx, cy + size * 0.46, size * 0.82, alpha, strength=0.52)
-    paint_premul(ctx, to_bgra_premul(rgba), cx - D * 0.5, cy - D * 0.5, alpha)
+    paint_premul(ctx, pm, cx - D * 0.5, cy - D * 0.5, alpha)
     return (cx - size * 0.5, cy - size * 0.5, cx + size * 0.5, cy + size * 0.5)
 
 
-@lru_cache(maxsize=96)
+@lru_cache(maxsize=64)
 def _cached_render(model_name: str, q_sz: int, q_yaw: float, q_pitch: float, q_roll: float, q_exp: float, ssaa: int):
-    return render_three(model_name, q_sz, q_yaw, q_pitch, q_roll, explode=q_exp, ssaa=ssaa)
+    """premultiplied uint8 BGRA (¼ the memory of float32 RGBA: 64 × 770² ≈ 150 MB worst case per render worker)."""
+    from .real3d import to_bgra_premul
+    rgba, D = render_three(model_name, q_sz, q_yaw, q_pitch, q_roll, explode=q_exp, ssaa=ssaa)
+    pm = np.clip(to_bgra_premul(rgba) + 0.5, 0, 255).astype(np.uint8)
+    return pm, D
 
 
 def audit_sheet(model_name="hourglass_3d", out_path=None, cell=280):
@@ -1092,7 +1151,16 @@ def _t_models():
         ntri = (len(sc.opaque["F"]) if sc.opaque else 0) + (len(sc.trans["F"]) if sc.trans else 0)
         counts[m] = ntri
     ok = all(v >= 100 for v in counts.values())
-    return ok, f"{len(canonical)} procedural 3D models compiled (min {min(counts.values())} tris, max {max(counts.values())} tris)"
+    # legacy sprite names: whole-token aliasing only (v20 review: "penguin.png" must not become a pen)
+    alias = {"first_step_shield_3d.png": "shield_3d", "warn_3d.png": "warn_3d", "fountain_pen_3d.png": "pen_3d",
+             "penguin.png": None, "starfish.png": None, "open_door.png": None, "warning_sign.png": None}
+    bad = [k for k, v in alias.items() if resolve_model_name(k) != v]
+    # outward normals (inside-out lathes render black under back-face culling)
+    inv = [m for m in canonical for v, n, f, _ in get_compiled_scene(m, 0).parts
+           if np.mean(np.sum(n[f].mean(1) * (v[f].mean(1) - v.mean(0)), 1) > 0) < 0.5]
+    ok = ok and not bad and not inv
+    return ok, (f"{len(canonical)} procedural 3D models compiled (min {min(counts.values())} tris, max "
+                f"{max(counts.values())} tris)" + (f"  alias errors {bad}" if bad else "") + (f"  inside-out {inv}" if inv else ""))
 
 
 def _t_volume_360():
@@ -1134,7 +1202,11 @@ def _t_js_bridge():
     node = load_three_js_script(JS_MODELS_PATH, "buildStarTrophy3D")
     sc = CompiledThreeScene(node)
     ntri = (len(sc.opaque["F"]) if sc.opaque else 0) + (len(sc.trans["F"]) if sc.trans else 0)
-    return ntri > 500, f"three_models.js executed via Node.js → {ntri} triangles"
+    # the `file.js:builder` form used by object_3d.three_script must pick THAT builder (not the hourglass fallback)
+    ref = get_compiled_scene(f"{JS_MODELS_PATH}:buildStarTrophy3D", 0)
+    hg = get_compiled_scene(JS_MODELS_PATH, 0)
+    picked = ref.tri_count == sc.tri_count and ref.tri_count != hg.tri_count
+    return ntri > 500 and picked, f"three_models.js executed via Node.js → {ntri} triangles (builder select {'ok' if picked else 'BROKEN'})"
 
 
 def _t_cairo_paint():
@@ -1184,7 +1256,8 @@ def _register():
         sz = float(val(el, "w", s.t, el.get("size", 360))) * s.scale
         lt = max(0.0, s.t - float(el["t"]))
         yaw, pitch = motion_angles(el, lt, float(val(el, "yaw", s.t, 25.0)), float(val(el, "pitch", s.t, 16.0)))
-        model = el.get("three_script") or el.get("three_model") or el.get("model") or el.get("src", "hourglass_3d")
+        model = (resolve_script_ref(el["three_script"], getattr(s, "base_dir", None)) if el.get("three_script") else
+                 el.get("three_model") or el.get("model") or el.get("src", "hourglass_3d"))
         return paint(ctx, model, x, y + s.dy, sz, yaw, pitch, float(val(el, "roll", s.t, 0.0)),
                      float(val(el, "explode", s.t, 0.0)), s.alpha, bool(el.get("shadow", True)), int(el.get("ssaa", 2)))
 

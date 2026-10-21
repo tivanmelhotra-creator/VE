@@ -34,7 +34,8 @@ _SPRITES = {}
 
 def _sprite(d, soft):
     """Octagonal bokeh disc, float32 (d×d) in 0..1 with a bright rim (cached by quantized (d_q, soft))."""
-    d_q = (max(8, int(d)) // 8) * 8 + 1
+    d = max(5, int(d))
+    d_q = (d | 1) if d <= 64 else (d // 8) * 8 + 1      # small discs exact (8 px = 20 % size pop), big ones 8 px steps
     key = (d_q, round(float(soft), 2))
     if key in _SPRITES:
         return _SPRITES[key]

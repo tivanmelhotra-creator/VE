@@ -108,7 +108,9 @@ def _blur_vector(L, F, lt, olt, size, yaw, sc, dy):
 
 
 def draw_object_3d(ctx, L, F, pos, out_lt):
-    if getattr(F, "prepass", False):
+    # Skip ONLY the compositor's 1×1 emission pre-pass (F.ectx set).  v14/qa.py also sets F.prepass=True but renders
+    # on a full-size A8 surface with F.ectx=None to measure ink (frame-edge / face checks) — it must still see us.
+    if getattr(F, "prepass", False) and getattr(F, "ectx", None) is not None:
         return
     from .. import obj3d as O
     from .. import three3d as T3
@@ -152,7 +154,7 @@ def draw_object_3d(ctx, L, F, pos, out_lt):
         # 1. Explicit v20 Three.js procedural model or .js script
         t_script = L.get("three_script")
         if t_script:
-            sp = t_script if os.path.isabs(t_script) or not base else os.path.join(base, t_script)
+            sp = T3.resolve_script_ref(t_script, base)
             T3.paint(ctx, sp, x, y, size, yaw=yaw, pitch=pitch, roll=roll,
                      explode=float(L.get("explode", 0.0)), alpha=a, shadow=shadow, ssaa=int(L.get("ssaa", 2)))
             return
