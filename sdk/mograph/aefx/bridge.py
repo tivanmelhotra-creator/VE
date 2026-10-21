@@ -111,6 +111,9 @@ def apply_items(img, items, t, fps=30.0, pivot=None):
                 out = deep_glow(out, threshold=float(g.pop("threshold", 0.0)), **g)
             else:
                 out = deep_glow(out, **g)
+        elif "saber" in it:                              # v18 motion kit: Saber light from the layer's alpha
+            from ..motion.bridge import apply_saber_item
+            out = apply_saber_item(out, it, t, _ramp(it, t))
         elif "path_blur" in it:
             pb = dict(it["path_blur"])
             k = _ramp(it, t)

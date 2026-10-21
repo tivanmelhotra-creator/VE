@@ -321,7 +321,7 @@ class FlowInterp:
 
     def _flows(self, a, b, key):
         import cv2
-        if self._key == key:
+        if key is not None and self._key == key:
             return self._flow
         H, W = a.shape[:2]
         ww = min(self.work_w, W)

@@ -1380,3 +1380,8 @@ _reg_craft(DRAW)
 # v17 AE-Comp: shape elements / lower thirds / any aecomp JSON as a v14 layer ({"type": "aecomp", ...})
 from ..aecomp.bridge import register_v14 as _reg_aecomp  # noqa: E402
 _reg_aecomp(DRAW)
+
+# v18 motion kit: saber light / character / mouth layers + easing specs everywhere
+from ..motion.bridge import register_v14 as _reg_motion  # noqa: E402
+from .. import motion as _motion  # noqa: E402,F401
+_reg_motion(DRAW)

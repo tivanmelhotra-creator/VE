@@ -540,7 +540,7 @@ def render(spec, t, W, H, alpha=None, k=0.5):
         out[..., 3] = 255
     else:
         a = np.clip(img.max(axis=2) * float(p.get("alpha_boost", 1.0)), 0, 1)
-        out[..., 3] = np.maximum(out[..., :3].max(axis=2), (a * 255).astype(np.uint8))
+        out[..., 3] = np.maximum(out[..., :3].max(axis=2), np.clip(a * 255 + 0.5, 0, 255).astype(np.uint8))
     return out
 
 

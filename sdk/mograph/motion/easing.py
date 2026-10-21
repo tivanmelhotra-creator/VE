@@ -420,24 +420,5 @@ def graph_image(specs, out=None, size=360, speed=True, labels=None):
 
 
 def install_into_core():
-    """make every legacy `get_ease(name)` (v5–13 elements, v14 layers) understand the new specs too:
-    cubic-bezier strings, lists, dicts, Penner camelCase … — unknown names still fall back to in_out."""
-    from .. import core
-    if getattr(core.get_ease, "_motion", False):
-        return
-    old = core.get_ease
-
-    def get_ease(e):
-        if callable(e) or e is None or (isinstance(e, str) and e in core.EASINGS):
-            return old(e)
-        try:
-            return ease(e)
-        except Exception:  # noqa: BLE001
-            return old(e if isinstance(e, str) else None)
-    get_ease._motion = True
-    core.get_ease = get_ease
-    try:
-        from .. import elements
-        elements.get_ease = get_ease
-    except Exception:  # noqa: BLE001
-        pass
+    """no-op since v18: mograph.core.get_ease itself falls back to ease() for every non-legacy spec."""
+    return None
