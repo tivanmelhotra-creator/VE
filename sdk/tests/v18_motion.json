@@ -1,0 +1,15 @@
+{"meta": {"style": "lineart", "palette": "noir", "bg": "#0b0c10", "bloom": 0.1, "duration": 6.0},
+ "hud": {"header": {"show": false}, "dots": {"show": false}, "subs": {"show": false}}, "audio": {"ambient": false},
+ "chapters": [{"t": 0, "title": "motion", "elements": [
+  {"type": "saber", "id": "neon_title", "preset": "neon", "core": "text", "text": "سابر نئون", "x": 540, "y": 380, "size": 170,
+   "t": 0.2, "reveal": {"dur": 0.8, "ease": "out_expo"}},
+  {"type": "saber", "id": "blade", "preset": "default", "start": [140, 760], "end": [940, 640], "core_size": 1.2,
+   "t": 0.6, "reveal": {"dur": 0.5}},
+  {"type": "saber", "id": "ring", "preset": "electric", "core": "shape", "shape": "circle", "x": 330, "y": 1200, "w": 380, "t": 1.0},
+  {"type": "saber", "id": "fire_heart", "preset": "torch", "core": "shape", "shape": "heart", "x": 760, "y": 1200, "w": 340, "t": 1.0},
+  {"type": "text", "id": "eased", "text": "cubic-bezier", "x": 540, "y": 1500, "size": 70, "color": "#ffffff", "t": 1.2,
+   "enter": "rise", "ease": "cubic-bezier(.2,.8,.2,1.3)"},
+  {"type": "character", "id": "bean", "rig": "bean", "x": 540, "y": 1860, "size": 260, "color": "#ffcc33", "t": 0.0,
+   "actions": [{"do": "enter", "t": 0.2}, {"do": "hop", "t": 1.4}, {"do": "wave", "t": 2.6}, {"do": "talk", "t": 4.0, "dur": 1.5}],
+   "timing": "twos"}
+ ]}]}
