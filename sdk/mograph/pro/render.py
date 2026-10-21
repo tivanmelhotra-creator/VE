@@ -38,7 +38,7 @@ def _chunk_worker(spec, out, f0, f1, scale, crf):
     R = Renderer(spec)
     W, H = int(R.W * scale) // 2 * 2, int(R.H * scale) // 2 * 2
     p = subprocess.Popen(["ffmpeg", "-y", "-v", "error", "-f", "rawvideo", "-pix_fmt", "bgr24", "-s", f"{W}x{H}", "-r",
-                          str(R.fps), "-i", "-", "-c:v", "libx264", "-preset", "medium", "-crf", str(crf), "-threads",
+                          str(R.fps), "-i", "-", "-c:v", "libx264", "-preset", "superfast", "-crf", str(crf), "-threads",
                           "1", "-x264-params", "rc-lookahead=10:ref=2", "-pix_fmt", "yuv420p", out],
                          stdin=subprocess.PIPE)
     for i in range(f0, f1):

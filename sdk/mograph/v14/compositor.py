@@ -712,7 +712,7 @@ class Renderer:
 
     def _draw_pass(self, ctx, F, pass_, emission=True, events=True):
         items = [L for L in self.layers if self.LY.in_pass(L, pass_) and L["_t0"] - 0.05 <= F.t <= L["_t1"] + 0.05]
-        if pass_ == "front" and self.subs:
+        if pass_ == "front" and self.subs and not getattr(F, "prepass", False):
             items.append(self.subs)
         items.sort(key=lambda L: L.get("z", 0))
         for L in items:
@@ -734,7 +734,7 @@ class Renderer:
         n = int(round((end - start) * self.fps))
         W, H = int(self.W * scale) // 2 * 2, int(self.H * scale) // 2 * 2
         cmd = ["ffmpeg", "-y", "-v", "error", "-f", "rawvideo", "-pix_fmt", "bgr24", "-s", f"{W}x{H}",
-               "-r", str(self.fps), "-i", "-", "-c:v", "libx264", "-preset", "medium", "-crf", str(crf), "-threads", "2", "-x264-params", "rc-lookahead=10:ref=2",
+               "-r", str(self.fps), "-i", "-", "-c:v", "libx264", "-preset", "superfast", "-crf", str(crf), "-threads", "2", "-x264-params", "rc-lookahead=10:ref=2",
                "-pix_fmt", "yuv420p", "-movflags", "+faststart", out]
         p = subprocess.Popen(cmd, stdin=subprocess.PIPE)
         t0 = time.time()

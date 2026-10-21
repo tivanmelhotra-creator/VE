@@ -33,11 +33,12 @@ _SPRITES = {}
 
 
 def _sprite(d, soft):
-    """Octagonal bokeh disc, float32 (d×d) in 0..1 with a bright rim (cached by (d, soft))."""
-    key = (int(d), round(float(soft), 2))
+    """Octagonal bokeh disc, float32 (d×d) in 0..1 with a bright rim (cached by quantized (d_q, soft))."""
+    d_q = (max(8, int(d)) // 8) * 8 + 1
+    key = (d_q, round(float(soft), 2))
     if key in _SPRITES:
         return _SPRITES[key]
-    d = max(5, int(d)) | 1
+    d = d_q
     r = d / 2.0
     yy, xx = np.mgrid[0:d, 0:d].astype(np.float32) - (d - 1) / 2.0
     ang = np.arctan2(yy, xx) + math.pi / 8

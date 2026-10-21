@@ -285,11 +285,12 @@ class Grader:
         self.protect = float(g.get("protect_skin", 0.6 if (g.get("look") or g.get("lut")) else 0.0))
 
     def apply_lut(self, bgr):
-        """trilinear 33³ lookup computed at half resolution as a DELTA (detail stays full-res)."""
+        """trilinear 33³ lookup computed at quarter/half resolution as a DELTA (detail stays full-res)."""
         if self.is_identity:
             return bgr
         H, W = bgr.shape[:2]
-        sm = cv2.resize(bgr, (max(2, W // 2), max(2, H // 2)), interpolation=cv2.INTER_AREA)
+        div = 4 if W >= 720 else 2
+        sm = cv2.resize(bgr, (max(2, W // div), max(2, H // div)), interpolation=cv2.INTER_AREA)
         out = sample(self.lut, sm[..., ::-1].astype(np.float32) / 255.0)[..., ::-1]
         delta = out * 255.0 - sm.astype(np.float32)
         if self.protect > 0:
@@ -302,8 +303,11 @@ class Grader:
         g = self.g
         out = bgr
         if g.get("halation"):
-            hl = np.clip((out.astype(np.float32) / 255.0 - 0.78) * 4.5, 0, 1).max(-1)
-            hl = cv2.GaussianBlur(hl, (0, 0), 9)
+            H, W = out.shape[:2]
+            sm = cv2.resize(out, (max(4, W // 4), max(4, H // 4)), interpolation=cv2.INTER_AREA)
+            hl = np.clip((sm.astype(np.float32) / 255.0 - 0.78) * 4.5, 0, 1).max(-1)
+            hl = cv2.GaussianBlur(hl, (0, 0), 2.25)
+            hl = cv2.resize(hl, (W, H), interpolation=cv2.INTER_LINEAR)
             add = np.stack([hl * 0.12, hl * 0.25, hl * 1.0], -1) * float(g["halation"]) * 255
             out = np.clip(out.astype(np.float32) + add, 0, 255).astype(np.uint8)
         if g.get("sharpen"):
@@ -316,14 +320,24 @@ class Grader:
         return out
 
 
+_GRAIN_TILE = None
+
+
 def add_grain(bgr, amt, size=1.4, seed=0):
-    """luma-weighted gaussian grain, strongest in mid-tones (film), deterministic per frame index."""
+    """luma-weighted gaussian grain, strongest in mid-tones (film), deterministic per frame index (fast cached tile)."""
+    global _GRAIN_TILE
     H, W = bgr.shape[:2]
+    gh, gw = max(8, int(H / size)), max(8, int(W / size))
+    if _GRAIN_TILE is None or _GRAIN_TILE.shape[0] < gh + 128 or _GRAIN_TILE.shape[1] < gw + 128:
+        _GRAIN_TILE = np.random.default_rng(1009).standard_normal((max(1600, gh + 256), max(1000, gw + 256))).astype(np.float32)
     rng = np.random.default_rng(1009 + int(seed))
-    n = rng.standard_normal((max(8, int(H / size)), max(8, int(W / size)))).astype(np.float32)
+    oy = int(rng.integers(0, _GRAIN_TILE.shape[0] - gh))
+    ox = int(rng.integers(0, _GRAIN_TILE.shape[1] - gw))
+    sgn = 1.0 if int(rng.integers(0, 2)) == 0 else -1.0
+    n = _GRAIN_TILE[oy:oy + gh, ox:ox + gw] * sgn
     n = cv2.resize(n, (W, H), interpolation=cv2.INTER_LINEAR)
-    y = bgr.mean(-1).astype(np.float32) / 255.0
-    k = (0.35 + 2.6 * y * (1 - y)) * amt * 14.0
+    y = bgr[:, :, 1].astype(np.float32) * (1.0 / 255.0)
+    k = (0.35 + 2.6 * y * (1.0 - y)) * (amt * 14.0)
     return np.clip(bgr.astype(np.float32) + (n * k)[..., None], 0, 255).astype(np.uint8)
 
 

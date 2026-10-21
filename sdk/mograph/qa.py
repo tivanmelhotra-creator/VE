@@ -214,7 +214,8 @@ ELEMENT_KEYS = {
     "sam3d_object": {"src", "scale", "yaw", "yaw_speed", "pitch", "roll"},
     "real3d": {"model", "w", "size", "yaw", "pitch", "roll", "motion", "yaw_speed", "yaw_amp", "pitch_amp", "speed", "shadow", "ssaa"},
     "sculpt3d": {"preset", "tree", "w", "size", "yaw", "yaw_speed", "pitch", "pitch_amp", "roll", "open_dur", "shadow", "ssaa"},
-    "image_to_3d": {"src", "sprite", "w", "size", "yaw", "pitch", "roll", "motion", "yaw_speed", "speed", "yaw_amp", "pitch_amp", "depth", "specular", "shadow", "geometry", "views", "label"},
+    "image_to_3d": {"src", "sprite", "w", "size", "yaw", "pitch", "roll", "motion", "yaw_speed", "speed", "yaw_amp", "pitch_amp", "depth", "specular", "shadow", "geometry", "views", "label", "three_model", "three_script", "explode", "allow_slab"},
+    "three3d": {"three_model", "model", "preset", "three_script", "src", "w", "size", "yaw", "pitch", "roll", "motion", "yaw_speed", "yaw_amp", "pitch_amp", "speed", "explode", "shadow", "ssaa"},
 }
 for _t in ("headline", "kinetic", "block", "big_number"):
     ELEMENT_KEYS[_t] = ELEMENT_KEYS[_t] | set()

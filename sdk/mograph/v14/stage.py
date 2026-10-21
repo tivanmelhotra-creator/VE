@@ -91,8 +91,8 @@ def guard(L, F, x, y, r, kind=None):
                     tx = cx_c + s * (rc_c + r * 0.75 + 12)
     # safe frame
     W, H = F.W, F.H
-    tx = min(max(tx, r * 0.55 + 40), W - r * 0.55 - 40)
-    ty = min(max(ty, r * 0.85 + 130), H - r * 1.0 - 70)       # element must stay fully on screen
+    tx = min(max(tx, r * 0.60 + 44), W - r * 0.60 - 44)
+    ty = min(max(ty, r * 0.90 + 145), H - r * 1.0 - 80)       # element must stay fully on screen
     # temporal smoothing of the CORRECTION (state on the layer, keyed by frame time)
     dx, dy = tx - x, ty - y
     st = L.setdefault("_guard", {"t": None, "dx": 0.0, "dy": 0.0})

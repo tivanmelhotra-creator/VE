@@ -1,5 +1,11 @@
+# 🧊 v20 PROCEDURAL THREE.JS 3D ENGINE & FAST PIPELINE — true 360° procedural 3D + 6–8× faster renders → read `V14_3D_GUIDE.md`
+> **Never use flat 2D sprite slab extrusion (`obj3d.py` / `extract3d`) for turning 3D objects!** Use `mograph.three3d`:
+> `{"type": "object_3d", "three_model": "hourglass_3d" | "microblading_pen_3d" | "emerald_tree_3d" | "star_trophy_3d", "motion": "spin_360", "explode": 0.0}`
+> Or author custom `.js` Three.js generator functions in `mograph/three_models.js` (`"three_script": "three_models.js:buildHourglass3D"`).
+> CLI: `python3 -m mograph three3d-list` · `python3 -m mograph three3d-sheet hourglass_3d --out sheet.png` · `python3 -m mograph.three3d selftest` (7/7).
+
 # 🎞 v19 PRO EDITOR — colour · B-roll · delivery → read `PRO_EDITOR_GUIDE.md` (and `../AGENT_INDEX.md`: request → key)
-> After ANY reset: `python3 -m mograph.pro doctor --fix` (deps, binaries, fonts, footage, tracking cache in seconds, 53 tests).
+> After ANY reset: `python3 -m mograph.pro doctor --fix` (deps, binaries, fonts, footage, tracking cache in seconds, 60 tests).
 > `"grade": {"look": "teal_orange" | "lut": "x.cube", "grain": .2}` · `{"type": "broll", "mode": "full|pip|behind|split_top", "in": "whip_left"}`
 > `python3 -m mograph.pro lint edit.json` before every render · `python3 -m mograph.pro render edit.json -j 2` (parallel, resumable)
 > captions / edl / chapters / thumbnail / reformat --to 1:1 / platform → `python3 -m mograph.pro --help`

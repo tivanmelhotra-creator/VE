@@ -53,6 +53,7 @@ from . import sam3d_bridge as _sam3d_bridge  # noqa: F401  (v14.4 3D: sam3d_obje
 from . import sculpt3d as _sculpt3d  # noqa: F401  (v14.4 3D: procedural sculpt3d meshes)
 from . import real3d as _real3d  # noqa: F401  (v14.5 true 3D textured product models)
 from . import pbr3d as _pbr3d  # noqa: F401  (v14.6 photoreal scanned PBR models via EffectCraft)
+from . import three3d as _three3d  # noqa: F401  (v20 Procedural Three.js 3D Engine & JS bridge)
 from .hud import merged_hud, prepare_subtitles
 
 _TIME_KEYS = ("t", "out", "dim_at", "undim_at", "highlight_at", "cross_at", "morph_at", "scan_at", "drill_at",

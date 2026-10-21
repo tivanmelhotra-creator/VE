@@ -1,4 +1,17 @@
-# V14.4 — 3D OBJECTS GUIDE (merged from the v13.9 3D branch + rewritten)
+# V20 — 3D OBJECTS GUIDE (`three3d` Procedural Three.js 3D Engine + `pbr3d` + `real3d`)
+
+## 00. v20 — `three3d`: PROCEDURAL THREE.JS 3D ENGINE (DEFAULT for custom 3D props, icons & multi-part objects)
+**Why v20 replaces 2D sprite slab extrusion (`obj3d.py`):** Extruding a 2D AI-generated image (`depth=0.14`) creates a flat cardboard cutout that collapses at side angles (>45°–85°), has frozen painted highlights, and cannot animate sub-parts or transparent glass. `mograph.three3d` builds true 360° mathematical 3D meshes (`LatheGeometry`, `TubeGeometry`, `ExtrudeGeometry`, `OctahedronGeometry`, `TorusGeometry`, `CylinderGeometry`) with a **Two-Pass Deferred PBR + Refractive Glass Renderer** (opaque metallic/emissive pass + depth-tested Fresnel clearcoat glass pass).
+
+- **Built-in 3D Catalog (`python3 -m mograph three3d-list`):** `hourglass_3d` (blown glass + golden sand + 4 brass pillars), `microblading_pen_3d` (tapered cap + 24K gold barrel + knurled grip + angled 12-pin blade), `emerald_tree_3d` (3D curved `CatmullRomCurve3` branches + 11 faceted emeralds + 14 gold leaves), `star_trophy_3d` (10-pointed gold & crystal polyhedron star on stepped pedestal), `shield_3d`, `cash_3d`, `warn_3d`, `laptop_3d`.
+- **JavaScript Three.js Bridge (`three_models.js`):** Write standard Three.js procedural generator functions in JavaScript (`THREE.LatheGeometry`, `THREE.CatmullRomCurve3`, `THREE.TubeGeometry`, `THREE.MeshPhysicalMaterial`) and pass `"three_script": "my_script.js:buildMyObject"` — `three3d.py` executes the JS via Node.js and compiles the exact 3D triangle mesh + vertex normals into the Python PBR rasterizer.
+- **Automatic Legacy Upgrade:** Existing specs that reference `"src": "hourglass_3d.png"`, `"pen_3d.png"`, `"tree_3d.png"`, `"star_3d.png"`, `"shield_3d.png"`, `"cash_3d.png"`, `"warn_3d.png"`, or `"laptop_3d.png"` are automatically upgraded to true 360° `three3d` meshes unless `"allow_slab": true` is explicitly set.
+
+```json
+{"type": "object_3d", "t": "w:مقدمه", "out": "we:مقدمه+2.0", "three_model": "hourglass_3d",
+ "anchor": "shoulder_l", "offset": [-0.85, -0.35], "size": 0.95, "motion": "spin_360", "pitch": 16, "explode": 0.0}
+```
+
 
 > Origin: the 3D work was built in a separate agent on the older v13.9 SDK (`sam3d_bridge.py`, `sculpt3d.py`,
 > `laptop_yaw_*.png`, template 18). v14.4 merges it into the main SDK and **fixes / replaces the unreliable parts**.

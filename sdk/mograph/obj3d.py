@@ -211,9 +211,16 @@ def _over(acc, src):
 
 
 # ============================================================================================ extruded sprite
+_EXTRUDE_CACHE = {}
+
+
 def render_extruded_sprite_array(path, size, yaw=0.0, pitch=10.0, roll=0.0, depth=0.16, round_=0.25,
                                  bulge=0.0, specular=0.7, rim_color=(1.0, 1.0, 1.0), back="solid",
                                  F=FOCAL, res=None):
+    q_key = (path, int(round(size / 4.0) * 4), round(yaw * 2.0) / 2.0, round(pitch * 2.0) / 2.0,
+             round(roll, 1), round(depth, 2), round(round_, 2), round(bulge, 2), back)
+    if q_key in _EXTRUDE_CACHE:
+        return _EXTRUDE_CACHE[q_key]
     """Return (premultiplied float32 BGRA D×D, D) of the sprite turned into a solid 3D object.
     depth   total thickness (fraction of the sprite size)       round_  0 = sharp slab edge … 1 = full half-round
     bulge   front-face dome (0 = flat badge, 0.5 = plump cushion) back    "solid" | "mirror" (show sprite mirrored)
@@ -252,7 +259,7 @@ def render_extruded_sprite_array(path, size, yaw=0.0, pitch=10.0, roll=0.0, dept
         k_f = F / max(F * 0.2, F - cf[2])
         k_b = F / max(F * 0.2, F - cb[2])
         disp_px += abs(k_f - k_b) * unit
-        n_sl = int(np.clip(math.ceil(disp_px * 1.15) + 2, 3, 120))
+        n_sl = int(np.clip(math.ceil(disp_px * 0.65) + 2, 3, 18))
         r_px = float(np.clip(round_, 0, 1)) * min(T * res * 0.5, pr["dmax"] * 0.6)   # rounding radius (src px)
         nx, ny, dist, wall = pr["nx"], pr["ny"], pr["dist"], pr["wall"]
         rimc = np.array(rim_color[::-1], np.float32) * 255.0      # BGR
@@ -314,6 +321,9 @@ def render_extruded_sprite_array(path, size, yaw=0.0, pitch=10.0, roll=0.0, dept
             acc_face = None if H is None else cv2.warpPerspective(sl, H, (D, D), flags=cv2.INTER_LINEAR)
         if acc_face is not None:
             _over(acc, acc_face)
+    if len(_EXTRUDE_CACHE) > 256:
+        _EXTRUDE_CACHE.clear()
+    _EXTRUDE_CACHE[q_key] = (acc, D)
     return acc, D
 
 
