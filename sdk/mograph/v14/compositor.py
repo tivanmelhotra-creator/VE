@@ -14,6 +14,8 @@ WHY A NEW PIPELINE (v13.9 audit, see V14_AUDIT.md):
                     (red disc rim tints the collar, gold title tints the shoulder …)
      5  FRONT pass  layers with pass "front" (glass reads the real composite under it → true frosted glass)
      6  bloom       two-radius bloom from the light buffers, vignette, grain
+   v14.8: glass() is REFRACTIVE (rim lens bend + R/C dispersion + caustic), fast entrances get 180° shutter motion
+          blur (motionblur.py), and optional depth-sandwich BOKEH DUST (bokeh.py) sits behind (3b) and in front (5b).
 
 SPEC (JSON) — see V14_SPEC.md for every key:
   {"meta": {"w":1080,"h":1920,"fps":30},
@@ -215,8 +217,69 @@ def surface_array(surf):
     return np.ndarray((h, st // 4, 4), np.uint8, surf.get_data())[:, :w]
 
 
-def glass(ctx, F, path_fn, bbox, blur=16.0, tint=(0.06, 0.07, 0.09, 0.42), lift=0.06, sat=0.85, alpha=1.0):
-    """TRUE frosted glass: blurs the real composite under the shape (not a flat fill)."""
+def _glass_optics(crop, path_fn, X0, Y0, refract, chroma, caustic, band):
+    """v14.8 refractive glass (EffectCraft refractive-glass shader, CPU port).
+
+    1  shape mask of the glass path rasterised in crop space → distance-to-rim d (cv2.distanceTransform)
+    2  rim weight w = (1 - d/band)²  (1 at the rim, 0 deeper than `band` px inside)
+    3  inward normal n = ∇(blurred mask) / |∇|  → the frosted background is re-sampled at p + n·refract·w
+       (a thick-glass lens edge: the image bends towards the centre over the last few pixels)
+    4  chromatic dispersion: R sampled at +chroma·w·n, B at −chroma·w·n  (red / cyan fringes on the rim only)
+    5  specular caustic: a thin bright band where the rim faces the key light (top-left), focused by the lens.
+    All operations are on the (small) glass crop only → ≈3-6 ms per glass element."""
+    h, w = crop.shape[:2]
+    ms = cairo.ImageSurface(cairo.FORMAT_A8, w, h)
+    mc = cairo.Context(ms)
+    mc.translate(-X0, -Y0)
+    mc.new_path()
+    path_fn(mc)
+    mc.set_source_rgba(1, 1, 1, 1)
+    mc.fill()
+    ms.flush()
+    mask = np.ndarray((h, ms.get_stride()), np.uint8, ms.get_data())[:, :w].copy()
+    del mc, ms
+    if mask.max() < 128:
+        return crop
+    d = cv2.distanceTransform((mask > 127).astype(np.uint8), cv2.DIST_L2, 3)
+    wr = np.clip(1.0 - d / max(1.0, band), 0.0, 1.0) ** 2
+    wr[mask < 8] = 0.0
+    mb = cv2.GaussianBlur(mask.astype(np.float32) / 255.0, (0, 0), max(1.5, band * 0.35))
+    gx = cv2.Sobel(mb, cv2.CV_32F, 1, 0, ksize=3)
+    gy = cv2.Sobel(mb, cv2.CV_32F, 0, 1, ksize=3)
+    gn = np.sqrt(gx * gx + gy * gy) + 1e-6
+    nx, ny = gx / gn, gy / gn                         # points INTO the glass
+    yy, xx = np.mgrid[0:h, 0:w].astype(np.float32)
+    out = crop.copy()
+    if refract > 0:
+        dx, dy = nx * (refract * wr), ny * (refract * wr)
+        out = cv2.remap(crop, xx + dx, yy + dy, cv2.INTER_LINEAR, borderMode=cv2.BORDER_REFLECT)
+    if chroma > 0:
+        base = out
+        cx, cy = nx * (chroma * wr), ny * (chroma * wr)
+        r_ = cv2.remap(base[:, :, 2], xx + cx, yy + cy, cv2.INTER_LINEAR, borderMode=cv2.BORDER_REFLECT)
+        b_ = cv2.remap(base[:, :, 0], xx - cx, yy - cy, cv2.INTER_LINEAR, borderMode=cv2.BORDER_REFLECT)
+        out = base.copy()
+        out[:, :, 2] = r_
+        out[:, :, 0] = b_
+    if caustic > 0:
+        facing = np.clip(-(nx * -0.62 + ny * -0.78), 0.0, 1.0)      # rim whose OUTWARD normal faces the top-left key
+        thin = np.clip(1.0 - d / max(1.0, band * 0.28), 0.0, 1.0) ** 1.5
+        thin[mask < 8] = 0.0
+        cst = (thin * facing ** 2 * (caustic * 150.0)).astype(np.float32)
+        cst = cv2.GaussianBlur(cst, (0, 0), 1.1)
+        f = out[:, :, :3].astype(np.float32) + cst[..., None] * np.array([0.92, 0.98, 1.0], np.float32)
+        out[:, :, :3] = np.clip(f, 0, 255).astype(np.uint8)
+    return out
+
+
+GLASS_OPTICS = {"refract": 4.0, "chroma": 1.5, "caustic": 0.55, "band": 16.0}   # spec "post": {"glass": {...}}
+
+
+def glass(ctx, F, path_fn, bbox, blur=16.0, tint=(0.06, 0.07, 0.09, 0.42), lift=0.06, sat=0.85, alpha=1.0,
+          refract=None, chroma=None, caustic=None):
+    """TRUE frosted glass: blurs the real composite under the shape (not a flat fill).
+    v14.8: + lens refraction at the rim, 1.5 px R/C chromatic dispersion and a specular caustic (see _glass_optics).
+    Per call: refract / chroma / caustic (px, px, 0..1); global defaults: spec "post": {"glass": {...}} or false."""
     if F.prepass or alpha <= 0.003:
         return
     x0, y0, x1, y1 = [int(v) for v in bbox]
@@ -236,6 +299,14 @@ def glass(ctx, F, path_fn, bbox, blur=16.0, tint=(0.06, 0.07, 0.09, 0.42), lift=
         f = g + (f - g) * sat
         f = f + (255 - f) * lift
         crop[:, :, :3] = np.clip(f, 0, 255).astype(np.uint8)
+    gcfg = getattr(F.R, "post", {}).get("glass", {}) if getattr(F, "R", None) is not None else {}
+    if gcfg is not False:
+        gcfg = dict(GLASS_OPTICS, **(gcfg if isinstance(gcfg, dict) else {}))
+        rf = float(gcfg["refract"] if refract is None else refract)
+        ch = float(gcfg["chroma"] if chroma is None else chroma)
+        cu = float(gcfg["caustic"] if caustic is None else caustic)
+        if rf > 0 or ch > 0 or cu > 0:
+            crop = _glass_optics(crop, path_fn, X0, Y0, rf, ch, cu, float(gcfg["band"]))
     crop[:, :, 3] = 255
     crop = np.ascontiguousarray(crop)
     gs = cairo.ImageSurface.create_for_data(crop, cairo.FORMAT_ARGB32, X1 - X0, Y1 - Y0,
@@ -299,6 +370,7 @@ class Renderer:
         self.grade_keys = [[self.tl.resolve(k[0]), k[1]] for k in g.get("keys", [])]
         self.post = spec.get("post", {})
         self._vig = None
+        self._bokeh_on = bool(self.post.get("bokeh_dust")) or any(L["type"] == "ambient_bokeh" for L in self.layers)
 
     # ------------------------------------------------------------------ source
     def src_frame(self, st):
@@ -389,6 +461,12 @@ class Renderer:
         self._stage_pass(F)
         # ---------------- BACK pass
         self._draw_pass(ctx, F, "back")
+        # ---------------- v14.8 BACK bokeh dust (behind the speaker → she occludes it)
+        if self._bokeh_on:
+            from . import bokeh as BK
+            surf.flush()
+            BK.draw(F, surface_array(surf)[:, :, :3], "back")
+            surf.mark_dirty()
         # ---------------- FRONT emission pre-pass (so front glows can light the speaker)
         dummy = cairo.ImageSurface(cairo.FORMAT_A8, 1, 1)
         F.pass_, F.ectx, F.prepass = "front", ectx_f, True
@@ -448,6 +526,15 @@ class Renderer:
 
         # ---------------- Fast quarter-res bloom + vignette
         out_u8 = surface_array(surf)[:, :, :3].copy()
+        # ---------------- v14.8 FRONT bokeh dust (1.3x parallax, never over the face)
+        if self._bokeh_on:
+            from . import bokeh as BK
+            from .stage import face_zone
+            try:
+                fz = face_zone(F, 0.15)
+            except Exception:  # noqa: BLE001
+                fz = None
+            BK.draw(F, out_u8, "front", fz)
         Eq = Eb_q * (1.0 - Aq[..., None] * 0.8) + Ef_q
         bl_q = (cv2.GaussianBlur(Eq, (0, 0), 3.0) * 0.55 + cv2.GaussianBlur(Eq, (0, 0), 11.0) * 0.75 +
                 cv2.GaussianBlur(Eq, (0, 0), 30.0) * 0.45) * float(self.post.get("bloom", 1.0))

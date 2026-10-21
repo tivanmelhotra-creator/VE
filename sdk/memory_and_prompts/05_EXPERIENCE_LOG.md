@@ -77,3 +77,20 @@
   6. `zraster.py` and `pbr3d.py` upgraded with vectorized NumPy triangle bbox rasterizers (`_raster_vec_np`, `55ms` without `numba`) and an offline pure-Python glTF PBR + HDRI software fallback (`_render_gltf_software_fallback`).
   7. `v14/subs.py` pre-pop word alpha raised from `0.22` to `0.72` for full phrase legibility inside dark glass capsules.
 - Verified: `qa` clean, 6-frame sheets `/tmp/ve_v14_6frames_grid_fixed.jpg` & `/tmp/ve_v14_3d_guard_verified.jpg`, full renders `maghale_v14_7_studio_depth_master.mp4` & `maghale_v14_7_before_after_showcase.mp4`.
+
+
+## 2026-10-21 — v14.8: Studio Optical (refractive glass, shutter motion blur, bokeh dust) & Auto-Director
+- Built on v14.7 (c7eb7a0). 4 upgrades from the co-engineering brief:
+  1. `compositor.glass()` → `_glass_optics`: distance-to-rim band, inward normal from the blurred shape mask, cv2.remap
+     lens bend (4 px) + R/B split (1.5 px) + top-left caustic. Cost ≈3–6 ms per glass element (crop-local only).
+  2. `motionblur.py` + `glyphs.draw_block(mblur=…)`: per-glyph displacement over a 180° shutter (motion evaluated at
+     t − 1/60 s through a `_ShiftT` frame proxy) → line-kernel streak on a premultiplied offscreen ROI. Lesson: never
+     re-evaluate `pos()` for the earlier instant — the layout guard keeps per-frame smoothing state; only `t` shifts.
+     `object3d` refactored into `_motion_state` (pure) + `_blur_vector` (yaw rim speed + drop/fall + spring scale).
+  3. `bokeh.py`: depth-sandwich dust — BACK slot after the back pass (speaker occludes it), FRONT slot before bloom,
+     parallax relative to the t=0 camera matrix (0.7× / 1.3×), front discs faded over `stage.face_zone`.
+  4. `director.py` (`auto-edit` CLI): breath cuts, linguistic word scoring (stop/verb penalties, numbers, emphasis
+     lexicon, topic repetition, phrase-final + slow-speech stress), greedy 2.5–3.5 s beats, depth rotation, camera
+     keys with punch-in on cuts, grade keys, subtitles.hide, and a QA auto-fix loop (`qa.qa_warnings`).
+- Verified: QA clean on edit_v14 / edit_v14_3d / edit_auto (edit_v14_pbr3d keeps its pre-existing obj_tooth edge
+  warning from v14.7). A/B frames v14.7 vs v14.8 at the same t: streaks on drop_bounce / swing_3d only, glass rims refract.

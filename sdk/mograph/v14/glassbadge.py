@@ -9,6 +9,8 @@ Anatomy (outside → in):
   ④ hairline  1 px white @ 16 % on the body edge (glass thickness) + top-left sheen
   ⑤ specular  warm bloom at the head of the outline while it draws on, then slowly orbiting
 Entrance: outline trims on (0.45 s silk) while the body jelly-springs from the centre; text pops last.
+v14.8: the body is REFRACTIVE glass — lens bend at the rim (`refract` px), R/C dispersion (`chroma` px) and a
+specular caustic (`caustic` 0..1) from compositor._glass_optics; set any of them to 0 per layer to disable.
 Shapes: hept (default) · hex · pent · oct · circle · diamond · rsquare · pill
 """
 from __future__ import annotations
@@ -136,7 +138,8 @@ def draw_glass_badge(ctx, L, F, pos, glyph_motion, blk, out_lt):
     if pb > 0.02:
         if F.pass_ == "front":
             glass(ctx, F, body, (x - bw, y - bh, x + bw, y + bh), blur=float(L.get("blur", 14)),
-                  tint=(0, 0, 0, 0.0), lift=0.0, sat=0.75, alpha=a)
+                  tint=(0, 0, 0, 0.0), lift=0.0, sat=0.75, alpha=a,
+                  refract=L.get("refract"), chroma=L.get("chroma"), caustic=L.get("caustic"))
         r = max(bw, bh) / 2
         core = float(L.get("core", 0.82))
         ctx.save(); body(ctx)

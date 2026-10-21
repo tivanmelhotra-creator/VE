@@ -16,6 +16,15 @@ class _Probe:
 
 
 def run_qa(R):
+    warn = qa_warnings(R, verbose=True)
+    for w in warn:
+        print("⚠", w)
+    print("QA clean ✓" if not warn else f"QA: {len(warn)} warning(s)")
+    return 1 if warn else 0
+
+
+def qa_warnings(R, verbose=False):
+    """All QA warnings as a list of strings (used by run_qa and by the v14.8 auto-director's fix loop)."""
     warn = []
     for L in R.layers:
         d = L["_t1"] - L["_t0"]
@@ -24,7 +33,8 @@ def run_qa(R):
             warn.append(f"{name}: very short ({d:.2f}s)")
         if L["_t0"] > R.duration:
             warn.append(f"{name}: starts after the end ({L['_t0']:.2f} > {R.duration:.2f})")
-        print(f"  {L['_t0']:6.2f} → {min(L['_t1'], R.duration):6.2f}  {L['type']:<14} {name}")
+        if verbose:
+            print(f"  {L['_t0']:6.2f} → {min(L['_t1'], R.duration):6.2f}  {L['type']:<14} {name}")
     if R.subs:
         for p in R.subs["_phr"]:
             dd = p["t1"] - p["t0"]
@@ -37,7 +47,7 @@ def run_qa(R):
     from .compositor import Frame
     from . import layers as LY
     for L in R.layers:
-        if L["type"] in ("progress", "flash", "sweep_light"):
+        if L["type"] in ("progress", "flash", "sweep_light", "ambient_bokeh"):
             continue
         t = min(R.duration - 0.05, L["_t0"] + min(0.9, (L["_t1"] - L["_t0"]) / 2))
         F = Frame(R, t)
@@ -67,7 +77,4 @@ def run_qa(R):
             cover = float((a[::4, ::4][m] > 20).mean()) if m.any() else 0.0
             if cover > 0.04:
                 warn.append(f"{L.get('id')}: covers {cover * 100:.0f}% of the FACE at t={t:.2f}")
-    for w in warn:
-        print("⚠", w)
-    print("QA clean ✓" if not warn else f"QA: {len(warn)} warning(s)")
-    return 1 if warn else 0
+    return warn

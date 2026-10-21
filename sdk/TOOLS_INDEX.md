@@ -16,6 +16,8 @@ prep    spec.json                 offline pose + MODNet matte cache for the spec
   words   spec.json                 print the edited-time transcript (for "w:" anchors)
   qa      spec.json                 resolve every anchor, check layers are on-screen, list timings
   render  spec.json [--preview]     final video (+ audio) → out/<name>.mp4 ; --preview = half res
+  auto-edit words.json raw.mp4 -o edit_auto.json    v14.8 AUTOMATIC director: breath cuts + hero words + depth
+                                                   rotation + camera/grade → a QA-clean spec (director.py)
 ```
 </details>
 
@@ -47,6 +49,29 @@ voice   NOISE-CANCELLED (denoise.py: RNNoise neural + presence/air restore, auto
 | `sfx_track(R, n, gain)` |  |
 | `music_track(R, n, cfg)` |  |
 | `build_audio(R, out_wav, start, end)` |  |
+
+### `mograph.v14.bokeh`  (sdk/mograph/v14/bokeh.py)
+mograph.v14.bokeh — depth-sandwich 3D BOKEH DUST (v14.8, CPU port of EffectCraft three_d/bokeh.rs).
+
+<details><summary>details</summary>
+
+```
+Out-of-focus floating dust in a real lens: every point light far from the focal plane becomes a disc shaped like the
+iris (octagonal aperture blades), slightly brighter at the rim (spherical aberration "soap bubble"), and moves with
+a parallax that depends on its distance to the camera.  We render it as TWO layers of the depth sandwich:
+
+  BACK   12 small/medium octagonal discs BEHIND the speaker (drawn on the background before the speaker composite,
+         so she occludes them).  Tinted by @accent mixed with warm white.  Parallax 0.7× of the camera.
+  FRONT   6 LARGE very soft discs IN FRONT of everything (drawn after the front pass, before bloom), parallax
+         1.3× of the camera → they slide faster than the speaker on every push-in / pan = real depth.
+         Front discs fade out over the protected face ellipse (never fog the eyes / mouth).
+```
+</details>
+
+| function / class | what |
+|---|---|
+| `resolve(R, t)` | Active config at time t (merging post.bokeh_dust and ambient_bokeh layers) or None. |
+| `draw(F, arr, kind, face_zone)` | Draw the `kind` ("back" / "front") dust onto BGR uint8 `arr` (in place). |
 
 ### `mograph.v14.compositor`  (sdk/mograph/v14/compositor.py)
 mograph.v14.compositor — the v14 "Studio Depth" frame pipeline for talking-head reels.
@@ -103,6 +128,34 @@ No knobs needed: it MEASURES the take and picks the strength itself.
 | `clean(x, sr, model, strength, residual, log, …)` | Engine order: DeepFilterNet3 (strong, natural) → RNNoise fallback. |
 | `clean_voice(src, model, strength, log, residual)` | Cached: returns path of a 48 kHz mono cleaned WAV next to the media cache. |
 
+### `mograph.v14.director`  (sdk/mograph/v14/director.py)  · CLI: `python3 -m mograph.v14.director …`
+mograph.v14.director — AUTOMATIC BEAT-SHEET DIRECTOR (v14.8; resolves SKILL_TOOLBOX backlog #3).
+
+<details><summary>details</summary>
+
+```
+python3 -m mograph.v14 auto-edit words.json media/raw.mp4 -o edit_auto.json [--theme doran] [--no-qa]
+
+Input : a word-timed transcript (words.json: {"words":[{"text","start","end"}]} | [{"w","t","end"}] | [[w,t,end]])
+        + the raw talking-head video.
+Output: a complete, QA-clean v14 spec (same schema as hand-made edit_v14.json) — ready for `frame` / `render`.
+
+PIPELINE (every step is deterministic → same input = same edit):
+  1  BREATH CUTS     pauses between words > 0.32 s are removed → source.segments (0.10 s pre-roll, 0.14 s tail,
+                     very short islands are merged with their neighbour).
+  2  WORD SCORING    every word gets an "impact" score from cheap Persian linguistics (no model):
+```
+</details>
+
+| function / class | what |
+|---|---|
+| `build_segments(words, src_dur, pause)` | Speech islands separated by pauses > `pause` → [[a, b], ...] in source seconds. |
+| `score_words(tw)` | tw = Timeline.words (output time).  Returns list of floats (impact score per word). |
+| `pick_beats(tw, scores, duration, bmin, bmax)` | Greedy: one hero word per [last + bmin, last + bmax] window (first beat = best word in the opening). |
+| `build_layers(tl, tw, scores, beats, duration, seg_of)` |  |
+| `auto_edit(words_path, video_path, out_path, theme, qa, log)` |  |
+| `main(argv)` |  |
+
 ### `mograph.v14.glassbadge`  (sdk/mograph/v14/glassbadge.py)
 mograph.v14.glassbadge — NESTED glass badge (the @novadent heptagon, measured from the reference frames).
 
@@ -117,7 +170,8 @@ Anatomy (outside → in):
   ④ hairline  1 px white @ 16 % on the body edge (glass thickness) + top-left sheen
   ⑤ specular  warm bloom at the head of the outline while it draws on, then slowly orbiting
 Entrance: outline trims on (0.45 s silk) while the body jelly-springs from the centre; text pops last.
-Shapes: hept (default) · hex · pent · oct · circle · diamond · rsquare · pill
+v14.8: the body is REFRACTIVE glass — lens bend at the rim (`refract` px), R/C dispersion (`chroma` px) and a
+specular caustic (`caustic` 0..1) from compositor._glass_optics; set any of them to 0 per layer to disable.
 ```
 </details>
 
@@ -208,6 +262,34 @@ Each layer is a JSON dict.  Common keys:
 | `draw_sweep_light(ctx, L, F)` |  |
 | `draw_tracked_tag(ctx, L, F)` | MOTION-TRACKING SHOWCASE: a small glass chip glued to a tracked point (hand / shoulder) with a curved |
 | `draw_object_3d(ctx, L, F)` |  |
+| `draw_ambient_bokeh(ctx, L, F)` | Rendered by the compositor (bokeh.py) in the two depth slots; nothing to draw on the layer canvases. |
+
+### `mograph.v14.motionblur`  (sdk/mograph/v14/motionblur.py)
+mograph.v14.motionblur — velocity-driven 180° shutter DIRECTIONAL motion blur (v14.8).
+
+<details><summary>details</summary>
+
+```
+WHY: at 30 fps a spring entrance (drop_bounce, swing_3d, flip_3d, object_3d spin-in) moves 40-120 px between two
+frames.  Without blur the eye sees discrete copies ("stroboscopic stepping").  A real camera with a 180° shutter
+integrates the motion over half the frame interval → a 1-D streak along the velocity vector.
+
+HOW (exact, cheap, local):
+  1  the caller knows the element at time t and at t − Δ (Δ = shutter/360 / fps) → screen displacement vector d
+     (glyphs: projected contour points; object_3d: rim speed of the yaw spin + spring translation)
+  2  if |d| < threshold (default 2.5 px) nothing happens — static / settled frames cost zero
+  3  otherwise the element is painted into a small OFFSCREEN premultiplied-ARGB surface (its device bbox + |d|),
+     convolved with a normalised LINE kernel of length |d| along d (cv2.filter2D — premultiplied alpha makes the
+```
+</details>
+
+| function / class | what |
+|---|---|
+| `config(L, F)` | Resolved motion-blur config for a layer, or None when disabled. |
+| `shutter_dt(cfg, fps)` |  |
+| `line_kernel(dx, dy)` | Normalised 1-D line kernel of length /d/ along (dx, dy) (anti-aliased endpoints). |
+| `principal_displacement(P0, P1)` | Dominant screen displacement (dx, dy) between two (N,2) point sets (translation, or the main axis of a |
+| `paint_blurred(ctx, draw_fn, bbox, dx, dy, max_len)` | Draw `draw_fn(c)` (user-space coords of ctx) into an offscreen surface, directional-blur by (dx, dy) |
 
 ### `mograph.v14.object3d`  (sdk/mograph/v14/object3d.py)
 mograph.v14.object3d — `object_3d` layer: a REAL turning 3D object inside the v14 talking-head engine.
@@ -307,6 +389,7 @@ Exit code 0 = clean, 1 = warnings.
 | function / class | what |
 |---|---|
 | `run_qa(R)` |  |
+| `qa_warnings(R, verbose)` | All QA warnings as a list of strings (used by run_qa and by the v14.8 auto-director's fix loop). |
 
 ### `mograph.v14.showcase`  (sdk/mograph/v14/showcase.py)  · CLI: `python3 -m mograph.v14.showcase …`
 mograph.v14.showcase — the @novadent "BEFORE / AFTER" editor-showcase wrapper.
@@ -2143,7 +2226,8 @@ excludes renders, caches, matte caches and keys).   python3 tools/package.py v9 
 
 ## models / binaries / assets
 
-- `mograph/models/` (4 files, 14.1 MB): LICENSE_portrait_seg.txt, hand_landmarker.task, portrait_seg.onnx, pose_landmarker_lite.task
+- `mograph/models/` (5 files, 39.9 MB): LICENSE_portrait_seg.txt, hand_landmarker.task, modnet.onnx, portrait_seg.onnx, pose_landmarker_lite.task
 - `mograph/models/rnnoise/` (6 files, 1.5 MB): README_rnnoise-models.md, bd.rnnn, cb.rnnn, lq.rnnn, mp.rnnn, sh.rnnn
+- `mograph/bin/` (1 files, 36.4 MB): deep-filter
 - `mograph/assets_3d/` (18 files, 4.0 MB): cash_3d.png, grade_a_3d.png, grade_b_3d.png, grade_c_3d.png, laptop_3d.png, laptop_yaw_m15.png, laptop_yaw_m45.png, laptop_yaw_p15.png, laptop_yaw_p45.png, logo_apple_3d.png, logo_dell_3d.png, logo_hp_3d.png, logo_surface_3d.png, pin_3d.png, pin_green_3d.png, plane_3d.png, shield_3d.png, warn_3d.png
 - `fonts/` (139 files) families: AbarHigh, AbarLow, AbarMid, AriaFaNum, Capsule, Delbar, DigiAnil, DigiGhasedak, Doran, DoranFaNum, FONT, Gohar, Hasti, IRANSansWeb, IRANSansWeb.ttf, IRANYekanBlack.ttf, IRANYekanBold.ttf, IRANYekanBoldFaNum.ttf, IRANYekanExtraBlack2.ttf, IRANYekanExtraBold.ttf, IRANYekanExtraBoldFaNum.ttf, IRANYekanLight.ttf, IRANYekanMedium.ttf, IRANYekanRegular.ttf, IRANYekanThin.ttf, IRArshia.ttf, IRDastNevis.ttf, IRFarnaz.ttf, KalamehFaNum, Miremad.ttf, Morabba, PINAR, Pelak, PelakFA, Peyda, Shoko, Titr Zebr.ttf, Vazirmatn, YekanBakh

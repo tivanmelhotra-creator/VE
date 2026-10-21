@@ -110,3 +110,22 @@ screen), `offset` [dx, dy] in HEAD WIDTHS, `size`, `text`, `styles`, `pass` back
 - **Halo anatomy** (from user's reference): 2 discs (bright inner + translucent outer), above the head, text inside the
   bright disc. Off-centre/one wide line → `text_mode: arc` bends it along the edge (half-circle). VFX built in.
   Minimal spec: `{"type":"halo","t":"w:word","out":"w:x","pass":"back","text":"^small^|=HERO=","text_mode":"center"}`.
+
+
+## v14.8 additions — Studio Optical & Auto-Director
+- **Refractive glass** (`compositor.glass` → `_glass_optics`): every glass body (glass_shape / nested badge / disc / tags /
+  subtitles) bends the frosted plate inward along the rim (`refract` ≈ 4 px), adds 1.5 px red/cyan dispersion on the
+  rim (`chroma`) and a thin specular caustic facing the top-left key (`caustic` 0..1). Global:
+  `"post": {"glass": {"refract": 4, "chroma": 1.5, "caustic": 0.55, "band": 16}}` (or `false`); per layer: same keys.
+- **180° shutter motion blur** (`motionblur.py`): automatic on `drop_bounce` / `swing_3d` / `flip_3d` / `plane_in`
+  entrances, `fall` / `flip_out` exits and every `object_3d` spin-in / drop / fall. Each glyph gets its OWN velocity
+  vector (projected contour points at t and t − shutter) → 1-D line-kernel streak on a small premultiplied ROI.
+  Settled frames cost nothing (threshold 2.5 px). `"motion_blur": false | true | {"shutter":180,"threshold":2.5,"max":48}`
+  per layer, `"post": {"motion_blur": false}` to disable globally.
+- **Bokeh dust** (`bokeh.py`): `{"type":"ambient_bokeh","t":0,"out":6,"back":12,"front":6,"alpha":1}` or
+  `"post": {"bokeh_dust": true}` — 12 octagonal out-of-focus discs BEHIND the speaker (0.7× parallax, accent/warm
+  tint) + 6 large soft discs IN FRONT (1.3× parallax, faded over the face zone). ≈5 ms/frame.
+- **Auto-director** (`director.py`): `python3 -m mograph.v14 auto-edit words.json media/raw.mp4 -o edit_auto.json`
+  → breath cuts (> 0.32 s) → Persian impact scoring → one hero every 2.5–3.5 s → depth rotation
+  (kinetic BACK → orbit_ring → frame_box + object_3d → disc+flip_at → halo BACK → glass FRONT) + camera/grade/flash +
+  subtitles.hide → QA fix loop until clean. Then polish by hand (texts, colours) — every time is a word anchor.

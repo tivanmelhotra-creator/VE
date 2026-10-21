@@ -7,6 +7,8 @@ python3 -m mograph.v14 <command> spec.json [...]
   words   spec.json                 print the edited-time transcript (for "w:" anchors)
   qa      spec.json                 resolve every anchor, check layers are on-screen, list timings
   render  spec.json [--preview]     final video (+ audio) → out/<name>.mp4 ; --preview = half res
+  auto-edit words.json raw.mp4 -o edit_auto.json    v14.8 AUTOMATIC director: breath cuts + hero words + depth
+                                                   rotation + camera/grade → a QA-clean spec (director.py)
 """
 from __future__ import annotations
 
@@ -20,6 +22,10 @@ import numpy as np
 
 
 def main(argv=None):
+    argv = sys.argv[1:] if argv is None else argv
+    if argv and argv[0] in ("auto-edit", "auto_edit", "director"):
+        from .director import main as director_main
+        sys.exit(director_main(argv[1:]))
     ap = argparse.ArgumentParser(prog="mograph.v14")
     ap.add_argument("cmd")
     ap.add_argument("spec")

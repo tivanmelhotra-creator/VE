@@ -13,6 +13,7 @@ mograph.v14.object3d — `object_3d` layer: a REAL turning 3D object inside the 
      "enter": "spring_pop" | "drop" | "fade",  "exit": "pop_out" | "fall" | "fade",
      "pass": "front" | "back"}
 
+v14.8: fast spin-ins / drops / falls get a velocity-driven 180° shutter motion blur ("motion_blur": false to opt out).
 Entrance = jelly spring scale + a quick spin-in (the object TURNS into view — never a flat fade).
 Contact shadow + a soft accent glow keep it sitting in the scene; it respects the layout guard (never on the face).
 """
@@ -44,6 +45,60 @@ def _angles(L, lt):
     return yaw, pitch
 
 
+def _motion_state(L, F, lt, olt):
+    """(scale, alpha, dy) of the entrance / exit at local time lt (pure function → also used for motion blur)."""
+    ent = L.get("enter", "spring_pop")
+    dy = 0.0
+    if ent == "fade":
+        sc, a = 1.0, min(1.0, max(0.0, lt) / 0.3)
+    elif ent == "drop":
+        p = ph.sp(lt, "bouncy")
+        sc, a = 1.0, min(1.0, max(0.0, lt) / 0.15)
+        dy -= (1.0 - p) * F.H * 0.35
+    else:
+        sc, a = max(0.0, ph.sp(lt, "jelly")), min(1.0, max(0.0, lt) / 0.12)
+    if olt is not None and olt > 0:
+        ex = L.get("exit", "pop_out")
+        q = min(1.0, olt / 0.4)
+        if ex == "fall":
+            dy += ph.ease_in(q) * F.H * 0.4
+            a *= 1 - q
+        elif ex == "fade":
+            a *= 1 - q
+        else:
+            sc *= max(0.0, 1 + 0.15 * math.sin(q * math.pi) - q * 1.15)
+            a *= 1 - ph.ease_in(q)
+    return sc, a, dy
+
+
+def _blur_vector(L, F, lt, olt, size, yaw, sc, dy):
+    """v14.8: screen displacement over one 180° shutter interval: spin-in rim speed (horizontal, from the yaw
+    derivative) + drop / fall translation (vertical) + spring scale growth (radial, folded into the dominant axis)."""
+    from . import motionblur as MB
+    cfg = MB.config(L, F)
+    if cfg is None or F.prepass:
+        return None
+    dt = MB.shutter_dt(cfg, F.R.fps)
+    olt_p = (olt - dt) if (olt is not None and olt - dt > 0) else None
+    sc_p, _, dy_p = _motion_state(L, F, lt - dt, olt_p)
+    keep = L.get("_t_now")
+    L["_t_now"] = F.t - dt
+    yaw_p, _ = _angles(L, lt - dt)
+    L["_t_now"] = keep
+    dyaw = math.radians(((yaw - yaw_p + 180.0) % 360.0) - 180.0)
+    vx = abs(dyaw) * size * 0.5 * 0.85                 # rim speed of the turning object (≈ visible silhouette)
+    vy = dy - dy_p
+    vs = abs(sc - sc_p) * size * 0.5 / max(sc, 0.2)
+    vx = vx if dyaw >= 0 else -vx
+    if abs(vy) >= abs(vx):
+        vy += math.copysign(vs, vy if vy else 1.0)
+    else:
+        vx += math.copysign(vs, vx)
+    if math.hypot(vx, vy) < float(cfg["threshold"]):
+        return None
+    return vx, vy, float(cfg["max"])
+
+
 def draw_object_3d(ctx, L, F, pos, out_lt):
     from .. import obj3d as O
     lt = F.t - L["_t0"]
@@ -57,74 +112,66 @@ def draw_object_3d(ctx, L, F, pos, out_lt):
     else:
         size = float(L.get("size", 1.4)) * F.head_px()
     # entrance / exit
-    ent = L.get("enter", "spring_pop")
-    if ent == "fade":
-        sc, a = 1.0, min(1.0, lt / 0.3)
-    elif ent == "drop":
-        p = ph.sp(lt, "bouncy")
-        sc, a = 1.0, min(1.0, lt / 0.15)
-        y -= (1.0 - p) * F.H * 0.35
-    else:
-        sc, a = max(0.0, ph.sp(lt, "jelly")), min(1.0, lt / 0.12)
-    if olt is not None:
-        ex = L.get("exit", "pop_out")
-        q = min(1.0, olt / 0.4)
-        if ex == "fall":
-            y += ph.ease_in(q) * F.H * 0.4
-            a *= 1 - q
-        elif ex == "fade":
-            a *= 1 - q
-        else:
-            sc *= max(0.0, 1 + 0.15 * math.sin(q * math.pi) - q * 1.15)
-            a *= 1 - ph.ease_in(q)
+    sc, a, dy = _motion_state(L, F, lt, olt)
+    y += dy
     size *= sc
     if size < 6 or a <= 0.01:
         return
     yaw, pitch = _angles(L, lt)
     roll = float(L.get("roll", 0.0)) + float(L.get("_roll", 0.0)) * float(L.get("roll_follow", 0.5))
     base = getattr(F.R, "base", None) or getattr(F.R, "base_dir", None)
-    # soft accent glow behind (sits the object in the light of the scene) — emission pass when available
-    glow = float(L.get("glow", 0.35))
-    if glow > 0 and F.pass_ == L.get("pass", "front"):
-        import cairo
-        from . import glyphs as G
-        c = G.rgba(L.get("glow_color", "@accent"), L["_pal"])
-        g = cairo.RadialGradient(x, y, 0, x, y, size * 0.75)
-        g.add_color_stop_rgba(0, c[0], c[1], c[2], 0.28 * glow * a)
-        g.add_color_stop_rgba(1, c[0], c[1], c[2], 0)
-        ctx.save()
-        ctx.set_source(g)
-        ctx.arc(x, y, size * 0.75, 0, 2 * math.pi)
-        ctx.fill()
-        ctx.restore()
-    shadow = bool(L.get("shadow", True))
-    if L.get("model"):                         # v14.6 photoreal: scanned PBR model rendered by EffectCraft
-        _draw_pbr(ctx, L, F, x, y, size, sc, a, shadow)
-        return
-    if L.get("preset") or L.get("tree"):
-        from .. import sculpt3d as S
-        tree = L.get("_tree")
-        if tree is None:                       # resolve once (preset name | tree dict | tree .json path)
-            tree = L["_tree"] = S.get_tree(L.get("tree"), L.get("preset", "laptop_pro_3d"), base_dir=base,
-                                           open_dur=float(L.get("open_dur", 1.1)))
-        S.render_sculpt3d_scene(ctx, tree, x, y, size, t=lt, yaw_deg=yaw, pitch_deg=pitch, roll_deg=roll,
-                                alpha=a, shadow=shadow, ssaa=int(L.get("ssaa", 2)))
-        return
-    src = L.get("src", "laptop_3d.png")
-    geom = L.get("geometry", "auto")
-    views = L.get("views") or (O.find_views(src, base) if geom in ("auto", "multiview") else None)
-    if views:
-        O.render_multiview(ctx, views, x, y, size, yaw=yaw, pitch=pitch, roll=roll, alpha=a, shadow=shadow,
-                           base_dir=base)
-        return
-    if geom == "auto":
-        low = str(src).lower()
-        geom = "cushion" if any(s in low for s in ("pin", "heart", "warn", "cash", "coin")) else "slab"
-    prof = {"slab": (0.12, 0.30, 0.0), "badge": (0.06, 0.6, 0.0), "cushion": (0.22, 1.0, 0.45)}.get(geom, (0.12, 0.3, 0))
-    O.render_extruded_sprite(ctx, src, x, y, size, yaw=yaw, pitch=pitch, roll=roll,
-                             depth=float(L.get("depth", prof[0])), round_=float(L.get("round", prof[1])),
-                             bulge=float(L.get("bulge", prof[2])), alpha=a, specular=float(L.get("specular", 0.7)),
-                             shadow=shadow, back=L.get("back", "solid"), base_dir=base)
+    vec = _blur_vector(L, F, lt, olt, size, yaw, sc, dy)
+
+    def _paint(ctx):
+        # soft accent glow behind (sits the object in the light of the scene) — emission pass when available
+        glow = float(L.get("glow", 0.35))
+        if glow > 0 and F.pass_ == L.get("pass", "front"):
+            import cairo
+            from . import glyphs as G
+            c = G.rgba(L.get("glow_color", "@accent"), L["_pal"])
+            g = cairo.RadialGradient(x, y, 0, x, y, size * 0.75)
+            g.add_color_stop_rgba(0, c[0], c[1], c[2], 0.28 * glow * a)
+            g.add_color_stop_rgba(1, c[0], c[1], c[2], 0)
+            ctx.save()
+            ctx.set_source(g)
+            ctx.arc(x, y, size * 0.75, 0, 2 * math.pi)
+            ctx.fill()
+            ctx.restore()
+        shadow = bool(L.get("shadow", True))
+        if L.get("model"):                         # v14.6 photoreal: scanned PBR model rendered by EffectCraft
+            _draw_pbr(ctx, L, F, x, y, size, sc, a, shadow)
+            return
+        if L.get("preset") or L.get("tree"):
+            from .. import sculpt3d as S
+            tree = L.get("_tree")
+            if tree is None:                       # resolve once (preset name | tree dict | tree .json path)
+                tree = L["_tree"] = S.get_tree(L.get("tree"), L.get("preset", "laptop_pro_3d"), base_dir=base,
+                                               open_dur=float(L.get("open_dur", 1.1)))
+            S.render_sculpt3d_scene(ctx, tree, x, y, size, t=lt, yaw_deg=yaw, pitch_deg=pitch, roll_deg=roll,
+                                    alpha=a, shadow=shadow, ssaa=int(L.get("ssaa", 2)))
+            return
+        src = L.get("src", "laptop_3d.png")
+        geom = L.get("geometry", "auto")
+        views = L.get("views") or (O.find_views(src, base) if geom in ("auto", "multiview") else None)
+        if views:
+            O.render_multiview(ctx, views, x, y, size, yaw=yaw, pitch=pitch, roll=roll, alpha=a, shadow=shadow,
+                               base_dir=base)
+            return
+        if geom == "auto":
+            low = str(src).lower()
+            geom = "cushion" if any(s in low for s in ("pin", "heart", "warn", "cash", "coin")) else "slab"
+        prof = {"slab": (0.12, 0.30, 0.0), "badge": (0.06, 0.6, 0.0), "cushion": (0.22, 1.0, 0.45)}.get(geom, (0.12, 0.3, 0))
+        O.render_extruded_sprite(ctx, src, x, y, size, yaw=yaw, pitch=pitch, roll=roll,
+                                 depth=float(L.get("depth", prof[0])), round_=float(L.get("round", prof[1])),
+                                 bulge=float(L.get("bulge", prof[2])), alpha=a, specular=float(L.get("specular", 0.7)),
+                                 shadow=shadow, back=L.get("back", "solid"), base_dir=base)
+
+    if vec is not None:                            # v14.8: 180° shutter streak during spin-in / drop / fall
+        from .motionblur import paint_blurred
+        r = size * 0.85
+        paint_blurred(ctx, _paint, (x - r, y - r, x + r, y + r * 1.25), vec[0], vec[1], vec[2])
+    else:
+        _paint(ctx)
 
 
 def _draw_pbr(ctx, L, F, x, y, size, sc, a, shadow):
