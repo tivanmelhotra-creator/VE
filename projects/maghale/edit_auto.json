@@ -1,5 +1,5 @@
 {
- "_about": "v14.8 AUTO-EDIT (mograph.v14.director): breath cuts + scored hero words + depth rotation. Edit freely — every time is a word anchor.",
+ "_about": "v15.1 AUTO-EDIT (mograph.v14.director): breath cuts + scored hero words + depth rotation. Edit freely — every time is a word anchor.",
  "meta": {
   "w": 1080,
   "h": 1920,
@@ -23,7 +23,11 @@
     12.22,
     17.44
    ]
-  ]
+  ],
+  "morph_cuts": {
+   "dur": 0.24,
+   "max_motion": 60
+  }
  },
  "grade": {
   "bg": {
@@ -226,7 +230,25 @@
     "light": 0.7
    },
    "hero_hit": "w:مقاله",
-   "stagger": 0.03
+   "stagger": 0.03,
+   "selectors": [
+    {
+     "shape": "smooth",
+     "start": 0.0,
+     "end": 0.35,
+     "offset": [
+      0.55,
+      1.25,
+      -0.4,
+      1.05
+     ],
+     "props": {
+      "ty": -14,
+      "glow": 0.9,
+      "scale": 0.08
+     }
+    }
+   ]
   },
   {
    "type": "orbit_ring",
@@ -374,8 +396,10 @@
   "glass": {
    "refract": 4.0,
    "chroma": 1.5,
-   "caustic": 0.55
+   "caustic": 0.55,
+   "fresnel": 0.35
   },
+  "decontaminate": 0.75,
   "motion_blur": {
    "shutter": 180
   }
@@ -391,6 +415,8 @@
   },
   "sfx_gain": 0.55,
   "lufs": -14,
-  "denoise": "auto"
+  "denoise": "auto",
+  "multiband": true,
+  "vocal_booth_reverb": 0.04
  }
 }

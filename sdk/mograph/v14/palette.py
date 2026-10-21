@@ -190,6 +190,186 @@ def swatch(pal, path):
     cv2.imwrite(path, im)
 
 
+
+
+# ====================================================================================================
+# v15 (FilmCraft color_match.rs): Oklab 3-Range Perceptual Color Match with <= 8° Skin-Tone Guard
+# ====================================================================================================
+def bgr_to_oklab(bgr_u8: np.ndarray) -> np.ndarray:
+    """Convert BGR uint8 image to perceptual Oklab (L, a, b) float32 (Björn Ottosson 2020)."""
+    f = bgr_u8.astype(np.float32) / 255.0
+    lin = np.where(f <= 0.04045, f / 12.92, np.power((f + 0.055) / 1.055, 2.4))
+    b, g, r = lin[..., 0], lin[..., 1], lin[..., 2]
+    l = np.cbrt(np.maximum(0.0, 0.41222147 * r + 0.53633255 * g + 0.051445995 * b))
+    m = np.cbrt(np.maximum(0.0, 0.21190350 * r + 0.68069950 * g + 0.107396960 * b))
+    s = np.cbrt(np.maximum(0.0, 0.08830246 * r + 0.28171885 * g + 0.629978700 * b))
+    L = 0.21045426 * l + 0.79361780 * m - 0.004072047 * s
+    a = 1.97799850 * l - 2.42859220 * m + 0.450593700 * s
+    b_o = 0.025904037 * l + 0.78277177 * m - 0.808675770 * s
+    return np.stack([L, a, b_o], axis=-1)
+
+
+def oklab_to_bgr(lab: np.ndarray) -> np.ndarray:
+    """Convert Oklab (L, a, b) float32 image back to BGR uint8."""
+    L, a, b_o = lab[..., 0], lab[..., 1], lab[..., 2]
+    l_ = L + 0.39633778 * a + 0.21580376 * b_o
+    m_ = L - 0.105561346 * a - 0.06385417 * b_o
+    s_ = L - 0.08948418 * a - 1.29148550 * b_o
+    l, m, s = l_ * l_ * l_, m_ * m_ * m_, s_ * s_ * s_
+    r = +4.07674170 * l - 3.30771160 * m + 0.23096994 * s
+    g = -1.26843800 * l + 2.60975740 * m - 0.34131938 * s
+    b = -0.0041960863 * l - 0.70341860 * m + 1.70761470 * s
+    rgb = np.stack([b, g, r], axis=-1)
+    rgb = np.clip(rgb, 0.0, 1.0)
+    srgb = np.where(rgb <= 0.0031308, 12.92 * rgb, 1.055 * np.power(rgb, 1.0 / 2.4) - 0.055)
+    return np.clip(srgb * 255.0 + 0.5, 0, 255).astype(np.uint8)
+
+
+def _smoothstep(edge0: float, edge1: float, x: np.ndarray) -> np.ndarray:
+    t = np.clip((x - edge0) / (edge1 - edge0 + 1e-9), 0.0, 1.0)
+    return t * t * (3.0 - 2.0 * t)
+
+
+def match_reference_grade(src_bgr: np.ndarray, ref_bgr: np.ndarray,
+                          person_alpha: np.ndarray | None = None,
+                          max_skin_deg: float = 8.0, max_dL: float = 0.05) -> dict:
+    """
+    Ported from FilmCraft `crates/render/src/color_match.rs`:
+    1. Downsamples both frames (<= 96px wide) and converts to Oklab.
+    2. Separates into 3 tonal ranges: shadows smoothstep(0.55, 0.15, L), highlights smoothstep(0.45, 0.85, L), midtones.
+    3. Skin-tone protection: pixels in Oklab hue 20°–75°, chroma 0.02–0.20, L 0.25–0.92 are down-weighted (x0.2)
+       and the solved color cast is scaled so skin hue moves by at most `max_skin_deg` (8°).
+    """
+    s_sm = cv2.resize(src_bgr, (96, int(96 * src_bgr.shape[0] / max(1, src_bgr.shape[1]))), interpolation=cv2.INTER_AREA)
+    r_sm = cv2.resize(ref_bgr, (96, int(96 * ref_bgr.shape[0] / max(1, ref_bgr.shape[1]))), interpolation=cv2.INTER_AREA)
+    s_lab = bgr_to_oklab(s_sm)
+    r_lab = bgr_to_oklab(r_sm)
+
+    def _stats(lab, is_src=False):
+        L, a, b = lab[..., 0], lab[..., 1], lab[..., 2]
+        ch = np.hypot(a, b)
+        hue = np.degrees(np.arctan2(b, a)) % 360.0
+        skin = (hue >= 20.0) & (hue <= 75.0) & (ch >= 0.02) & (ch <= 0.20) & (L >= 0.25) & (L <= 0.92)
+        w_skin = np.where(skin, 0.2, 1.0) if is_src else np.ones_like(L)
+        w_sh = _smoothstep(0.55, 0.15, L) * w_skin
+        w_hi = _smoothstep(0.45, 0.85, L) * w_skin
+        w_md = np.maximum(0.0, 1.0 - _smoothstep(0.55, 0.15, L) - _smoothstep(0.45, 0.85, L)) * w_skin
+        out = {}
+        for name, w in (("shadows", w_sh), ("midtones", w_md), ("highlights", w_hi)):
+            ws = float(w.sum()) + 1e-6
+            out[name] = np.array([float((L * w).sum() / ws), float((a * w).sum() / ws), float((b * w).sum() / ws)], np.float32)
+        out["chroma"] = float(ch.mean()) + 1e-5
+        out["skin_mask"] = skin
+        out["skin_hue"] = float(np.degrees(math.atan2(float(b[skin].mean()), float(a[skin].mean()))) % 360.0) if np.any(skin) else None
+        return out
+
+    st_s = _stats(s_lab, is_src=True)
+    st_r = _stats(r_lab, is_src=False)
+    shifts = {k: (st_r[k] - st_s[k]) for k in ("shadows", "midtones", "highlights")}
+    sat_ratio = float(np.clip(st_r["chroma"] / st_s["chroma"], 0.65, 1.45))
+
+    # Skin-tone protection clamp: ensure mean skin hue shifts by at most max_skin_deg (8°)
+    scale_cast = 1.0
+    if st_s["skin_hue"] is not None and np.any(st_s["skin_mask"]):
+        sk = st_s["skin_mask"]
+        L_sk = s_lab[..., 0][sk]
+        w_sh = _smoothstep(0.55, 0.15, L_sk)
+        w_hi = _smoothstep(0.45, 0.85, L_sk)
+        w_md = np.maximum(0.0, 1.0 - w_sh - w_hi)
+        da = float((w_sh * shifts["shadows"][1] + w_md * shifts["midtones"][1] + w_hi * shifts["highlights"][1]).mean())
+        db = float((w_sh * shifts["shadows"][2] + w_md * shifts["midtones"][2] + w_hi * shifts["highlights"][2]).mean())
+        a0_, b0_ = float(s_lab[..., 1][sk].mean()), float(s_lab[..., 2][sk].mean())
+
+        def _dh(k):
+            return _hue_dist(float(np.degrees(math.atan2(b0_ + k * db, a0_ + k * da)) % 360.0), st_s["skin_hue"])
+        if _dh(1.0) > max_skin_deg:
+            # v15.1: exact bisection on the cast scale (v15.0 assumed hue shift ∝ scale → 10.7° on a strong cast)
+            lo, hi = 0.0, 1.0
+            for _ in range(30):
+                mid = 0.5 * (lo + hi)
+                lo, hi = (mid, hi) if _dh(mid) <= max_skin_deg * 0.97 else (lo, mid)
+            scale_cast = lo
+            for k in shifts:
+                shifts[k][1:] *= scale_cast
+
+    # v15.1 guards (v15.0 limited only the skin HUE): a strong reference could still crush the face (midtone
+    # ΔL = −0.12 measured on ref_novadent) or over-saturate it (sat ×1.45 kept even when the cast was scaled to 9 %).
+    #   * |ΔL| ≤ max_dL per range,  * saturation follows the same skin guard and stays in [0.8, 1.3].
+    for k in shifts:
+        shifts[k][0] = float(np.clip(shifts[k][0], -max_dL, max_dL))
+    sat_ratio = 1.0 + (sat_ratio - 1.0) * scale_cast
+    sat_ratio = float(np.clip(sat_ratio, 0.8, 1.3))
+    return {
+        "shadows_dab": [round(float(x), 4) for x in shifts["shadows"]],
+        "midtones_dab": [round(float(x), 4) for x in shifts["midtones"]],
+        "highlights_dab": [round(float(x), 4) for x in shifts["highlights"]],
+        "sat_scale": round(sat_ratio, 3),
+        "skin_guard_scale": round(scale_cast, 3),
+    }
+
+
+_GM_LUT = {}
+
+
+def grade_match_lut(m: dict, strength: float = 1.0, n: int = 64) -> np.ndarray:
+    """Colour-only correction → a DELTA 3D LUT (n³ × 3 int16, indexed by BGR >> shift).  Built once per match."""
+    key = (json.dumps(m, sort_keys=True), round(float(strength), 4), n)
+    if key in _GM_LUT:
+        return _GM_LUT[key]
+    v = (np.arange(n, dtype=np.float32) + 0.5) * (256.0 / n)
+    b, g, r = np.meshgrid(v, v, v, indexing="ij")
+    grid = np.clip(np.stack([b, g, r], -1).reshape(-1, 1, 3), 0, 255).astype(np.uint8)
+    lab = bgr_to_oklab(grid)
+    L = lab[..., 0]
+    w_sh = _smoothstep(0.55, 0.15, L)
+    w_hi = _smoothstep(0.45, 0.85, L)
+    w_md = np.maximum(0.0, 1.0 - w_sh - w_hi)
+    d = (w_sh[..., None] * np.asarray(m["shadows_dab"], np.float32) +
+         w_md[..., None] * np.asarray(m["midtones_dab"], np.float32) +
+         w_hi[..., None] * np.asarray(m["highlights_dab"], np.float32)) * float(strength)
+    out = lab + d
+    out[..., 1:] *= 1.0 + (float(m.get("sat_scale", 1.0)) - 1.0) * float(strength)
+    lut = (oklab_to_bgr(out).astype(np.int16) - grid.astype(np.int16)).reshape(n, n, n, 3)
+    _GM_LUT.clear()
+    _GM_LUT[key] = lut
+    return lut
+
+
+def apply_grade_match(bgr: np.ndarray, m: dict, strength: float = 1.0, work: float = 0.5) -> np.ndarray:
+    """v15.1: APPLY a match_reference_grade() result (v15.0 only computed it — nothing used the numbers).
+
+    Oklab per pixel: Δ = w_sh(L)·shadows_dab + w_md(L)·midtones_dab + w_hi(L)·highlights_dab, chroma × sat_scale.
+    The correction depends on colour only → baked into a 64³ delta LUT once; per frame = one gather at `work`
+    resolution + upsample + add (≈15 ms on 1080×1920 instead of 187 ms for direct Oklab maths)."""
+    if strength <= 0.001:
+        return bgr
+    n = 64
+    sh = 8 - int(round(math.log2(n)))
+    lut = grade_match_lut(m, strength, n)
+    H, W = bgr.shape[:2]
+    sm = cv2.resize(bgr, (max(8, int(W * work)), max(8, int(H * work))), interpolation=cv2.INTER_AREA) if work < 1 else bgr
+    q = sm >> sh
+    delta = lut[q[..., 0], q[..., 1], q[..., 2]]
+    if work < 1:
+        delta = cv2.resize(delta.astype(np.float32), (W, H), interpolation=cv2.INTER_LINEAR)
+    return np.clip(bgr.astype(np.float32) + delta, 0, 255).astype(np.uint8)
+
+
+def reference_frame(path: str, at: float = 0.5) -> np.ndarray:
+    """A still from an image or a video (at `at` × duration) for grade matching."""
+    im = cv2.imread(path)
+    if im is not None:
+        return im
+    cap = cv2.VideoCapture(path)
+    n = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    cap.set(cv2.CAP_PROP_POS_FRAMES, max(0, int(n * at)))
+    ok, fr = cap.read()
+    cap.release()
+    if not ok:
+        raise FileNotFoundError(f"cannot read reference '{path}'")
+    return fr
+
+
 if __name__ == "__main__":
     import sys
     v = sys.argv[1]

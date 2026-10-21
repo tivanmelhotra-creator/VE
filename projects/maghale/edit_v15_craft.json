@@ -1,0 +1,452 @@
+{
+ "_about": "v15.1 craft test: every v15 engine on the real footage (selftest visual counterpart)",
+ "meta": {
+  "w": 1080,
+  "h": 1920,
+  "fps": 30,
+  "theme": "doran",
+  "palette": "auto"
+ },
+ "source": {
+  "src": "media/raw.mp4",
+  "words": "words.json",
+  "segments": [
+   [
+    1.12,
+    7.14
+   ],
+   [
+    7.44,
+    12.06
+   ],
+   [
+    12.24,
+    17.62
+   ]
+  ],
+  "morph_cuts": {
+   "dur": 0.24,
+   "max_motion": 60
+  }
+ },
+ "grade": {
+  "bg": {
+   "blur": 7,
+   "dim": 0.42,
+   "desat": 0.22,
+   "tint": "#3A2414",
+   "tint_amt": 0.24,
+   "vignette_bg": 0.35
+  },
+  "fg": {
+   "contrast": 1.07,
+   "warm": 0.035,
+   "sat": 1.04,
+   "lift": 0.0
+  },
+  "keys": [
+   [
+    "w:نگارش-0.2",
+    {
+     "dim": 0.5
+    }
+   ],
+   [
+    "w:دقیقا",
+    {
+     "dim": 0.62,
+     "blur": 11,
+     "tint": "#1C0B0B"
+    }
+   ],
+   [
+    "we:صف+0.3",
+    {
+     "dim": 0.44,
+     "blur": 7,
+     "tint": "#2A1C12"
+    }
+   ],
+   [
+    "w:شروع-0.3",
+    {
+     "dim": 0.72,
+     "blur": 12,
+     "tint": "#160606",
+     "desat": 0.7
+    }
+   ],
+   [
+    "w:مقدمه-0.2",
+    {
+     "dim": 0.5,
+     "blur": 9,
+     "tint": "#22180E",
+     "desat": 0.5
+    }
+   ]
+  ],
+  "match": {
+   "ref": "../../work/input/ref_novadent.mp4",
+   "strength": 0.7
+  }
+ },
+ "camera": {
+  "keys": [
+   [
+    0.0,
+    1.08,
+    0.5,
+    0.42
+   ],
+   [
+    "w:مقاله",
+    1.16,
+    0.5,
+    0.4,
+    "silk"
+   ],
+   [
+    "w:چکیده",
+    1.06,
+    0.5,
+    0.4,
+    "expo"
+   ],
+   [
+    "w:مواجه",
+    1.14,
+    0.48,
+    0.42,
+    "silk"
+   ],
+   [
+    "w:اما-0.01",
+    1.14,
+    0.48,
+    0.42,
+    "step"
+   ],
+   [
+    "w:اما",
+    1.3,
+    0.47,
+    0.4,
+    "step"
+   ],
+   [
+    "w:برای",
+    1.1,
+    0.48,
+    0.42,
+    "jelly"
+   ],
+   [
+    "w:دقیقا",
+    1.04,
+    0.48,
+    0.47,
+    "silk"
+   ],
+   [
+    "w:آخر",
+    1.12,
+    0.48,
+    0.47,
+    "expo"
+   ],
+   [
+    "we:صف+0.15",
+    1.08,
+    0.47,
+    0.43,
+    "silk"
+   ],
+   [
+    "w:شروع",
+    1.24,
+    0.46,
+    0.41,
+    "expo"
+   ],
+   [
+    "w:مقدمه",
+    1.05,
+    0.47,
+    0.46,
+    "jelly"
+   ],
+   [
+    "w:نه",
+    1.2,
+    0.47,
+    0.43,
+    "expo"
+   ],
+   [
+    15.9,
+    1.24,
+    0.47,
+    0.43,
+    "silk"
+   ]
+  ],
+  "shakes": [
+   [
+    "w:اما",
+    0.25,
+    9
+   ],
+   [
+    "w:آخر",
+    0.3,
+    7
+   ],
+   [
+    "w:شروع",
+    0.3,
+    8
+   ],
+   [
+    "w:نه",
+    0.35,
+    10
+   ]
+  ]
+ },
+ "post": {
+  "bloom": 1.0,
+  "spill": 1.35,
+  "wrap_bg": 0.5,
+  "wrap_glow": 1.8,
+  "vignette": 0.3,
+  "grain": 0.016,
+  "fade": [
+   0.0,
+   0.35
+  ],
+  "decontaminate": 0.75,
+  "glass": {
+   "fresnel": 0.35
+  }
+ },
+ "subtitles": {
+  "anchor": "chest",
+  "offset": [
+   0,
+   0.95
+  ],
+  "size": 44,
+  "max_words": 4,
+  "emph": [
+   "مقاله",
+   "چکیده",
+   "نگارش",
+   "آخر",
+   "مقدمه",
+   "شروع"
+  ],
+  "hide": [
+   [
+    12.7,
+    16.0
+   ]
+  ]
+ },
+ "layers": [
+  {
+   "type": "progress",
+   "id": "prog",
+   "t": 0,
+   "h": 6,
+   "color": "@accent"
+  },
+  {
+   "type": "flash",
+   "id": "cut_flash",
+   "t": "w:اما-0.02",
+   "dur": 0.16,
+   "amount": 0.45
+  },
+  {
+   "type": "shatter_text",
+   "id": "v15_shatter",
+   "t": 0.2,
+   "out": 3.0,
+   "text": "*مقاله*",
+   "size": 110,
+   "anchor": "head_top",
+   "offset": [
+    0,
+    -0.75
+   ],
+   "pass": "back",
+   "break_at": 1.6,
+   "rows": 4,
+   "cols": 7
+  },
+  {
+   "type": "kinetic_title",
+   "id": "v15_sel",
+   "t": 3.0,
+   "out": 6.2,
+   "anchor": "head_top",
+   "offset": [
+    0,
+    -0.7
+   ],
+   "size": 80,
+   "pass": "back",
+   "text": "چکیده|*اولین بخش*",
+   "enter": "drop_bounce",
+   "selectors": [
+    {
+     "shape": "smooth",
+     "start": 0,
+     "end": 0.35,
+     "offset": [
+      0.5,
+      1.6,
+      -0.4,
+      1.05
+     ],
+     "props": {
+      "ty": -22,
+      "glow": 1.0,
+      "scale": 0.12
+     }
+    }
+   ]
+  },
+  {
+   "type": "morph_shape",
+   "id": "v15_morph",
+   "t": 6.3,
+   "out": 9.4,
+   "shapes": [
+    "circle",
+    "star",
+    "heart"
+   ],
+   "at": [
+    7.0,
+    8.2
+   ],
+   "dur": 0.5,
+   "w": 0.9,
+   "anchor": "shoulder_r",
+   "offset": [
+    0.35,
+    0.2
+   ],
+   "color": "@accent",
+   "glow": 0.7
+  },
+  {
+   "type": "god_rays",
+   "id": "v15_rays",
+   "t": 9.5,
+   "out": 12.6,
+   "anchor": "head_top",
+   "offset": [
+    0,
+    -0.3
+   ],
+   "radius": 2.2,
+   "pass": "back",
+   "alpha": 0.45
+  },
+  {
+   "type": "kinetic_title",
+   "id": "v15_path",
+   "t": 9.6,
+   "out": 12.6,
+   "anchor": "head_top",
+   "offset": [
+    0,
+    -0.75
+   ],
+   "size": 70,
+   "pass": "back",
+   "text": "*نتیجه گیری*",
+   "field": {
+    "kind": "bezier_path",
+    "points": [
+     [
+      -320,
+      60
+     ],
+     [
+      0,
+      -60
+     ],
+     [
+      320,
+      60
+     ]
+    ]
+   }
+  },
+  {
+   "type": "vegas_comet",
+   "id": "v15_comet",
+   "t": 12.7,
+   "out": 16.0,
+   "shape": "hex",
+   "anchor": "chest",
+   "offset": [
+    0,
+    0.5
+   ],
+   "w": 1.7,
+   "h": 1.4,
+   "comets": 2,
+   "speed": 0.6
+  },
+  {
+   "type": "puppet_sticker",
+   "id": "v15_puppet",
+   "t": 12.7,
+   "out": 16.0,
+   "src": "warn_3d.png",
+   "anchor": "shoulder_l",
+   "offset": [
+    -0.3,
+    0.1
+   ],
+   "size": 0.85,
+   "pins": [
+    {
+     "uv": [
+      0.5,
+      1.0
+     ]
+    },
+    {
+     "uv": [
+      0.5,
+      0.0
+     ],
+     "wiggle": [
+      30,
+      0
+     ],
+     "freq": 1.4
+    }
+   ]
+  }
+ ],
+ "audio": {
+  "voice_gain": 1.0,
+  "music": {
+   "style": "lofi",
+   "bpm": 92,
+   "key": "D",
+   "scale": "minor",
+   "gain": 0.16
+  },
+  "sfx_gain": 0.55,
+  "lufs": -14,
+  "denoise": "auto"
+ }
+}

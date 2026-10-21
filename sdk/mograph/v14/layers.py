@@ -61,7 +61,7 @@ def prepare(L, R):
     if L.get("type") == "halo":              # anatomy defaults (above the head, 2 discs, VFX) — see HALO_DEFAULT
         for kk, v in HALO_DEFAULT.items():
             L.setdefault(kk, v)
-    for k in ("land", "flip_at", "hero_hit", "pulse_at", "turn_on"):
+    for k in ("land", "flip_at", "hero_hit", "pulse_at", "turn_on", "break_at", "at"):
         if k in L and L[k] is not None:
             v = L[k]
             L["_" + k] = [R.tl.resolve(x) for x in v] if isinstance(v, list) else R.tl.resolve(v)
@@ -267,6 +267,35 @@ def _glyph_motion(L, F, b, k, lt, out_lt):
         elif idle == "jelly":
             s.shear += 0.04 * math.sin(t * 5.1 + g.word * 1.7)
             s.sy *= 1 + 0.03 * math.sin(t * 4.3 + g.word * 2.3)
+        # ---- v15.1 AE-style text SELECTORS (glyphs.eval_selector) — spec:
+        #   "selectors": [{"shape": "smooth", "start": 0, "end": 0.4, "offset": [t0, t1, -0.4, 1.0] | 0.2,
+        #                  "amount": 1, "props": {"ty": -40, "rz": 12, "sx": 0.3, "alpha": -1, "glow": 1.2}}, ...]
+        #   u = reading-order position of the glyph in [0, 1]; "offset" as [t_a, t_b, o_a, o_b] sweeps the range over
+        #   time (a travelling wave through the word); "wiggly" ignores start/end.  Property deltas are ADDITIVE
+        #   (sx/sy multiply by 1 + w·v, alpha multiplies by 1 + w·v clamped ≥ 0).
+        for sel in L.get("selectors") or ():
+            u = g.order / max(1, n - 1)
+            sc_ = dict(sel)
+            off = sel.get("offset", 0.0)
+            if isinstance(off, (list, tuple)) and len(off) == 4:
+                ta, tb, oa, ob = [float(v) for v in off]
+                q = min(1.0, max(0.0, (t - L["_t0"] - ta) / max(1e-6, tb - ta)))
+                sc_["offset"] = oa + (ob - oa) * ph.SILK(q)
+            wv = G.eval_selector(u, t, sc_)
+            if abs(wv) < 1e-4:
+                continue
+            for pk, pv in (sel.get("props") or {}).items():
+                pv = float(pv) * wv
+                if pk in ("sx", "sy"):
+                    setattr(s, pk, getattr(s, pk) * (1.0 + pv))
+                elif pk == "scale":
+                    s.sx *= 1.0 + pv; s.sy *= 1.0 + pv
+                elif pk == "alpha":
+                    s.alpha *= max(0.0, 1.0 + pv)
+                elif pk == "glow":
+                    s.glow = (s.glow or 0.0) + pv
+                elif pk in ("tx", "ty", "tz", "rx", "ry", "rz", "shear"):
+                    setattr(s, pk, getattr(s, pk) + pv)
         # ---- exit
         if out_lt is not None and out_lt > 0:
             ot = out_lt - ((n - 1 - g.order) * stag * 0.5 if unit == "glyph" else (b.nwords - 1 - g.word) * stag * 1.5)
@@ -1001,6 +1030,8 @@ def draw_frame_box(ctx, L, F):
 
 # =========================================================================================== strike / underline
 def draw_strike(ctx, L, F):
+    """v15 Variable-Width Tapered Brush Strike / Underline / Circle (using `mograph.varstroke`)."""
+    from ..varstroke import draw_tapered_stroke, Taper, Wave
     lt = F.t - L["_t0"]
     olt = _out_lt(L, F)
     if olt is not None and olt > 0.4:
@@ -1013,32 +1044,28 @@ def draw_strike(ctx, L, F):
     p = ph.SILK(min(1, lt / float(L.get("dur", 0.35))))
     a = 1.0 if olt is None else max(0, 1 - olt / 0.3)
     kind = L.get("kind", "strike")
-    ctx.save()
-    ctx.set_line_cap(cairo.LINE_CAP_ROUND)
-    ctx.set_source_rgba(col[0], col[1], col[2], a)
-    ctx.set_line_width(float(L.get("width", 9)) * k)
+    base_w = float(L.get("width", 10)) * k
     if kind == "circle":
         rx, ry = w / 2, float(L.get("h", 0.6)) * hw / 2
-        n = 60
-        for i in range(int(n * p * 1.15) + 1):
-            th = -math.pi * 0.6 + i / n * 2 * math.pi * 1.15
-            wob = 1 + 0.05 * math.sin(i * 0.7)
-            px_, py_ = x + rx * wob * math.cos(th), y + ry * wob * math.sin(th)
-            ctx.line_to(px_, py_) if i else ctx.move_to(px_, py_)
+        n = 64
+        pts = []
+        for i in range(n + 1):
+            th = -math.pi * 0.6 + i / n * 2 * math.pi * 1.12
+            wob = 1 + 0.04 * math.sin(i * 0.6)
+            pts.append([x + rx * wob * math.cos(th), y + ry * wob * math.sin(th)])
     else:
-        x0, x1 = x + w / 2, x - w / 2            # RTL: strike from right to left
+        x0, x1 = x + w / 2, x - w / 2
         yy = y + (0 if kind == "strike" else float(L.get("dy", 0.35)) * hw)
-        ctx.move_to(x0, yy + 4)
-        xe = x0 + (x1 - x0) * p
-        ctx.curve_to(x0 + (xe - x0) * .33, yy - 6, x0 + (xe - x0) * .66, yy + 7, xe, yy - 3)
-    ctx.stroke_preserve()
+        u = np.linspace(0.0, 1.0, 32)
+        px_ = x0 + (x1 - x0) * u
+        py_ = yy + 4.0 * (1.0 - u) - 5.0 * np.sin(u * math.pi)
+        pts = np.column_stack([px_, py_])
+    tap = L.get("taper", Taper(start_len=0.22, end_len=0.38, start_width=0.12, end_width=0.02))
+    wav = Wave(amount=0.12, cycles=2.5) if L.get("wave", True) else None
+    rgba_c = (col[0], col[1], col[2], a)
+    draw_tapered_stroke(ctx, pts, base_w, rgba_c, taper=tap, wave=wav, progress=p)
     if F.ectx is not None:
-        F.ectx.append_path(ctx.copy_path())
-        F.ectx.set_source_rgba(col[0], col[1], col[2], .7 * a)
-        F.ectx.set_line_width(14 * k)
-        F.ectx.stroke()
-    ctx.new_path()
-    ctx.restore()
+        draw_tapered_stroke(F.ectx, pts, base_w * 1.6, (col[0], col[1], col[2], 0.65 * a), taper=tap, progress=p)
 
 
 # =========================================================================================== small layers
@@ -1231,3 +1258,86 @@ def draw_ambient_bokeh(ctx, L, F):
 
 
 DRAW["ambient_bokeh"] = draw_ambient_bokeh
+
+
+# =========================================================================================== v15 Craft Layers
+def draw_vegas_comet(ctx, L, F):
+    """Ported from EffectCraft `crates/effects/src/generate3.rs` (`vegas`):
+    Runs N glowing comet-tail pulses with tapered widths chasing around a shape contour."""
+    from ..varstroke import draw_tapered_stroke, Taper
+    lt = F.t - L["_t0"]
+    olt = _out_lt(L, F)
+    if lt < 0 or (olt is not None and olt > 0.4):
+        return
+    x, y, k = pos(L, F)
+    hw = F.head_px()
+    w = float(L.get("w", 1.8)) * hw
+    h = float(L.get("h", 1.2)) * hw
+    shape = L.get("shape", "hept")
+    path = _shape_path(shape, x, y, w, h, float(L.get("round", 0.18)), float(L.get("rot", 0.0)))
+    ctx.save()
+    path(ctx)
+    flat = ctx.copy_path_flat()
+    ctx.new_path()
+    ctx.restore()
+    pts = np.array([p[1] for p in flat if p[0] in (cairo.PATH_MOVE_TO, cairo.PATH_LINE_TO)], dtype=np.float32)
+    if len(pts) < 4:
+        return
+    col = G.rgba(L.get("color", "@accent"), L["_pal"])
+    a = min(1.0, lt / 0.2) * (1.0 if olt is None else max(0.0, 1.0 - olt / 0.35))
+    n_comets = int(L.get("comets", 2))
+    speed = float(L.get("speed", 0.55))                 # laps per second
+    # v15.1: comets travel by ARC LENGTH on the resampled contour (v15.0 indexed raw polygon vertices → on a
+    # 7-vertex heptagon the head jumped corner to corner and the tail was 1–2 straight segments).
+    from ..varstroke import polyline_slice
+    closed = np.vstack([pts, pts[:1]])
+    tot = float(np.hypot(*np.diff(closed, axis=0).T).sum())
+    span = tot * float(L.get("length", 0.28))
+    tap = Taper(start_len=0.85, end_len=0.05, start_width=0.0, end_width=0.2)
+    for ci in range(n_comets):
+        head = ((lt * speed + ci / n_comets) % 1.0) * tot
+        seg_pts = polyline_slice(pts, head - span, head, closed=True, step=3.0)
+        draw_tapered_stroke(ctx, seg_pts, float(L.get("width", 5.5)) * k, (col[0], col[1], col[2], a), taper=tap)
+        if F.ectx is not None:
+            draw_tapered_stroke(F.ectx, seg_pts, float(L.get("glow_width", 11.0)) * k, (col[0], col[1], col[2], 0.75 * a),
+                                taper=tap)
+
+
+def draw_god_rays(ctx, L, F):
+    """Ported from EffectCraft `crates/effects/src/generate2.rs` (`light_rays` / `light_burst`):
+    Volumetric radial god-rays casting outward behind hero typography."""
+    lt = F.t - L["_t0"]
+    olt = _out_lt(L, F)
+    if lt < 0 or (olt is not None and olt > 0.5):
+        return
+    x, y, k = pos(L, F)
+    hw = F.head_px()
+    R = float(L.get("radius", 1.6)) * hw
+    col = G.rgba(L.get("color", "@accent"), L["_pal"])
+    a = min(1.0, lt / 0.25) * (1.0 if olt is None else max(0.0, 1.0 - olt / 0.4)) * float(L.get("alpha", 0.38))
+    n_rays = int(L.get("rays", 12))
+    rot = F.t * float(L.get("spin", 14.0))
+    ctx.save()
+    ctx.set_operator(cairo.OPERATOR_SCREEN)
+    for i in range(n_rays):
+        ang = math.radians(rot + i * (360.0 / n_rays))
+        half_w = math.radians(float(L.get("beam_deg", 7.5)) * (0.7 + 0.3 * math.sin(F.t * 3.0 + i)))
+        rg = cairo.RadialGradient(x, y, R * 0.05, x, y, R)
+        rg.add_color_stop_rgba(0.0, col[0], col[1], col[2], a)
+        rg.add_color_stop_rgba(0.55, col[0], col[1], col[2], a * 0.35)
+        rg.add_color_stop_rgba(1.0, col[0], col[1], col[2], 0.0)
+        ctx.new_path()
+        ctx.move_to(x, y)
+        ctx.arc(x, y, R, ang - half_w, ang + half_w)
+        ctx.close_path()
+        ctx.set_source(rg)
+        ctx.fill()
+    ctx.restore()
+
+
+DRAW["vegas_comet"] = draw_vegas_comet
+DRAW["god_rays"] = draw_god_rays
+
+# v15.1 spec-level Craft layers (shatter_text / puppet_sticker / morph_shape)
+from .craftlayers import register as _reg_craft  # noqa: E402
+_reg_craft(DRAW)

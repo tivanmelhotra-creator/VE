@@ -1,4 +1,4 @@
-# VE — mograph: automatic video editor & motion-graphics SDK (v14.6)
+# VE — mograph: automatic video editor & motion-graphics SDK (v15.1)
 
 An agent-driven engine for editing **Persian talking-head footage** and making **vector motion graphics**,
 designed to run inside a small sandbox (2 vCPU, ~1 GB RAM, no GPU).
@@ -10,6 +10,7 @@ The agent writes one JSON spec; the engine does the drawing, word-locked timing,
 |---|---|
 | `sdk/mograph/` | v5–v13 engine (vector scenes, typography, widgets, footage, tracking, audio, QA) |
 | `sdk/mograph/v14/` | v14 "Studio Depth" footage engine: physics, vector 3D type, MODNet matte, glass/light compositor, subtitles |
+| `sdk/mograph/v14/{remix,flow_cut,craftlayers,selftest}.py`, `sdk/mograph/{varstroke,autotrace,puppet_arap,shatter3d}.py` | **v15.1** Craft engines (bar-grid music remix, morph cuts, ARAP puppet, shape morph, shatter, tapered strokes, Oklab look match) — `python3 -m mograph.v14 selftest` |
 | `sdk/mograph/pbr3d.py` | **v14.6** photoreal 3D: scanned CC0 PBR models rendered by the bundled EffectCraft CLI (HDRI + real shadow) |
 | `sdk/mograph/real3d.py`, `sculpt3d.py`, `obj3d.py` | earlier procedural 3D engines (fallback) |
 | `sdk/fonts/` | 139 Persian/Latin fonts (YekanBakh, Morabba, Doran, Pelak, Abar, Pinar, Gohar…) |
@@ -38,7 +39,8 @@ bash ../../sdk/tools/render_chunks.sh edit_v14.json 4                # resumable
 ```
 
 ## Docs
-- `CONTINUE_HERE.md` — resume point / changelog v14.2 → v14.6
+- `CONTINUE_HERE.md` — resume point / changelog v14.2 → v15.1
+- `sdk/V15_REVIEW.md` — audit of the v15.0 patch: measured bugs and their fixes
 - `sdk/V14_GUIDE.md`, `sdk/V14_3D_GUIDE.md`, `sdk/V14_AUDIT.md`
 - `sdk/CRAFT_REPOS_ANALYSIS.md` — evaluation of storytold EffectCraft / VectorCraft / FilmCraft
 - `sdk/USER_TASTE_GUIDE.md`, `sdk/SKILL_TOOLBOX.md`, `sdk/TOOLS_INDEX.md`

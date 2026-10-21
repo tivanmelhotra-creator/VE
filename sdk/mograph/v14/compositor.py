@@ -217,7 +217,49 @@ def surface_array(surf):
     return np.ndarray((h, st // 4, 4), np.uint8, surf.get_data())[:, :w]
 
 
-def _glass_optics(crop, path_fn, X0, Y0, refract, chroma, caustic, band):
+def decontaminate_foreground_edge(fg_u8: np.ndarray, alpha_f32: np.ndarray, strength: float = 0.65) -> np.ndarray:
+    """
+    Ported from EffectCraft `crates/track/src/roto/refine.rs` (`decontaminate`):
+    Strips background color spill from semi-transparent hair/hijab/shoulder boundary pixels (0.03 < a < 0.94)
+    by propagating pure interior foreground colors (a > 0.90) outward across the edge band.
+    """
+    if strength <= 0.01:
+        return fg_u8
+    # v15.1: v15.0 used (0.94 − α)·min(1, 8α) capped at 0.85 → only ~30 % correction at α = 0.5 (measured: edge green
+    # spill 125 → 94, composite error 27.9 → 19.9).  Pure-FG colour by normalised convolution from α > 0.9 pixels,
+    # done only inside the bounding box of the band (×3 faster on talking-head frames).
+    h, w = fg_u8.shape[:2]
+    hs, ws = max(8, h // 4), max(8, w // 4)
+    a_s = cv2.resize(alpha_f32, (ws, hs), interpolation=cv2.INTER_AREA)
+    band = (a_s > 0.03) & (a_s < 0.97)
+    if not band.any():
+        return fg_u8
+    ys, xs = np.nonzero(band)
+    pad = 12
+    y0, y1 = max(0, ys.min() - pad), min(hs, ys.max() + pad + 1)
+    x0, x1 = max(0, xs.min() - pad), min(ws, xs.max() + pad + 1)
+    Y0, Y1, X0, X1 = y0 * h // hs, min(h, y1 * h // hs), x0 * w // ws, min(w, x1 * w // ws)
+    fg_s = cv2.resize(fg_u8[Y0:Y1, X0:X1], (x1 - x0, y1 - y0), interpolation=cv2.INTER_AREA).astype(np.float32)
+    a_c = a_s[y0:y1, x0:x1]
+    core = (a_c > 0.9).astype(np.float32)
+    num = cv2.GaussianBlur(fg_s * core[..., None], (0, 0), 3.0)
+    den = cv2.GaussianBlur(core, (0, 0), 3.0)[..., None]
+    for _ in range(2):                                   # widen the support (push-pull) where the core is far
+        num2 = cv2.GaussianBlur(num, (0, 0), 6.0); den2 = cv2.GaussianBlur(den[..., 0], (0, 0), 6.0)[..., None]
+        weak = den < 0.05
+        num = np.where(weak, num2, num); den = np.where(weak, den2, den)
+    pure = num / (den + 1e-5)
+    # edge pixel = α·F + (1−α)·B  →  the clean colour is F itself: replace by `pure` (weight = strength), faded in
+    # just below the core (α 0.90 → 0.98) so there is no seam
+    wgt = np.clip((0.98 - a_c) / 0.08, 0.0, 1.0) * (a_c > 0.03) * (den[..., 0] > 1e-3) * float(min(1.0, strength))
+    delta = (pure - fg_s) * wgt[..., None]
+    out = fg_u8.copy()
+    d_full = cv2.resize(delta, (X1 - X0, Y1 - Y0), interpolation=cv2.INTER_LINEAR)
+    out[Y0:Y1, X0:X1] = cv2.add(fg_u8[Y0:Y1, X0:X1], d_full, dtype=cv2.CV_8U)
+    return out
+
+
+def _glass_optics(crop, path_fn, X0, Y0, refract, chroma, caustic, band, fresnel=0.0):
     """v14.8 refractive glass (EffectCraft refractive-glass shader, CPU port).
 
     1  shape mask of the glass path rasterised in crop space → distance-to-rim d (cv2.distanceTransform)
@@ -269,30 +311,44 @@ def _glass_optics(crop, path_fn, X0, Y0, refract, chroma, caustic, band):
         cst = cv2.GaussianBlur(cst, (0, 0), 1.1)
         f = out[:, :, :3].astype(np.float32) + cst[..., None] * np.array([0.92, 0.98, 1.0], np.float32)
         out[:, :, :3] = np.clip(f, 0, 255).astype(np.uint8)
+    if fresnel > 0:
+        # v15 Schlick Fresnel: surface slope grows toward the rim (wr→1) ⇒ cosθ = 1 - wr·0.9 ;
+        # F = F0 + (1-F0)(1-cosθ)^5 with F0 = 0.04 (glass, n≈1.5).  Reflects a soft white environment.
+        cos_t = 1.0 - wr * 0.9
+        Fr = 0.04 + 0.96 * (1.0 - cos_t) ** 5
+        Fr[mask < 8] = 0.0
+        f = out[:, :, :3].astype(np.float32)
+        f = f + (255.0 - f) * (Fr * float(fresnel))[..., None]
+        out[:, :, :3] = np.clip(f, 0, 255).astype(np.uint8)
     return out
 
 
-GLASS_OPTICS = {"refract": 4.0, "chroma": 1.5, "caustic": 0.55, "band": 16.0}   # spec "post": {"glass": {...}}
+GLASS_OPTICS = {"refract": 4.0, "chroma": 1.5, "caustic": 0.55, "band": 16.0, "fresnel": 0.35}   # spec "post": {"glass": {...}}
 
 
 def glass(ctx, F, path_fn, bbox, blur=16.0, tint=(0.06, 0.07, 0.09, 0.42), lift=0.06, sat=0.85, alpha=1.0,
-          refract=None, chroma=None, caustic=None):
+          refract=None, chroma=None, caustic=None, fresnel=None):
     """TRUE frosted glass: blurs the real composite under the shape (not a flat fill).
     v14.8: + lens refraction at the rim, 1.5 px R/C chromatic dispersion and a specular caustic (see _glass_optics).
-    Per call: refract / chroma / caustic (px, px, 0..1); global defaults: spec "post": {"glass": {...}} or false."""
+    Per call: refract / chroma / caustic (px, px, 0..1); global defaults: spec "post": {"glass": {...}} or false.
+    v15: + `fresnel` (0..1) — Schlick view-angle rim reflectance (the whole rim glows slightly, independent of the
+    key light; complements the directional caustic).  Chosen over a second height-field refraction pass: one optical
+    model, one remap, deterministic cost."""
     if F.prepass or alpha <= 0.003:
         return
     x0, y0, x1, y1 = [int(v) for v in bbox]
     pad = int(blur * 2.5) + 2
     X0, Y0 = max(0, x0 - pad), max(0, y0 - pad)
     X1, Y1 = min(F.W, x1 + pad), min(F.H, y1 + pad)
-    if X1 - X0 < 4 or Y1 - Y0 < 4:
+    cw, ch = X1 - X0, Y1 - Y0
+    if cw < 8 or ch < 8:
         return
     arr = surface_array(F.surf)
     crop = arr[Y0:Y1, X0:X1].copy()
-    small = cv2.resize(crop, ((X1 - X0) // 2 + 1, (Y1 - Y0) // 2 + 1), interpolation=cv2.INTER_AREA)
+    small = cv2.resize(crop, (cw // 2 + 1, ch // 2 + 1), interpolation=cv2.INTER_AREA)
     small = cv2.GaussianBlur(small, (0, 0), max(1.0, blur / 2))
-    crop = cv2.resize(small, (X1 - X0, Y1 - Y0), interpolation=cv2.INTER_LINEAR)
+    crop = cv2.resize(small, (cw, ch), interpolation=cv2.INTER_LINEAR)
+
     if sat != 1.0 or lift:
         f = crop[:, :, :3].astype(np.float32)
         g = f.mean(axis=2, keepdims=True)
@@ -303,14 +359,15 @@ def glass(ctx, F, path_fn, bbox, blur=16.0, tint=(0.06, 0.07, 0.09, 0.42), lift=
     if gcfg is not False:
         gcfg = dict(GLASS_OPTICS, **(gcfg if isinstance(gcfg, dict) else {}))
         rf = float(gcfg["refract"] if refract is None else refract)
-        ch = float(gcfg["chroma"] if chroma is None else chroma)
+        chm = float(gcfg["chroma"] if chroma is None else chroma)
         cu = float(gcfg["caustic"] if caustic is None else caustic)
-        if rf > 0 or ch > 0 or cu > 0:
-            crop = _glass_optics(crop, path_fn, X0, Y0, rf, ch, cu, float(gcfg["band"]))
+        fr = float(gcfg.get("fresnel", 0.0) if fresnel is None else fresnel)
+        if rf > 0 or chm > 0 or cu > 0 or fr > 0:
+            crop = _glass_optics(crop, path_fn, X0, Y0, rf, chm, cu, float(gcfg["band"]), fr)
     crop[:, :, 3] = 255
     crop = np.ascontiguousarray(crop)
-    gs = cairo.ImageSurface.create_for_data(crop, cairo.FORMAT_ARGB32, X1 - X0, Y1 - Y0,
-                                            cairo.ImageSurface.format_stride_for_width(cairo.FORMAT_ARGB32, X1 - X0))
+    gs = cairo.ImageSurface.create_for_data(crop, cairo.FORMAT_ARGB32, cw, ch,
+                                            cairo.ImageSurface.format_stride_for_width(cairo.FORMAT_ARGB32, cw))
     ctx.save()
     ctx.new_path()
     path_fn(ctx)
@@ -371,6 +428,23 @@ class Renderer:
         self.post = spec.get("post", {})
         self._vig = None
         self._bokeh_on = bool(self.post.get("bokeh_dust")) or any(L["type"] == "ambient_bokeh" for L in self.layers)
+        # v15.1 reference look match (palette.match_reference_grade, Oklab 3-range, ≤ 8° skin hue guard):
+        #   "grade": {"match": {"ref": "../work/input/ref.mp4", "strength": 0.8, "at": 0.5}}
+        self._gmatch = None
+        gm = spec.get("grade", {}).get("match")
+        if gm:
+            from .palette import match_reference_grade, reference_frame
+            gm = gm if isinstance(gm, dict) else {"ref": gm}
+            rp = gm["ref"] if os.path.isabs(gm["ref"]) else os.path.join(base_dir, gm["ref"])
+            fr0, _ = self.src_frame(self.tl.to_src(self.tl.duration * 0.5))
+            self._gmatch = (match_reference_grade(fr0.copy(), reference_frame(rp, float(gm.get("at", 0.5))),
+                                                  max_skin_deg=float(gm.get("max_skin_deg", 8.0))),
+                            float(gm.get("strength", 0.8)))
+        mc = src.get("morph_cuts")
+        self.morph = None
+        if mc and self.tl.cuts:                                   # v15.1 optical-flow morph cuts (flow_cut.py)
+            from .flow_cut import MorphCuts
+            self.morph = MorphCuts(self, mc)
 
     # ------------------------------------------------------------------ source
     def src_frame(self, st):
@@ -425,8 +499,19 @@ class Renderer:
         fr, idx = self.src_frame(st)
         M, z = self.matrix(t)
         F.M, F.zoom = M, z
+        mat = None
+        if self.morph is not None:
+            win = self.morph.window(t)
+            if win is not None:
+                mf = self.morph.frame(*win)
+                if mf is not None:
+                    fr, mat = mf
         plate = cv2.warpAffine(fr, M, (W, H), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REFLECT)
-        A = cv2.warpAffine(self.tracks.matte(idx), M, (W, H), flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
+        if self._gmatch is not None:
+            from .palette import apply_grade_match
+            plate = apply_grade_match(plate, *self._gmatch)
+        A = cv2.warpAffine(self.tracks.matte(idx) if mat is None else mat, M, (W, H), flags=cv2.INTER_LINEAR,
+                           borderMode=cv2.BORDER_REPLICATE)
         A = np.clip((A - 0.04) / 0.92, 0, 1).astype(np.float32)
         # ---------------- background: mask-normalised DOF blur (no person ghost) + grade
         g = self.grade_at(t)
@@ -501,7 +586,7 @@ class Renderer:
             lut[0, :, 1] = np.clip(base_l * 255.0, 0, 255).astype(np.uint8)
             lut[0, :, 2] = np.clip(base_l * (1.0 + wm_v) * 255.0, 0, 255).astype(np.uint8)
             self._fg_lut_key, self._fg_lut = fg_key, lut
-        P_u8 = cv2.LUT(plate, self._fg_lut)
+        P_u8 = decontaminate_foreground_edge(cv2.LUT(plate, self._fg_lut), A, float(self.post.get("decontaminate", 0.65)))
 
         # Light wrap & spill at quarter resolution (wq x hq)
         Aq = cv2.resize(A, (wq, hq), interpolation=cv2.INTER_AREA)

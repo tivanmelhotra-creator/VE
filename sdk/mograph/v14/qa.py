@@ -47,7 +47,7 @@ def qa_warnings(R, verbose=False):
     from .compositor import Frame
     from . import layers as LY
     for L in R.layers:
-        if L["type"] in ("progress", "flash", "sweep_light", "ambient_bokeh"):
+        if L["type"] in ("progress", "flash", "sweep_light", "ambient_bokeh", "god_rays"):   # atmosphere layers
             continue
         t = min(R.duration - 0.05, L["_t0"] + min(0.9, (L["_t1"] - L["_t0"]) / 2))
         F = Frame(R, t)

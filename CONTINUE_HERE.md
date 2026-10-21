@@ -15,6 +15,14 @@ Then: `cd /home/user/webapp/projects/maghale && PYTHONPATH=/home/user/webapp/sdk
 - `projects/maghale/edit_v14.json` = the edit of the user's raw video (words.json = transcript, edited time 16.02 s)
 - `work/input/` = raw.mp4, ref_novadent.mp4, brief_v14.md (the user's inputs)
 
+## v15.1 — Craft-Omni (audited merge of the v15.0 patch) — see sdk/V15_REVIEW.md + sdk/V14_GUIDE.md "v15.1 additions"
+- FIRST after any reset: `cd sdk && python3 -m mograph.v14 selftest` → 9/9 pass (multiband, remix, ARAP, morph, Oklab,
+  decontam, path text, varstroke, selectors)
+- new spec keys: source.morph_cuts · grade.match · post.decontaminate · post.glass.fresnel · audio.multiband ·
+  audio.music.file (bar-grid remix) · "selectors" on text layers · field bezier_path
+- new layers: shatter_text · puppet_sticker · morph_shape · vegas_comet · god_rays   (v14/craftlayers.py, layers.py)
+- visual test: projects/maghale/edit_v15_craft.json (QA clean)
+
 ## v14.8 — Studio Optical & Auto-Director — see sdk/V14_GUIDE.md "v14.8 additions"
 - refractive glass (compositor._glass_optics) · 180° shutter motion blur (v14/motionblur.py) · bokeh dust (v14/bokeh.py,
   layer `ambient_bokeh` or post.bokeh_dust) · AUTO EDIT: `cd projects/maghale && PYTHONPATH=../../sdk python3 -m mograph.v14 auto-edit words.json media/raw.mp4 -o edit_auto.json`

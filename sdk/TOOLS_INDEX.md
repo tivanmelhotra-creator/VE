@@ -16,6 +16,7 @@ prep    spec.json                 offline pose + MODNet matte cache for the spec
   words   spec.json                 print the edited-time transcript (for "w:" anchors)
   qa      spec.json                 resolve every anchor, check layers are on-screen, list timings
   render  spec.json [--preview]     final video (+ audio) → out/<name>.mp4 ; --preview = half res
+  selftest                          v15.1 numeric regression tests of every Craft engine (< 15 s, no footage)
   auto-edit words.json raw.mp4 -o edit_auto.json    v14.8 AUTOMATIC director: breath cuts + hero words + depth
                                                    rotation + camera/grade → a QA-clean spec (director.py)
 ```
@@ -47,8 +48,13 @@ voice   NOISE-CANCELLED (denoise.py: RNNoise neural + presence/air restore, auto
 | `voice_track(R, n)` |  |
 | `sfx_events(R)` |  |
 | `sfx_track(R, n, gain)` |  |
-| `music_track(R, n, cfg)` |  |
+| `music_track(R, n, cfg)` | Music bed.  cfg = {"style": "lofi", "bpm": 92, ...}  → procedural beat (mograph/beat.py) |
 | `build_audio(R, out_wav, start, end)` |  |
+| `soft_clip(x, t)` | Ported from FilmCraft `crates/audio-dsp/src/effects/multiband.rs`: cubic soft clipper with ceiling `t`. |
+| `dehum_comb(x, sr, f0, harmonics, q)` | Ported from FilmCraft `crates/audio-dsp/src/effects/restoration.rs` (`DeHum`): harmonic notch comb. |
+| `split_bands(x, sr, xovers)` | v15.1 PERFECT-RECONSTRUCTION band split (sum of bands == x to float precision). |
+| `multiband_compress_4band(x, sr, bands_cfg, attack_ms, release_ms)` | 4-band broadcast voice compressor (FilmCraft `multiband.rs` idea) — v15.1 rewrite: |
+| `vocal_booth_reverb(x, sr, wet)` | Ported from FilmCraft `crates/audio-dsp/src/effects/reverbs.rs` (`IrSpec` "Vocal Booth"): |
 
 ### `mograph.v14.bokeh`  (sdk/mograph/v14/bokeh.py)
 mograph.v14.bokeh — depth-sandwich 3D BOKEH DUST (v14.8, CPU port of EffectCraft three_d/bokeh.rs).
@@ -100,8 +106,36 @@ WHY A NEW PIPELINE (v13.9 audit, see V14_AUDIT.md):
 | `Camera` | Virtual camera on the source plate. keys: [t, zoom, cx, cy, ease?, rot?]  (cx, cy in source uv). |
 | `Frame` | Everything a layer needs for one frame. |
 | `surface_array(surf)` |  |
+| `decontaminate_foreground_edge(fg_u8, alpha_f32, strength)` | Ported from EffectCraft `crates/track/src/roto/refine.rs` (`decontaminate`): |
 | `glass(ctx, F, path_fn, bbox, blur, tint, …)` | TRUE frosted glass: blurs the real composite under the shape (not a flat fill). |
 | `Renderer` |  |
+
+### `mograph.v14.craftlayers`  (sdk/mograph/v14/craftlayers.py)
+mograph.v14.craftlayers — v15.1 spec-level layers for the v15 Craft engines (so the agent uses them from JSON,
+
+<details><summary>details</summary>
+
+```
+not from Python).  Registered into layers.DRAW on import.
+
+  shatter_text   a kinetic text block that holds, then EXPLODES into 3D shards at `break_at` (shatter3d.py)
+      {"type": "shatter_text", "t": "w:مقاله", "out": 4.2, "text": "*مقاله*", "size": 90, "anchor": "head_top",
+       "offset": [0, -0.6], "break_at": "w:نوشتن", "rows": 4, "cols": 7, "force": 380, "gravity": 900}
+  puppet_sticker an RGBA sticker (assets_3d / project path) bent by ARAP pins (puppet_arap.py) — a waving flag,
+                 a wobbling cartoon, a bending arrow.  Pins: normalised [u, v] on the image + motion.
+      {"type": "puppet_sticker", "src": "warn_3d.png", "anchor": "shoulder_r", "size": 0.9,
+       "pins": [{"uv": [0.5, 1.0]}, {"uv": [0.5, 0.0], "wiggle": [26, 0], "freq": 1.6}], "grid": 10}
+  morph_shape    a filled shape that MORPHS between outlines (autotrace.shape_context_procrustes_morph):
+                 shapes = names (circle | hept | hex | star | heart | diamond | rsquare) or point lists (block px)
+```
+</details>
+
+| function / class | what |
+|---|---|
+| `draw_shatter_text(ctx, L, F)` |  |
+| `draw_puppet_sticker(ctx, L, F)` |  |
+| `draw_morph_shape(ctx, L, F)` |  |
+| `register(DRAW)` |  |
 
 ### `mograph.v14.denoise`  (sdk/mograph/v14/denoise.py)  · CLI: `python3 -m mograph.v14.denoise …`
 mograph.v14.denoise — automatic broadcast voice cleanup (noise cancelling) for talking-head footage.
@@ -155,6 +189,32 @@ PIPELINE (every step is deterministic → same input = same edit):
 | `build_layers(tl, tw, scores, beats, duration, seg_of)` |  |
 | `auto_edit(words_path, video_path, out_path, theme, qa, log)` |  |
 | `main(argv)` |  |
+
+### `mograph.v14.flow_cut`  (sdk/mograph/v14/flow_cut.py)
+mograph.v14.flow_cut — BIDIRECTIONAL OPTICAL-FLOW MORPH CUT, GAUSSIAN/L1 STABILIZER & PLANAR TRACKER
+
+<details><summary>details</summary>
+
+```
+(Ported from FilmCraft `crates/render/src/flow.rs` & EffectCraft `crates/track/src/{stabilize.rs, klt.rs}`).
+
+1. `morph_cut_frame(frame_a, frame_b, alpha)`:
+   Synthesizes an occlusion-aware optical-flow intermediate frame at `alpha in (0, 1)` between two
+   adjacent clip frames across a jump-cut boundary (`R.tl.cuts`).
+2. `stabilize_camera_trajectory(transforms, sigma=4.0, max_scale=1.08)`:
+   Matsushita (PAMI 2006) Gaussian viewpoint smoothing + Grundmann (CVPR 2011) maximum-scale crop relaxation.
+3. `track_planar_homography(prev_bgr, cur_bgr, quad_pts)`:
+   Pyramidal Lucas-Kanade (`cv2.calcOpticalFlowPyrLK`) + RANSAC 8-DOF homography (`cv2.findHomography`)
+   for Mocha-style 4-corner planar surface tracking.
+```
+</details>
+
+| function / class | what |
+|---|---|
+| `morph_cut_frame(frame_a, frame_b, alpha, work_w)` | Ported from FilmCraft `crates/render/src/flow.rs`: |
+| `stabilize_camera_trajectory(dx_dy_da, sigma, max_shift_px)` | Ported from EffectCraft `crates/track/src/stabilize.rs`: |
+| `track_planar_homography(prev_bgr, cur_bgr, quad_pts)` | Ported from EffectCraft `crates/track/src/{klt.rs, fit.rs, solve.rs}`: |
+| `MorphCuts` | Optical-flow MORPH CUT on every jump cut of the EDL (Premiere "Morph Cut" idea) — spec: |
 
 ### `mograph.v14.glassbadge`  (sdk/mograph/v14/glassbadge.py)
 mograph.v14.glassbadge — NESTED glass badge (the @novadent heptagon, measured from the reference frames).
@@ -215,6 +275,7 @@ MARKUP (one string any LLM can write):   "آمپول‌های|*لاغری*"     
 | `typeset(text, size, styles, leading, align, word_gap, …)` |  |
 | `rot3(rx, ry, rz)` |  |
 | `Field` | Global deformation of block points (N×3, block-centred px, y down, +z away from camera). |
+| `eval_selector(u, t, cfg)` | Ported from EffectCraft `crates/text/src/selectors.rs`: |
 | `project(P, f)` |  |
 | `GS` | Per-glyph animation state. |
 | `draw_block(ctx, blk, x, y, motion, field, …)` | Draw block at screen (x, y). |
@@ -255,7 +316,7 @@ Each layer is a JSON dict.  Common keys:
 | `draw_glass_shape(ctx, L, F)` |  |
 | `draw_halo(ctx, L, F)` |  |
 | `draw_frame_box(ctx, L, F)` |  |
-| `draw_strike(ctx, L, F)` |  |
+| `draw_strike(ctx, L, F)` | v15 Variable-Width Tapered Brush Strike / Underline / Circle (using `mograph.varstroke`). |
 | `draw_flash(ctx, L, F)` |  |
 | `draw_progress(ctx, L, F)` |  |
 | `draw_counter_badge(ctx, L, F)` |  |
@@ -263,6 +324,8 @@ Each layer is a JSON dict.  Common keys:
 | `draw_tracked_tag(ctx, L, F)` | MOTION-TRACKING SHOWCASE: a small glass chip glued to a tracked point (hand / shoulder) with a curved |
 | `draw_object_3d(ctx, L, F)` |  |
 | `draw_ambient_bokeh(ctx, L, F)` | Rendered by the compositor (bokeh.py) in the two depth slots; nothing to draw on the layer canvases. |
+| `draw_vegas_comet(ctx, L, F)` | Ported from EffectCraft `crates/effects/src/generate3.rs` (`vegas`): |
+| `draw_god_rays(ctx, L, F)` | Ported from EffectCraft `crates/effects/src/generate2.rs` (`light_rays` / `light_burst`): |
 
 ### `mograph.v14.motionblur`  (sdk/mograph/v14/motionblur.py)
 mograph.v14.motionblur — velocity-driven 180° shutter DIRECTIONAL motion blur (v14.8).
@@ -341,6 +404,12 @@ colour-theory rules, so even a weak agent gets harmonious, readable elements:
 | `design(bg_px, fg_px, mode)` |  |
 | `auto_palette(video, log)` |  |
 | `swatch(pal, path)` |  |
+| `bgr_to_oklab(bgr_u8)` | Convert BGR uint8 image to perceptual Oklab (L, a, b) float32 (Björn Ottosson 2020). |
+| `oklab_to_bgr(lab)` | Convert Oklab (L, a, b) float32 image back to BGR uint8. |
+| `match_reference_grade(src_bgr, ref_bgr, person_alpha, max_skin_deg, max_dL)` | Ported from FilmCraft `crates/render/src/color_match.rs`: |
+| `grade_match_lut(m, strength, n)` | Colour-only correction → a DELTA 3D LUT (n³ × 3 int16, indexed by BGR >> shift).  Built once per match. |
+| `apply_grade_match(bgr, m, strength, work)` | v15.1: APPLY a match_reference_grade() result (v15.0 only computed it — nothing used the numbers). |
+| `reference_frame(path, at)` | A still from an image or a video (at `at` × duration) for grade matching. |
 
 ### `mograph.v14.physics`  (sdk/mograph/v14/physics.py)
 mograph.v14.physics — motion that feels ALIVE (the cure for "text moving like dry bread").
@@ -390,6 +459,59 @@ Exit code 0 = clean, 1 = warnings.
 |---|---|
 | `run_qa(R)` |  |
 | `qa_warnings(R, verbose)` | All QA warnings as a list of strings (used by run_qa and by the v14.8 auto-director's fix loop). |
+
+### `mograph.v14.remix`  (sdk/mograph/v14/remix.py)
+mograph.v14.remix — BEAT-GRID MUSIC REMIX to an exact duration (idea from FilmCraft `audio-dsp/src/remix.rs`).
+
+<details><summary>details</summary>
+
+```
+y2 = remix_music_to_duration(y, sr, target_dur, bpm=None, beats_per_bar=4, downbeat=None)
+
+v15.1 rewrite (the v15.0 version moved the second splice point OFF the bar grid — measured on a click track:
+beat intervals of 0.36 s / 0.52 s instead of 0.652 s at 92 BPM → audible "hiccup" in the groove):
+  1  GRID     bpm (given, or estimated by onset-envelope autocorrelation 60–180 BPM) + first downbeat
+              (given, or the strongest onset phase) → bar boundaries b_k = downbeat + k·bar.
+  2  FEATURES per bar: 12 log-spaced spectral band energies (55 Hz – 8 kHz) of 3 frames, L2-normalised.
+  3  SHORTEN  keep intro bars [0, k) and outro bars [j, end) with j − k = bars to drop; both splice points are
+              bar boundaries → the beat grid is continuous.  Score = cosine(bar k−1 , bar j−1) (what the ear
+              expects after bar k−1 is bar k; we play bar j instead, so compare their predecessors) +
+```
+</details>
+
+| function / class | what |
+|---|---|
+| `onset_envelope(y, sr, hop)` | Spectral-flux onset strength (half-wave rectified log-magnitude increase), one value per hop. |
+| `estimate_bpm(y, sr, lo, hi, hop)` | Tempo from the autocorrelation of the onset envelope (with a mild preference for 80–130 BPM). |
+| `fit_grid(y, sr, bpm, beats_per_bar, hop, refine)` | (bpm, downbeat_s): phase (and, if refine, tempo ±2 %) of the bar grid that collects the most onset energy |
+| `cv_max3(e)` | 3-tap running max (tolerates ±1 hop of onset jitter). |
+| `estimate_downbeat(y, sr, bpm, beats_per_bar)` |  |
+| `bar_features(y, sr, starts, bar_n)` |  |
+| `remix_music_to_duration(y, sr, target_dur, bpm, beats_per_bar, downbeat, …)` |  |
+| `load_music(path, sr)` | Any audio file → mono float32 at `sr` (ffmpeg). |
+
+### `mograph.v14.selftest`  (sdk/mograph/v14/selftest.py)
+mograph.v14.selftest — numeric regression tests for every v15 Craft engine (no footage needed, < 15 s).
+
+<details><summary>details</summary>
+
+```
+cd sdk && python3 -m mograph.v14 selftest          # exit 0 = all pass
+
+Each test measures the property that v15.0 got wrong (see sdk/V15_REVIEW.md), so a regression is caught at once:
+  multiband   Σ bands == input (perfect reconstruction) and flat response at low level (±2.5 dB)
+  remix       beat grid preserved through every splice (click track, 92 & 120 BPM, shorten + extend)
+  arap        a pure 90° rotation of two pins is reproduced exactly (rigid) ; pins hit their targets
+  morph       rotated rectangle: area constant (±1 %) and orientation linear in t (±2°)
+  oklab       round trip exact (≤ 1 LSB) ; grade match on a strong cast keeps skin hue within 8°
+  decontam    composite error on a synthetic green-spill edge reduced ≥ 3×
+  pathtext    glyph spacing across a path knot stays uniform (±15 %)
+```
+</details>
+
+| function / class | what |
+|---|---|
+| `main()` |  |
 
 ### `mograph.v14.showcase`  (sdk/mograph/v14/showcase.py)  · CLI: `python3 -m mograph.v14.showcase …`
 mograph.v14.showcase — the @novadent "BEFORE / AFTER" editor-showcase wrapper.
@@ -605,6 +727,33 @@ spec["audio"] = {"vo": "vo.wav", "music": null, "ambient": true, "sfx": true,
 | `build_soundtrack(scene, out_wav, log)` |  |
 | `subtitles_from_srt(srt_path)` | .srt → sentence subtitles [{"t","end","text"}] (words are auto-timed inside each block). |
 | `subtitles_from_words(words, max_words, max_gap)` | Word timestamps (e.g. whisper output [{"w"/"text"/"word", "t"/"start", "end"}]) → |
+
+### `mograph.autotrace`  (sdk/mograph/autotrace.py)
+mograph.autotrace — SUB-PIXEL MARCHING SQUARES + DOUGLAS-PEUCKER + NEWTON CUBIC-BEZIER AUTO-TRACE
+
+<details><summary>details</summary>
+
+```
+& BELONGIE SHAPE-CONTEXT + 2D PROCRUSTES SMART MORPHING
+(Ported from EffectCraft `crates/path/src/{trace.rs, fit.rs, interp.rs}`).
+
+1. `trace_scalar_field_to_beziers(field, threshold=0.5, tolerance=1.5, corner_roundness=0.65, min_area=16.0)`:
+   1) Sub-pixel linear-interpolated Marching Squares contour extraction (with saddle disambiguation),
+   2) Douglas-Peucker polyline simplification to `tolerance` px,
+   3) Least-squares Cubic Bezier fitting (`fit_single`) with chord/Catmull-Rom tangent blending.
+2. `shape_context_procrustes_morph(pts_a, pts_b, t, n_pts=64, bending_resistance=0.55)`:
+   Aligns cyclic vertex order and winding between two shapes via log-polar Shape Context histograms
+   (Belongie, Malik & Puzicha PAMI 2002) and interpolates their best-fit 2D Procrustes rotation + scale
+   alongside vertex coordinates so turning shapes never collapse through the origin!
+```
+</details>
+
+| function / class | what |
+|---|---|
+| `douglas_peucker(pts, tolerance)` | Simplify polyline `pts` (N x 2) using Douglas-Peucker to `tolerance` pixels. |
+| `fit_cubic_bezier_span(p0, p3, pts, t0_dir, t1_dir)` | Ported from EffectCraft `crates/path/src/fit.rs` (`fit_single`): |
+| `trace_scalar_field_to_beziers(field, threshold, tolerance, corner_roundness, min_area)` | Ported from EffectCraft `crates/path/src/trace.rs`: |
+| `shape_context_procrustes_morph(pts_a, pts_b, t, n_pts, bending_resistance)` | Ported from EffectCraft `crates/path/src/interp.rs`: |
 
 ### `mograph.beat`  (sdk/mograph/beat.py)
 mograph.beat — v12 procedural music bed (no external generator needed): trap-pop / lofi / cinematic beats that
@@ -1490,6 +1639,29 @@ Sources of jobs
 | `plan(spec_path)` |  |
 | `run(spec_path, out, log)` |  |
 
+### `mograph.puppet_arap`  (sdk/mograph/puppet_arap.py)
+mograph.puppet_arap — SIGGRAPH 2005 AS-RIGID-AS-POSSIBLE (ARAP) 2D PUPPET MESH DEFORMATION
+
+<details><summary>details</summary>
+
+```
+(Ported from EffectCraft `crates/effects/src/puppet/{arap.rs, mesh.rs}`).
+
+Implements Igarashi, Moscovich & Hughes, "As-Rigid-As-Possible Shape Manipulation" (SIGGRAPH 2005):
+  1. Triangulates an RGBA image's alpha silhouette (or grid) into a 2D triangle mesh `(V_rest, tris)`.
+  2. Step 1 (Laplacian / Similarity solve): solves the sparse symmetric positive-definite system with
+     soft/hard positional pin constraints `(pin_idx, target_xy, weight)` and optional `Starch` triangle
+     stiffness weights.
+  3. Step 2 (2D Procrustes Scale-Adjustment step): fits each deformed triangle with a rigid rotated
+     copy of its rest shape via 2D Procrustes rotation about its centroid, then solves the Poisson edge-vector
+     system so triangles rotate rigidly without unnatural shearing or volume loss!
+```
+</details>
+
+| function / class | what |
+|---|---|
+| `ArapPuppetMesh` | Pre-built 2D triangle mesh with cached rest edge vectors for fast per-frame ARAP deformation. |
+
 ### `mograph.qa`  (sdk/mograph/qa.py)
 mograph.qa — automatic quality gates (run BEFORE spending time on a full render).
 
@@ -1770,6 +1942,27 @@ as a code-only, procedural, quality-gated, animation-ready 3D model"):
 | `fit_pose(tree, ref_bgra, t, yaws, pitches)` | Camera match (img2threejs `solve_camera_pose` idea): coarse grid → local refine of yaw/pitch that maximises |
 | `comparison_sheet(tree, ref_path, out_png, yaw, pitch, t, …)` | img2threejs `make_comparison_sheet` equivalent: reference / render at the reference angle / silhouette |
 
+### `mograph.shatter3d`  (sdk/mograph/shatter3d.py)
+mograph.shatter3d — 3D VORONOI/BRICK SHATTER PHYSICS & 3D CARD DANCE WAVE MATRIX
+
+<details><summary>details</summary>
+
+```
+(Ported from EffectCraft `crates/effects/src/sim2.rs` — `shatter` & `card_dance`).
+
+1. `render_shatter_3d`:
+   Fractures any BGRA image/text layer into cellular 3D extruded shards that explode outward from
+   `force_center` with 3D Euler angular velocity, gravity, and surface-normal shading!
+2. `render_card_dance_3d`:
+   Slices any BGRA image/card into a `rows x cols` grid of 3D tiles that tilt and displace in Z
+   driven by a travelling sine/gradient wave with specular lighting!
+```
+</details>
+
+| function / class | what |
+|---|---|
+| `render_shatter_3d(ctx, bgra, cx, cy, t, rows, …)` | Ported from EffectCraft `crates/effects/src/sim2.rs` (`shatter`): |
+
 ### `mograph.showcase`  (sdk/mograph/showcase.py)
 mograph.showcase — v11 editor-showcase / social-reel layout widgets (refs 02–06, 08).
 
@@ -2042,6 +2235,33 @@ Widgets registered here:
 | `el_ui_reply_pill(ctx, el, s)` |  |
 | `el_physics_ball(ctx, el, s)` |  |
 | `el_ui_film_world(ctx, el, s)` | Renders the complete, reference-accurate 10s Rube Goldberg UI Motion Film world |
+
+### `mograph.varstroke`  (sdk/mograph/varstroke.py)
+mograph.varstroke — VARIABLE-WIDTH TAPERED & WAVE STROKES + PER-VERTEX VARIABLE MASK FEATHER
+
+<details><summary>details</summary>
+
+```
+(Ported from EffectCraft `crates/path/src/varstroke.rs` & `crates/path/src/feather.rs`).
+
+1. `Taper` & `Wave`:
+   Builds a variable-width stroke along any polyline/curve as an exact union of positively-wound
+   trapezoid segments and round-join discs, so hand-drawn underlines, strike-throughs, circles,
+   and callout leaders taper smoothly to a calligraphic brush tip (`start_width -> 1.0 -> end_width`).
+2. `variable_feather_mask`:
+   Interpolates signed inner/outer feather radii (`FeatherPoint`) along a closed contour's arc length
+   so one side of a mask can be razor-sharp (`0.5px`) while the opposite side feathers over `45px`.
+```
+</details>
+
+| function / class | what |
+|---|---|
+| `Taper` | Ported from EffectCraft `varstroke::Taper`. |
+| `Wave` | Ported from EffectCraft `varstroke::Wave`. |
+| `draw_tapered_stroke(ctx, pts, base_width, color_rgba, taper, wave, …)` | Render a polyline `pts` (N x 2) with variable-width `Taper` and `Wave` profile as a union of |
+| `resample_polyline(pts, step, max_pts)` | Uniform arc-length resampling of an open polyline (keeps both end points). |
+| `polyline_slice(pts, s0, s1, closed, step)` | Sub-path between arc lengths s0 → s1 (wraps around a closed contour) — comets / trim-paths. |
+| `variable_feather_mask(W, H, poly_pts, vertex_radii)` | Ported from EffectCraft `crates/path/src/feather.rs`: |
 
 ### `mograph.visual_dna`  (sdk/mograph/visual_dna.py)
 mograph.visual_dna — v13.5 Visual-DNA & Zero-Box Procedural Asset Engine.
