@@ -486,9 +486,45 @@ def create_studio_materials():
 
 
 # ============================================================================================ Procedural 3D Model Builders
-def build_hourglass_3d(mats=None):
+# ---------------------------------------------------------------------------------------------- hourglass (v20.1)
+# PARAMETRIC: the sand is rebuilt from a `sand` state so `mograph.three_anim` can pour and flip it.
+#   sand = (top, bot, stream)   top / bot = (lo, hi, k_lo, k_hi) | None   stream = (y_bottom, y_top) | None
+#   lo / hi = sand slab inside one bulb (model units, y up); k_lo / k_hi = cone offset of the lower / upper
+#   surface centre (+ = mound up, − = funnel down).  Every slab is clipped to the glass interior.
+HG_END = 0.80                  # inner end of each bulb (sand rests on the brass cap here)
+
+
+def hg_glass_r(y):
+    """outer radius of the blown-glass profile at height y (shared by the mesh, the sand and the volume table)."""
+    return 0.062 + 0.395 * (math.sin(min(1.0, abs(y) / 0.82) * math.pi * 0.82) ** 1.35)
+
+
+def hg_inner_r(y):
+    """sand radius limit — inside the glass wall so the glass z-test never lets sand poke through."""
+    return max(0.004, hg_glass_r(y) * 0.92 - 0.008)
+
+
+def _hg_sand_profile(lo, hi, k_lo=0.0, k_hi=0.0, n=14):
+    """lathe profile (bottom centre → wall → top centre) of a sand slab lo < hi inside one bulb."""
+    lo, hi = float(lo), float(hi)
+    if hi - lo < 2e-3:
+        return None
+    ys = np.linspace(lo, hi, n)
+    return [(0.001, lo + k_lo)] + [(hg_inner_r(float(y)), float(y)) for y in ys] + [(0.001, hi + k_hi)]
+
+
+_HG_DEFAULT_SAND = None
+
+
+def build_hourglass_3d(mats=None, sand=None):
+    global _HG_DEFAULT_SAND
     mats = mats or create_studio_materials()
     group = THREE.Group()
+    if sand is None:               # static look = mid-pour, volume-consistent with the animation
+        if _HG_DEFAULT_SAND is None:
+            from .three_anim import hourglass_sand
+            _HG_DEFAULT_SAND = hourglass_sand(0.45)
+        sand = _HG_DEFAULT_SAND
 
     for sgn in (-1, 1):
         outer_cap = THREE.Mesh(THREE.CylinderGeometry(0.68, 0.68, 0.08, 28), mats["gold"])
@@ -521,23 +557,20 @@ def build_hourglass_3d(mats=None):
             pg.add(ring)
         group.add(pg)
 
-    top_sand = [(0.001, 0.03), (0.045, 0.08), (0.28, 0.32), (0.38, 0.48), (0.001, 0.46)]
-    group.add(THREE.Mesh(THREE.LatheGeometry(top_sand, 24), mats["sand"]))
+    top, bot, stream = sand
+    for slab in (top, bot):
+        if slab is not None:
+            prof = _hg_sand_profile(*slab)
+            if prof is not None:
+                group.add(THREE.Mesh(THREE.LatheGeometry(prof, 24), mats["sand"]))
+    if stream is not None and stream[1] - stream[0] > 0.01:
+        y0, y1 = stream
+        st = THREE.Mesh(THREE.CylinderGeometry(0.011, 0.016, y1 - y0, 10), mats["sand"])
+        st.position.y = (y0 + y1) * 0.5
+        group.add(st)
 
-    bot_sand = [(0.001, -0.81), (0.42, -0.81), (0.40, -0.66), (0.20, -0.42), (0.001, -0.32)]
-    group.add(THREE.Mesh(THREE.LatheGeometry(bot_sand, 24), mats["sand"]))
-
-    stream = THREE.Mesh(THREE.CylinderGeometry(0.014, 0.022, 0.44, 12), mats["sand"])
-    stream.position.y = -0.16
-    group.add(stream)
-
-    glass_pts = []
-    for i in range(25):
-        y = -0.82 + (1.64 * i) / 24.0
-        ay = abs(y)
-        r = 0.062 + 0.395 * (math.sin(min(1.0, ay / 0.82) * math.pi * 0.82) ** 1.35)
-        glass_pts.append((r, y))
-    group.add(THREE.Mesh(THREE.LatheGeometry(glass_pts, 28), mats["glass"]))
+    ys = [-0.82 + (1.64 * i) / 24.0 for i in range(25)]
+    group.add(THREE.Mesh(THREE.LatheGeometry([(hg_glass_r(y), y) for y in ys], 28), mats["glass"]))
     return group
 
 
@@ -788,7 +821,8 @@ def build_warn_3d(mats=None):
     return group
 
 
-def build_laptop_3d(mats=None):
+def build_laptop_3d(mats=None, lid_open=102.6):
+    """lid_open = degrees the lid is opened about the REAL hinge line (0 = closed, ~103 = classic open pose)."""
     mats = mats or create_studio_materials()
     group = THREE.Group()
     base = THREE.Mesh(THREE.BoxGeometry(1.36, 0.07, 0.94, bevel=0.02), mats["chrome"])
@@ -798,16 +832,18 @@ def build_laptop_3d(mats=None):
     kbd = THREE.Mesh(THREE.BoxGeometry(1.12, 0.02, 0.52, bevel=0.005), mats["matteBlack"])
     kbd.position.set(0, -0.32, -0.06)
     group.add(kbd)
+    hinge = THREE.Group()
+    hinge.position.set(0, -0.31, -0.44)
+    hinge.rotation.x = math.pi / 2 - math.radians(float(lid_open))
+    hinge.userData["explodeVec"] = THREE.Vector3(0, 0.28, -0.22)
     lid_grp = THREE.Group()
-    lid_grp.position.set(0, 0.12, -0.44)
-    lid_grp.rotation.x = -0.22
-    lid_grp.userData["explodeVec"] = THREE.Vector3(0, 0.28, -0.22)
-    lid = THREE.Mesh(THREE.BoxGeometry(1.36, 0.90, 0.05, bevel=0.015), mats["chrome"])
-    lid_grp.add(lid)
+    lid_grp.position.set(0, 0.45, 0)
+    lid_grp.add(THREE.Mesh(THREE.BoxGeometry(1.36, 0.90, 0.05, bevel=0.015), mats["chrome"]))
     scr = THREE.Mesh(THREE.BoxGeometry(1.24, 0.78, 0.02, bevel=0.005), mats["cobalt"])
     scr.position.z = 0.025
     lid_grp.add(scr)
-    group.add(lid_grp)
+    hinge.add(lid_grp)
+    group.add(hinge)
     return group
 
 
@@ -865,12 +901,18 @@ def _euler_xyz(x, y, z):
 
 
 class CompiledThreeScene:
-    def __init__(self, root_node, explode=0.0):
+    def __init__(self, root_node, explode=0.0, frame=None):
+        """frame = (center, radius) LOCKS the camera framing.  Animated models (pouring sand, opening lid, flip)
+        change their bounding box every frame — auto-framing would make the object breathe / jitter on screen."""
         meshes = []
         self._collect(root_node, np.eye(3, dtype=np.float32), np.zeros(3, np.float32), float(explode), meshes)
         all_v = np.concatenate([v for v, _, _, _ in meshes], axis=0)
-        self.center = (all_v.max(0) + all_v.min(0)) * 0.5
-        self.radius = max(1e-4, float(np.linalg.norm(all_v - self.center, axis=1).max()))
+        if frame is not None:
+            self.center = np.asarray(frame[0], np.float32)
+            self.radius = float(frame[1])
+        else:
+            self.center = (all_v.max(0) + all_v.min(0)) * 0.5
+            self.radius = max(1e-4, float(np.linalg.norm(all_v - self.center, axis=1).max()))
         self.parts = meshes
         self.opaque = self._pack([m for m in meshes if not m[3].transparent])
         self.trans = self._pack([m for m in meshes if m[3].transparent])
@@ -1256,8 +1298,24 @@ def _register():
         sz = float(val(el, "w", s.t, el.get("size", 360))) * s.scale
         lt = max(0.0, s.t - float(el["t"]))
         yaw, pitch = motion_angles(el, lt, float(val(el, "yaw", s.t, 25.0)), float(val(el, "pitch", s.t, 16.0)))
-        model = (resolve_script_ref(el["three_script"], getattr(s, "base_dir", None)) if el.get("three_script") else
+        base_dir = getattr(getattr(s, "scene", None), "base_dir", None)
+        model = (resolve_script_ref(el["three_script"], base_dir) if el.get("three_script") else
                  el.get("three_model") or el.get("model") or el.get("src", "hourglass_3d"))
+        if el.get("anim") or el.get("explode_at") is not None:          # v20.1 procedural animation
+            from . import three_anim as TA
+            cfg = el.get("_anim_cfg")
+            if cfg is None:
+                cfg = el["_anim_cfg"] = TA.config(el) or False
+                if cfg:
+                    t0 = float(el["t"])
+                    for k, src in (("_flips", "flips_at"), ("_close", "close_at"), ("_explode_at", "explode_at")):
+                        v = el.get(src)
+                        if v is not None:
+                            cfg[k] = [float(u) - t0 for u in v] if isinstance(v, list) else float(v) - t0
+            if cfg:
+                return TA.paint(ctx, model, cfg, lt, x, y + s.dy, sz, yaw, pitch, float(val(el, "roll", s.t, 0.0)),
+                                float(val(el, "explode", s.t, 0.0)), s.alpha, bool(el.get("shadow", True)),
+                                int(el.get("ssaa", 2)))
         return paint(ctx, model, x, y + s.dy, sz, yaw, pitch, float(val(el, "roll", s.t, 0.0)),
                      float(val(el, "explode", s.t, 0.0)), s.alpha, bool(el.get("shadow", True)), int(el.get("ssaa", 2)))
 

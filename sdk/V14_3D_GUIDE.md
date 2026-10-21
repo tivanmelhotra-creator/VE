@@ -1,6 +1,22 @@
 # V20 — 3D OBJECTS GUIDE (`three3d` Procedural Three.js 3D Engine + `pbr3d` + `real3d`)
 
 ## 00. v20 — `three3d`: PROCEDURAL THREE.JS 3D ENGINE (DEFAULT for custom 3D props, icons & multi-part objects)
+
+## 00.1 v20.1 — `three_anim`: ANIMATION *INSIDE* THE 3D OBJECT (`sdk/mograph/three_anim.py`)
+`motion` (spin_360 / hover / turntable_osc) only turns the WHOLE object. `anim` changes the object itself, every frame:
+| `anim` | model | what moves | word sync |
+|---|---|---|---|
+| `hourglass_loop` | `hourglass_3d` | top sand drains (funnel crater), stream falls, bottom pile grows (mound) → when empty the glass **turns over** (lifted, eased 180°) → the sand slides to the neck → pours again | `"flips_at": ["w:آخر", "w:شروع"]` — empty exactly `hold` s before each word, the pour speed is fitted to the gap |
+| `laptop_open` | `laptop_3d` | lid opens on its real hinge (out_back) | `"close_at": "w:…"` |
+| `assemble` | any | parts fly in from `explode_from` and lock (uses each part's `explodeVec`) | — |
+| *(any model)* | any | `"explode_at": "w:…"`, `"explode_to": 0.6` — fly apart on a word | yes |
+Parameters: `pour_dur` 3.0 · `flip_dur` 0.7 · `hold` 0.25 · `settle` 0.3 · `start_fill` 0 · `flip_axis` z|x · `flips` · `open_dur` · `assemble_dur`.
+Guarantees (selftest `python3 -m mograph.three_anim selftest`, also in `pro doctor`): sand volume conserved (<0.2 %), sand never pokes through
+the glass, frame at the end of a flip == frame at the start of the next pour (no pop), camera framing locked (no breathing while
+the bounding box changes), pure function of time (parallel chunk render safe).  LOOK first: `python3 -m mograph three3d-anim-sheet hourglass_loop`.
+Example: `projects/maghale/edit_v20_anim.json` (hourglass flips on «آخر» and «شروع», laptop opens).
+**Agent rule:** a new animated object = a builder with a state argument (`build_x(mats, state)`) + a pure `state(cfg, lt)` in
+three_anim.py + a sheet + a seam/volume-style selftest. Do NOT fake it with yaw keyframes or 2D sprite swaps.
 **Why v20 replaces 2D sprite slab extrusion (`obj3d.py`):** Extruding a 2D AI-generated image (`depth=0.14`) creates a flat cardboard cutout that collapses at side angles (>45°–85°), has frozen painted highlights, and cannot animate sub-parts or transparent glass. `mograph.three3d` builds true 360° mathematical 3D meshes (`LatheGeometry`, `TubeGeometry`, `ExtrudeGeometry`, `OctahedronGeometry`, `TorusGeometry`, `CylinderGeometry`) with a **Two-Pass Deferred PBR + Refractive Glass Renderer** (opaque metallic/emissive pass + depth-tested Fresnel clearcoat glass pass).
 
 - **Built-in 3D Catalog (`python3 -m mograph three3d-list`):** `hourglass_3d` (blown glass + golden sand + 4 brass pillars), `microblading_pen_3d` (tapered cap + 24K gold barrel + knurled grip + angled 12-pin blade), `emerald_tree_3d` (3D curved `CatmullRomCurve3` branches + 11 faceted emeralds + 14 gold leaves), `star_trophy_3d` (10-pointed gold & crystal polyhedron star on stepped pedestal), `shield_3d`, `cash_3d`, `warn_3d`, `laptop_3d`.

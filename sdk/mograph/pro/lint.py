@@ -33,7 +33,10 @@ TOP = {"type", "id", "t", "out", "pass", "z", "anchor", "offset", "size", "text"
        "preset", "preset_dur", "preset_out", "preset_out_dur", "selectors", "ease", "chapter", "comment", "note",
        "_comment", "x", "y", "w", "h", "color", "opacity", "font", "seed", "quality", "dur", "at",
        # read through loops in layers.prepare / bokeh defaults (invisible to the regex)
-       "land", "flip_at", "hero_hit", "pulse_at", "turn_on", "break_at", "words_at", "lines_at", "front", "back"}
+       "land", "flip_at", "hero_hit", "pulse_at", "turn_on", "break_at", "words_at", "lines_at", "front", "back",
+       # v20.1 three_anim (read through three_anim.DEFAULTS / config)
+       "anim", "flips_at", "close_at", "explode_at", "pour_dur", "flip_dur", "hold", "settle", "start_fill",
+       "flip_axis", "flips", "open_dur", "open_delay", "assemble_dur", "explode_from", "explode_dur", "explode_to"}
 _KEYS = None
 
 
@@ -148,6 +151,21 @@ def lint(spec_path):
                     E.append(f"{nm}: three_script file not found: {sp}")
                 elif fn and not _T3._JS_IDENT.match(fn):
                     E.append(f"{nm}: three_script builder '{fn}' is not a valid JS function name")
+            an = L.get("anim")
+            an = an.get("type") if isinstance(an, dict) else an
+            if an:
+                from .. import three_anim as _TA
+                need = {"hourglass_loop": "hourglass_3d", "laptop_open": "laptop_3d"}
+                mdl = _T3.resolve_model_name(L.get("three_model") or L.get("src"))
+                if an not in _TA.ANIMS:
+                    E.append(f"{nm}: anim '{an}' unknown{_sugg(an, _TA.ANIMS)}  ({', '.join(_TA.ANIMS)})")
+                elif an in need and mdl != need[an] and _T3.resolve_model_name(mdl) != need[an] and \
+                        not (mdl and _T3.MODELS.get(mdl) is _T3.MODELS[need[an]]):
+                    E.append(f"{nm}: anim '{an}' needs three_model '{need[an]}' (got {mdl})")
+                elif L.get("allow_slab"):
+                    E.append(f"{nm}: anim '{an}' needs the procedural 3D model — remove allow_slab")
+            if L.get("flips_at") and an != "hourglass_loop":
+                Wn.append(f"{nm}: flips_at only works with anim 'hourglass_loop'")
             if L.get("allow_slab") and (float(L.get("yaw_amp", 28)) > 25 or L.get("motion") == "spin_360"):
                 Wn.append(f"{nm}: 2D slab extrusion with large yaw rotation looks flat past 45° — use three_model / three3d instead")
     if E:

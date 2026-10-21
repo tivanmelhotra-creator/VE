@@ -5,7 +5,7 @@
 cd /home/user/webapp/sdk && python3 -m mograph.pro doctor --fix      # deps · binaries · fonts · footage · tracking cache · 5 selftests
 python3 -m mograph.motion resolve "<the user's sentence in Persian/English>"   # words → engine keys
 ```
-`doctor` must end with `ALL GOOD ✓` (v14 9/9 · aefx 9/9 · aecomp 13/13 · motion 10/10 · pro 12/12 · three3d 7/7 = 60 tests).
+`doctor` must end with `ALL GOOD ✓` (v14 9/9 · aefx 9/9 · aecomp 13/13 · motion 10/10 · pro 12/12 · three3d 7/7 · three_anim 7/7 = 67 tests).
 The tracking cache (normally 9 min of MODNet/MediaPipe) is restored in seconds from `work/input/raw.mp4.v14pack/`.
 
 ## 1. Which engine?
@@ -31,6 +31,7 @@ The tracking cache (normally 9 min of MODNet/MediaPipe) is restored in seconds f
 | تایتل تمام‌صفحه | `{"type":"aecomp","title_style":"burst_hero","hero"}` | `aecomp title-sheet` | AECOMP_GUIDE |
 | حلقه متن دور سر / هاله / دیسک / شیشه / کادر | `orbit_ring` · `halo` · `disc` · `glass_shape` · `frame_box` | `v14 sheet` | V14_GUIDE §3 |
 | برچسب ترک‌شده روی دست/شانه | `tracked_tag` `"anchor":"hand_r"` | | V14_GUIDE §3 |
+| **انیمیشن داخل شی سه‌بعدی** (ساعت شنی که شن می‌ریزد و برمی‌گردد، لپ‌تاپ باز شود، قطعات سر هم شوند) | `object_3d` `"three_model":"hourglass_3d","anim":"hourglass_loop","flips_at":["w:…"]` · `"anim":"laptop_open"` · `"anim":"assemble"` · `"explode_at":"w:…"` | `python3 -m mograph three3d-anim-sheet hourglass_loop` | V14_3D_GUIDE §0.1 |
 | **شی سه‌بعدی واقعی (اسکریپتی Three.js / PBR)** | `object_3d` `"three_model":"hourglass_3d"` or `"three_script":"my.js:buildFn"` | `python3 -m mograph three3d-list` · `three3d-sheet` | V14_3D_GUIDE |
 | شی سه‌بعدی اسکن‌شده (Poly Haven GLB) | `object_3d` `"model"` | `python3 -m mograph pbr3d-search` | V14_3D_GUIDE |
 | خرد شدن کلمه / پاپت / مورف شکل | `shatter_text` · `puppet_sticker` · `morph_shape` | | V14_GUIDE v15.1 |

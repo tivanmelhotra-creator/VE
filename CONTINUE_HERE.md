@@ -1,11 +1,17 @@
-# CONTINUE_HERE — VE v19 Pro Editor (resume point after any sandbox reset)
+# CONTINUE_HERE — VE v20.1 three3d + three_anim (resume point after any sandbox reset)
 
 ## Restore in 1 command (replaces the old 3-step / 9-minute restore)
 ```bash
 cd /home/user/webapp/sdk && python3 -m mograph.pro doctor --fix   # deps, binaries, fonts, media copy, tracking cache
-                                                                 # from work/input/raw.mp4.v14pack (seconds), 53 tests
+                                                                 # from work/input/raw.mp4.v14pack (seconds), 67 tests
 ```
 Then read `/home/user/webapp/AGENT_INDEX.md` (request → file → key).
+
+## v20.1 — animation INSIDE 3D objects (mograph/three_anim.py) — see sdk/V14_3D_GUIDE.md §00.1
+- `object_3d` + `"three_model":"hourglass_3d","anim":"hourglass_loop","flips_at":["w:…"]` (pour → flip → pour), `laptop_open`,
+  `assemble`, `explode_at` on any model.  Test edit: projects/maghale/edit_v20_anim.json.  LOOK: `python3 -m mograph three3d-anim-sheet`
+- v20 = mograph/three3d.py (procedural Three.js engine, review report V20_PR_REVIEW.md)
+- next ideas: more stateful models (pen click-extend, trophy shine sweep), motion blur on the flip, sand grain sparkle
 
 ## v19 — Pro Editor (mograph/pro) — see sdk/PRO_EDITOR_GUIDE.md
 - colour: `grade.look` (10 looks) / `grade.lut` (.cube) / wb / lift_gamma_gain / protect_skin / grain / halation /
