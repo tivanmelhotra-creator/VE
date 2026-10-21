@@ -13,6 +13,9 @@ mograph.v14.object3d — `object_3d` layer: a REAL turning 3D object inside the 
      "motion": "hover",                      # turntable_osc | spin_360 | spring_entry | hover | none
      "yaw": -20, "pitch": 12,                # base angles;  "turn_on": "w:…" → one 360° spin at that word
      "explode": 0.0,                         # v20: sub-part explosion factor (0.0 .. 1.0)
+     "anim": "hourglass_loop",               # v20.1 procedural animation INSIDE the model (mograph.three_anim):
+                                             #   hourglass_loop (pour → empty → flip → pour, "flips_at": ["w:…"])
+                                             #   laptop_open ("close_at") · assemble · any model: "explode_at"
      "enter": "spring_pop" | "drop" | "fade",  "exit": "pop_out" | "fall" | "fade",
      "pass": "front" | "back"}
 
@@ -162,6 +165,22 @@ def draw_object_3d(ctx, L, F, pos, out_lt):
         if not t_model and not L.get("allow_slab", False) and L.get("geometry", "auto") in ("auto", "three3d"):
             t_model = T3.resolve_model_name(L.get("src"))
         if t_model:
+            acfg = L.get("_anim_cfg")
+            if acfg is None and (L.get("anim") or L.get("explode_at")):
+                from .. import three_anim as TA
+                acfg = L["_anim_cfg"] = TA.config(L) or False
+                if acfg:
+                    for k in ("_flips", "_close", "_explode_at"):          # word times → layer-local seconds
+                        src = {"_flips": "_flips_at", "_close": "_close_at", "_explode_at": "_explode_at"}[k]
+                        v = L.get(src)
+                        if v is not None:
+                            acfg[k] = [float(u) - L["_t0"] for u in v] if isinstance(v, list) else float(v) - L["_t0"]
+            if acfg:
+                from .. import three_anim as TA
+                TA.paint(ctx, t_model, acfg, lt, x, y, size, yaw=yaw, pitch=pitch, roll=roll,
+                         explode=float(L.get("explode", 0.0)), alpha=a, shadow=shadow, ssaa=int(L.get("ssaa", 2)),
+                         t_end=L["_t1"] - L["_t0"] + 1.0)
+                return
             T3.paint(ctx, t_model, x, y, size, yaw=yaw, pitch=pitch, roll=roll,
                      explode=float(L.get("explode", 0.0)), alpha=a, shadow=shadow, ssaa=int(L.get("ssaa", 2)))
             return

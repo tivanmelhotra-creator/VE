@@ -215,7 +215,10 @@ ELEMENT_KEYS = {
     "real3d": {"model", "w", "size", "yaw", "pitch", "roll", "motion", "yaw_speed", "yaw_amp", "pitch_amp", "speed", "shadow", "ssaa"},
     "sculpt3d": {"preset", "tree", "w", "size", "yaw", "yaw_speed", "pitch", "pitch_amp", "roll", "open_dur", "shadow", "ssaa"},
     "image_to_3d": {"src", "sprite", "w", "size", "yaw", "pitch", "roll", "motion", "yaw_speed", "speed", "yaw_amp", "pitch_amp", "depth", "specular", "shadow", "geometry", "views", "label", "three_model", "three_script", "explode", "allow_slab"},
-    "three3d": {"three_model", "model", "preset", "three_script", "src", "w", "size", "yaw", "pitch", "roll", "motion", "yaw_speed", "yaw_amp", "pitch_amp", "speed", "explode", "shadow", "ssaa"},
+    "three3d": {"three_model", "model", "preset", "three_script", "src", "w", "size", "yaw", "pitch", "roll", "motion", "yaw_speed", "yaw_amp", "pitch_amp", "speed", "explode", "shadow", "ssaa",
+                "anim", "flips_at", "close_at", "explode_at", "pour_dur", "flip_dur", "hold", "settle", "start_fill",
+                "flip_axis", "flips", "open_dur", "open_delay", "assemble_dur", "explode_from", "explode_dur",
+                "explode_to"},
 }
 for _t in ("headline", "kinetic", "block", "big_number"):
     ELEMENT_KEYS[_t] = ELEMENT_KEYS[_t] | set()

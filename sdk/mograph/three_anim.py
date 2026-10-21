@@ -240,8 +240,10 @@ def config(L):
                 cfg[k] = L[k]
     for k in ("_flips", "_close", "_explode_at"):
         cfg[k] = None
-    if not name and L.get("_explode_at") is None and L.get("explode_at") is None:
+    if not name and L.get("explode_at") is None:
         return None
+    if name and name not in ANIMS:
+        raise ValueError(f"unknown three_anim '{name}' (known: {', '.join(ANIMS)})")
     cfg["name"] = name
     return cfg
 
@@ -414,7 +416,7 @@ def _t_word_sync():
     cfg["_flips"] = [2.0, 4.5]
     pre, _, _ = hourglass_state(cfg, 2.0 - 0.25 + 0.02)
     mid, _, _ = hourglass_state(cfg, 1.0)
-    post, _, _ = hourglass_state(cfg, 2.0 + 0.7 + 0.3 + 0.01)
+    post, _, _ = hourglass_state(cfg, 2.0 + 0.7 + 0.15)            # settling: all sand back on top
     ok = pre[0] is None and mid[0] is not None and mid[1] is not None and post[1] is None and post[0] is not None
     return ok, "word-synced flips: empty before the word, full on top after the turn"
 
@@ -427,7 +429,7 @@ def _t_frame_lock():
     for t in (0.0, 1.5, 2.9):
         pm, D, _ = render_state("hourglass_3d", cfg, t, 140, ssaa=1)
         ws.append(int((pm[:, :, 3] > 25).any(axis=1).sum()))
-    st, _ = T.render_three("hourglass_3d", 136, ssaa=1)
+    st, _ = T.render_three("hourglass_3d", 144, ssaa=1)        # anim quantises 140 → 144
     ws.append(int((st[:, :, 3] > 0.1).any(axis=1).sum()))
     return max(ws) - min(ws) <= 2, f"silhouette height {ws} px (locked camera framing)"
 

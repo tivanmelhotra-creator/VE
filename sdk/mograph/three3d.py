@@ -1298,8 +1298,24 @@ def _register():
         sz = float(val(el, "w", s.t, el.get("size", 360))) * s.scale
         lt = max(0.0, s.t - float(el["t"]))
         yaw, pitch = motion_angles(el, lt, float(val(el, "yaw", s.t, 25.0)), float(val(el, "pitch", s.t, 16.0)))
-        model = (resolve_script_ref(el["three_script"], getattr(s, "base_dir", None)) if el.get("three_script") else
+        base_dir = getattr(getattr(s, "scene", None), "base_dir", None)
+        model = (resolve_script_ref(el["three_script"], base_dir) if el.get("three_script") else
                  el.get("three_model") or el.get("model") or el.get("src", "hourglass_3d"))
+        if el.get("anim") or el.get("explode_at") is not None:          # v20.1 procedural animation
+            from . import three_anim as TA
+            cfg = el.get("_anim_cfg")
+            if cfg is None:
+                cfg = el["_anim_cfg"] = TA.config(el) or False
+                if cfg:
+                    t0 = float(el["t"])
+                    for k, src in (("_flips", "flips_at"), ("_close", "close_at"), ("_explode_at", "explode_at")):
+                        v = el.get(src)
+                        if v is not None:
+                            cfg[k] = [float(u) - t0 for u in v] if isinstance(v, list) else float(v) - t0
+            if cfg:
+                return TA.paint(ctx, model, cfg, lt, x, y + s.dy, sz, yaw, pitch, float(val(el, "roll", s.t, 0.0)),
+                                float(val(el, "explode", s.t, 0.0)), s.alpha, bool(el.get("shadow", True)),
+                                int(el.get("ssaa", 2)))
         return paint(ctx, model, x, y + s.dy, sz, yaw, pitch, float(val(el, "roll", s.t, 0.0)),
                      float(val(el, "explode", s.t, 0.0)), s.alpha, bool(el.get("shadow", True)), int(el.get("ssaa", 2)))
 

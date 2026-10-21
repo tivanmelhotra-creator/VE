@@ -62,7 +62,8 @@ def prepare(L, R):
     if L.get("type") == "halo":              # anatomy defaults (above the head, 2 discs, VFX) — see HALO_DEFAULT
         for kk, v in HALO_DEFAULT.items():
             L.setdefault(kk, v)
-    for k in ("land", "flip_at", "hero_hit", "pulse_at", "turn_on", "break_at", "at"):
+    for k in ("land", "flip_at", "hero_hit", "pulse_at", "turn_on", "break_at", "at", "flips_at", "close_at",
+              "explode_at"):
         if k in L and L[k] is not None:
             v = L[k]
             L["_" + k] = [R.tl.resolve(x) for x in v] if isinstance(v, list) else R.tl.resolve(v)

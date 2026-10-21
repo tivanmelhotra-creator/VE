@@ -31,6 +31,7 @@ python -m mograph <command> spec.json [options]
   img2mesh <image.png> --out model.ply       v14.4: 2D image → volumetric .ply point cloud (normals + colour)
   turntable3d <three_model|script.js|image.png> [--out sheet.png]  v20: 3D audit sheet (10 yaw/pitch/explode angles)
   three3d-list  ·  three3d-sheet <model|script.js> [--out s.png]  ·  three3d-selftest   v20: Procedural Three.js 3D engine
+  three3d-anim-sheet <hourglass_loop|laptop_open|assemble> [--out s.png]           v20.1: LOOK at an object animation
   pbr3d-search <words> [hdri]  ·  pbr3d-fetch <id ...>  ·  pbr3d-sheet <id|model.glb>   v14.6: PHOTOREAL scanned PBR 3D (EffectCraft)
   sculpt-check <tree.json|preset>            v14.4: strict ObjectSculptSpec gate (ids, materials, ≥3 parts …)
   sculpt-compare <tree.json> <ref.png> [--t yaw] [--out cmp.png]  v14.4: auto camera-match + reference | render | IoU
@@ -280,6 +281,10 @@ def main(argv=None):
         from . import three3d
         out_p = a.out or "three3d_sheet.png"
         print(three3d.audit_sheet(a.spec or "hourglass_3d", out_p))
+        return 0
+    if a.cmd in ("three3d-anim-sheet", "three3d_anim_sheet"):
+        from . import three_anim
+        print(three_anim.sheet(a.spec or "hourglass_loop", a.out))
         return 0
     if a.cmd in ("three3d-selftest", "three3d_selftest"):
         from . import three3d
