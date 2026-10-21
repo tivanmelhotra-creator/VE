@@ -36,6 +36,13 @@ def _modnet():
     global _MOD
     if _MOD is None:
         p = os.path.join(MODELS, "modnet.onnx")
+        if not os.path.exists(p):          # model not in git → fetch once (sha256-verified)
+            try:
+                sys.path.insert(0, os.path.dirname(os.path.dirname(MODELS)))
+                from mograph import fetch_assets
+                fetch_assets.try_ensure("modnet.onnx")
+            except Exception:  # noqa: BLE001
+                pass
         if os.path.exists(p):
             import onnxruntime as ort
             so = ort.SessionOptions()

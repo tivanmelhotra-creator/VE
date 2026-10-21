@@ -16,7 +16,8 @@ Then: `cd /home/user/webapp/projects/maghale && PYTHONPATH=/home/user/webapp/sdk
 - `work/input/` = raw.mp4, ref_novadent.mp4, brief_v14.md (the user's inputs)
 
 ## v14.6 — pbr3d (PHOTOREAL scanned PBR 3D via bundled EffectCraft CLI) — see sdk/V14_3D_GUIDE.md §0 + sdk/CRAFT_REPOS_ANALYSIS.md
-- `sdk/bin/effectcraft-cli` is NOT in git (75 MB) → `setup_env.sh` downloads it. Models: sdk/mograph/pbr_assets/models/
+- `sdk/bin/effectcraft-cli`, `sdk/mograph/bin/deep-filter`, `sdk/mograph/models/modnet.onnx` are NOT in git (repo < 100 MB) →
+  `setup_env.sh` / `python3 -m mograph.fetch_assets` downloads them (also auto on first use). v14.2 zip/mp4 → release `v14.2-deliverables`. Models: sdk/mograph/pbr_assets/models/
 - test: `cd sdk && python3 -m mograph frame tests/v146_pbr3d.json --t 2` · footage test: projects/maghale/edit_v14_pbr3d.json
 - demo: work/renders/demo_pbr3d_v14_6.mp4 · compare: work/renders/3d_compare_v14_6.jpg
 - cache lives in ~/.cache/mograph_pbr3d (NEVER /tmp: tmpfs = RAM)

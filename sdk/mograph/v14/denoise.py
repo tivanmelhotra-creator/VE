@@ -104,6 +104,12 @@ def clean(x, sr=SR, model="lq", strength="auto", residual=False, log=print, engi
     measured SNR (very noisy → 42 dB, clean → 18 dB) and restore the small HF loss with EQ."""
     m0 = measure(x, sr)
     snr = m0["snr_db"]
+    if engine in ("auto", "dfn") and not os.path.exists(DFN_BIN):   # binary not in git → fetch once
+        try:
+            from .. import fetch_assets
+            fetch_assets.try_ensure("deep-filter", log=log)
+        except Exception:  # noqa: BLE001
+            pass
     use_dfn = engine in ("auto", "dfn") and os.path.exists(DFN_BIN)
     y = _ff(x, "adeclick=w=55:o=75,highpass=f=80")
     if use_dfn:

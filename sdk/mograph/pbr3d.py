@@ -66,19 +66,8 @@ def ec_bin():
 
 
 def _download_ec():
-    dst = os.path.join(SDK, "bin", "effectcraft-cli")
-    os.makedirs(os.path.dirname(dst), exist_ok=True)
-    tmp = tempfile.mkdtemp()
-    tgz = os.path.join(tmp, "ec.tgz")
-    print("[pbr3d] downloading effectcraft-cli (one time, ~64 MB)…", flush=True)
-    subprocess.run(["curl", "-sL", "-o", tgz, EC_RELEASE], check=True)
-    subprocess.run(["tar", "-xzf", tgz, "-C", tmp, "--wildcards", "*/bin/effectcraft-cli"], check=True)
-    for root, _, files in os.walk(tmp):
-        if "effectcraft-cli" in files:
-            shutil.move(os.path.join(root, "effectcraft-cli"), dst)
-    shutil.rmtree(tmp, ignore_errors=True)
-    os.chmod(dst, 0o755)
-    return dst
+    from . import fetch_assets          # sha256-verified one-time download (binary is not in git)
+    return fetch_assets.ensure("effectcraft-cli")
 
 
 def _ec(args, timeout=900):

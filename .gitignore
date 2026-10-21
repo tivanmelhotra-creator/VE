@@ -40,10 +40,17 @@ work/tmp/
 work/renders/*.mp4
 __pycache__/
 *.pyc
-mograph/models/modnet.onnx
+sdk/mograph/models/modnet.onnx
 projects/*/media/*.mp4
 *.tar.gz
 
 # v14.6 pbr3d
 sdk/bin/effectcraft-cli
 sdk/mograph/pbr_assets/models/**/*.norm.gltf
+
+# large binaries — downloaded by `python3 -m mograph.fetch_assets` (repo must stay < 100 MB)
+sdk/mograph/bin/deep-filter
+sdk/mograph/models/modnet.onnx
+**/.dl_*/
+# v14.2 archives → GitHub Release v14.2-deliverables (`python3 -m mograph.fetch_assets --deliverables`)
+work/deliver/

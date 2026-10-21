@@ -48,7 +48,15 @@ bash ../../sdk/tools/render_chunks.sh edit_v14.json 4                # resumable
 - pbr3d photoreal objects render standalone and on footage
 
 ## Notes
-- Large binaries are committed: `sdk/bin/effectcraft-cli` (75 MB, EffectCraft 0.11.1 headless),
-  `sdk/mograph/bin/deep-filter` (DeepFilterNet3), ONNX models in `sdk/mograph/models/`.
+- **Repo kept < 100 MB.** Large binaries are NOT in git; they are downloaded once (sha256-verified, byte-identical)
+  by `bash sdk/tools/setup_env.sh` → `python3 -m mograph.fetch_assets`, and also on first use automatically:
+  | file | size | source (fallback: release `assets-mirror`) |
+  |---|---|---|
+  | `sdk/bin/effectcraft-cli` | 75 MB | storytold/effectcraft v0.11.1 release |
+  | `sdk/mograph/bin/deep-filter` | 36 MB | Rikorose/DeepFilterNet v0.5.6 release |
+  | `sdk/mograph/models/modnet.onnx` | 25 MB | huggingface Xenova/modnet |
+  Check: `cd sdk && python3 -m mograph.fetch_assets --check`.
+- Old v14.2 deliverables (`mograph_v14_2_sdk.zip`, `maghale_v14_2_final.mp4`, `showcase_v14_2.mp4`) moved to the
+  GitHub Release `v14.2-deliverables` → `cd sdk && python3 -m mograph.fetch_assets --deliverables` (→ `work/deliver/`).
 - API keys are never stored in the repo (`python3 -m mograph keys …` keeps them outside git).
 - The `src/`, `wrangler.jsonc`, `package.json` files are the unused Hono web template of the sandbox.
