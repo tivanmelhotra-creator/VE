@@ -8,6 +8,10 @@ energy is music, not voice:
   * level        gap RMS relative to the speech RMS (room tone sits ≈ -45…-60 dB under speech, a bed -15…-30 dB)
   * tonality     1 - spectral flatness in 80 Hz…5 kHz (noise / room tone is flat, notes have peaks)
   * persistence  share of gap frames that are tonal AND loud
+  * floor peaks  (main signal, robust to word-timing errors) — in 3 s windows the 20th-percentile spectrum is the
+                 sound that is ALWAYS there; speech comes and goes so it vanishes from that floor, a music bed / drone
+                 stays as narrow peaks above the smoothed floor.  peak-energy share: dry voice ≈ 0.0, room/noise ≈ 0.0,
+                 a held chord ≈ 0.6, a piano bed ≈ 0.9 (measured on the maghale clip with mixed-in beds).
 
     detect(audio_path, words)  → {"music": bool, "confidence": 0..1, "gap_db": …, "tonality": …, "frames": n}
     python3 -m mograph.musicbed media/raw.mp4 words.json
@@ -42,6 +46,19 @@ def _gap_mask(n_frames, words, pad=0.12):
     return m
 
 
+def floor_peaks(S, win_frames):
+    """median over 3 s windows of the energy share of narrow persistent peaks in the 20th-percentile spectrum."""
+    from scipy.ndimage import median_filter
+    out = []
+    step = max(1, win_frames // 2)
+    for a in range(0, max(1, len(S) - win_frames + 1), step):
+        fl = np.percentile(S[a:a + win_frames], 20, axis=0)
+        base = median_filter(fl, size=25)
+        pk = fl > base * 2.0
+        out.append(float((fl[pk] ** 2).sum() / max(1e-12, (fl ** 2).sum())))
+    return float(np.median(out)) if out else 0.0
+
+
 def analyse(pcm, words, sr=SR):
     if sr != SR:
         pcm = np.interp(np.linspace(0, len(pcm) - 1, int(len(pcm) * SR / sr)), np.arange(len(pcm)), pcm)
@@ -53,12 +70,15 @@ def analyse(pcm, words, sr=SR):
     freqs = np.fft.rfftfreq(FRAME, 1 / SR)
     band = (freqs >= 80) & (freqs <= 5000)
     S = spec[:, band]
+    fpk = floor_peaks(spec[:, (freqs >= 80) & (freqs <= 4000)], int(3 * SR / HOP))
     rms = np.sqrt((F ** 2).mean(1)) + 1e-9
     flat = np.exp(np.log(S).mean(1)) / S.mean(1)                 # spectral flatness 0 (tonal) … 1 (noise)
     gap = _gap_mask(len(F), words)
     speech = ~gap
     if gap.sum() < 10 or speech.sum() < 10:
-        return {"music": False, "confidence": 0.0, "frames": int(gap.sum()), "reason": "not enough pauses"}
+        conf = float(np.clip((fpk - 0.25) / 0.2, 0, 1))
+        return {"music": conf >= 0.5, "confidence": round(conf, 3), "floor_peaks": round(fpk, 3),
+                "frames": int(gap.sum()), "reason": "few pauses → floor peaks only"}
     sp_db = 20 * np.log10(np.percentile(rms[speech], 75))
     g_db = 20 * np.log10(rms[gap]) - sp_db                        # gap level relative to speech
     tonal = 1.0 - flat[gap]
@@ -66,9 +86,10 @@ def analyse(pcm, words, sr=SR):
     persist = float(np.mean(loud & (tonal > 0.45)))
     med_db = float(np.median(g_db))
     med_ton = float(np.median(tonal))
-    conf = float(np.clip((persist - 0.2) / 0.35, 0, 1) * np.clip((med_db + 42) / 14, 0, 1) *
-                 np.clip((med_ton - 0.36) / 0.08, 0, 1))
-    return {"music": conf >= 0.5, "confidence": round(conf, 3), "gap_db": round(med_db, 1),
+    gap_conf = float(np.clip((persist - 0.2) / 0.35, 0, 1) * np.clip((med_db + 42) / 14, 0, 1) *
+                     np.clip((med_ton - 0.36) / 0.08, 0, 1))
+    conf = max(gap_conf, float(np.clip((fpk - 0.25) / 0.2, 0, 1)))
+    return {"music": conf >= 0.5, "confidence": round(conf, 3), "floor_peaks": round(fpk, 3), "gap_db": round(med_db, 1),
             "tonality": round(med_ton, 3), "persistence": round(persist, 3), "frames": int(gap.sum())}
 
 
