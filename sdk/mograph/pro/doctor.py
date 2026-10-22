@@ -134,6 +134,19 @@ def doctor(fix=False, tests=True, log=print):
     if not all(st.values()) and fix:
         subprocess.run([sys.executable, "-m", "mograph.fetch_assets"], cwd=SDK)
         st = {k: os.path.exists(v["path"]) for k, v in FA.ASSETS.items()}
+    try:                                   # v22 optional models (outside git, ~/.cache/mograph_models)
+        from .. import models_hub as MH
+        if fix:
+            for n, m in MH.MODELS.items():
+                if not m.get("optin") and not MH.have(n):
+                    MH.try_ensure(n, log=log)
+            try:
+                importlib.import_module("sherpa_onnx")
+            except Exception:  # noqa: BLE001
+                subprocess.run([sys.executable, "-m", "pip", "install", "-q", "sherpa-onnx"])
+        log("✓ v22 models (optional)  " + "  ".join(f"{n}:{_ok(ok)}" for n, ok, _, _, oi in MH.status() if not oi))
+    except Exception as e:  # noqa: BLE001
+        log(f"· v22 models: {e}")
     log(f"{_ok(all(st.values()))} big binaries  " + "  ".join(f"{k}:{_ok(v)}" for k, v in st.items()) +
         ("" if all(st.values()) else "  (optional: fallbacks are used)"))
     for b in (os.path.join(HERE, "bin", "deep-filter"), os.path.join(SDK, "bin", "effectcraft-cli")):
@@ -167,7 +180,7 @@ def doctor(fix=False, tests=True, log=print):
         log(f"{_ok(ok)} tracking cache {os.path.relpath(v, ROOT)} ({how if ok else 'missing — run with --fix'})")
         bad += not ok
     if tests:
-        for m in ("v14", "aefx", "aecomp", "motion", "pro", "three3d", "three_anim", "style_bank"):
+        for m in ("v14", "aefx", "aecomp", "motion", "pro", "three3d", "three_anim", "style_bank", "v22"):
             r = subprocess.run([sys.executable, "-m", f"mograph.{m}", "selftest"], cwd=SDK, capture_output=True, text=True)
             last = [l for l in (r.stdout + r.stderr).splitlines() if "selftest" in l and "pass" in l]
             good = r.returncode == 0 and bool(last)

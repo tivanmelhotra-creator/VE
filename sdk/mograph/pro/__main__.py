@@ -20,6 +20,11 @@ python3 -m mograph.pro <command>      — v19 PRO EDITOR (colour · B-roll · de
   pack-cache <video> [-o pack_dir] / unpack-cache <video>   tracking cache ⇄ small committed pack
   style-bank [--sync | --list | --sheet] [-o sheet.jpg]   v21 inspiration bank (sdk/style_bank/references → catalog.json)
   originality <edit.json>                     v21 ANTI-COPY / ANTI-REPETITION audit (exit 2 = copy, 1 = repetition)
+  --- v22 (Concat-inspired; models live in ~/.cache/mograph_models, never in git) ---
+  stabilize <edit.json>                       analyse the used source ranges now + shake before/after
+  enhance <img|mp4> [--factor 2] [--mix 0.6] [-o out] [--start a --end b]   tiled Real-ESRGAN restore
+  cutout <img> [--quality fast|high] [-o out.png]          product/object background removal → RGBA
+  models [name …]                             v22 model cache status / fetch
 """
 from __future__ import annotations
 
@@ -56,6 +61,9 @@ def main(argv=None):
     ap.add_argument("--sync", action="store_true")
     ap.add_argument("--list", action="store_true")
     ap.add_argument("--sheet", action="store_true")
+    ap.add_argument("--factor", type=int, default=2)
+    ap.add_argument("--mix", type=float, default=0.6)
+    ap.add_argument("--quality", default="fast")
     a = ap.parse_args(rest)
     A = a.args
 
@@ -71,6 +79,25 @@ def main(argv=None):
     if cmd == "originality":
         from ..style_bank import run_originality
         return run_originality(A[0])
+    if cmd == "stabilize":
+        from ..v14.compositor import Renderer
+        from .stabilize import install, report
+        R = Renderer(A[0])
+        if R.stab is None:
+            R.spec["source"]["stabilize"] = True
+            install(R)
+        return report(R)
+    if cmd == "enhance":
+        from .enhance import cli as enh
+        enh(A[0], a.out, a.factor, a.mix, a.start, a.end)
+        return 0
+    if cmd == "cutout":
+        from .cutout import cutout_file
+        print(cutout_file(A[0], a.out, a.quality))
+        return 0
+    if cmd == "models":
+        from ..models_hub import main as mh
+        return mh(A or ["--list"])
     if cmd == "selftest":
         from .selftest import main as st
         return st()

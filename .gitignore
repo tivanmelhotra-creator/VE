@@ -57,3 +57,9 @@ work/deliver/
 
 # v16 AE-FX gallery previews (regenerate: python3 sdk/tools/build_aefx_gallery.py)
 public/aefx/media/
+
+# v22 — derived files (regenerable) — models live in ~/.cache/mograph_models (never in the repo)
+*.cut.png
+*.enh*_*.png
+*.json.bak
+*.onnx.dl
