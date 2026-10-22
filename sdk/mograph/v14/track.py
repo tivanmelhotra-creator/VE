@@ -308,6 +308,14 @@ def matte_dir(path, engine=None):
     return os.path.join(path + ".v14", "matte_rvm" if engine == "rvm" else "matte"), engine or "modnet"
 
 
+def median3(a, b, c):
+    """exact per-pixel median of three uint8 images: a + b + c − min − max  (SIMD in OpenCV, no sort)."""
+    lo = cv2.min(cv2.min(a, b), c)
+    hi = cv2.max(cv2.max(a, b), c)
+    s = a.astype(np.int16) + b + c
+    return (s - lo - hi).astype(np.uint8)
+
+
 class Tracks:
     def __init__(self, path, sigma=2.2, engine=None):
         self.path = path
@@ -346,6 +354,7 @@ class Tracks:
         self.head_w = _smooth(np.maximum(head_w, sw * 0.40)[:, None], 12.0)[:, 0]   # ears hide under hair/hijab → stabilise
         self.sw = _smooth(sw[:, None], 12.0)[:, 0]
         self._mc = {}
+        self._rmc = {}            # v22: raw uint8 matte frames (each PNG decoded once per sequential render)
 
     def _i(self, st):
         f = max(0.0, st * self.fps)
@@ -373,6 +382,20 @@ class Tracks:
         i0, i1, fr = self._i(st)
         return float(self.sw[i0] * (1 - fr) + self.sw[i1] * fr)
 
+    def _raw(self, d, j):
+        a = self._rmc.get((d, j))
+        if a is None:
+            a = cv2.imread(os.path.join(d, f"{j:05d}.png"), cv2.IMREAD_GRAYSCALE)
+            if a is None:
+                cap = cv2.VideoCapture(self.path)
+                cap.set(cv2.CAP_PROP_POS_FRAMES, j)
+                a = (matte_frame(cap.read()[1]) * 255).astype(np.uint8)
+                cv2.imwrite(os.path.join(d, f"{j:05d}.png"), a)
+            if len(self._rmc) >= 5:
+                self._rmc.pop(next(iter(self._rmc)))
+            self._rmc[(d, j)] = a
+        return a
+
     def matte(self, idx):
         idx = max(0, min(self.n - 1, int(idx)))
         if idx in self._mc:
@@ -390,17 +413,8 @@ class Tracks:
                 self._mc[idx] = m
                 return m
             d = os.path.join(self.path + ".v14", "matte")
-        ims = []
-        for j in (idx - 1, idx, idx + 1):
-            j = max(0, min(self.n - 1, j))
-            a = cv2.imread(os.path.join(d, f"{j:05d}.png"), cv2.IMREAD_GRAYSCALE)
-            if a is None:
-                cap = cv2.VideoCapture(self.path)
-                cap.set(cv2.CAP_PROP_POS_FRAMES, j)
-                a = (matte_frame(cap.read()[1]) * 255).astype(np.uint8)
-                cv2.imwrite(os.path.join(d, f"{j:05d}.png"), a)
-            ims.append(a)
-        m = np.median(np.stack(ims), axis=0).astype(np.float32) / 255.0
+        ims = [self._raw(d, max(0, min(self.n - 1, j))) for j in (idx - 1, idx, idx + 1)]
+        m = median3(*ims).astype(np.float32) * (1.0 / 255.0)
         if len(self._mc) > 6:
             self._mc.clear()
         self._mc[idx] = m
