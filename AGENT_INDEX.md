@@ -1,4 +1,4 @@
-# AGENT_INDEX — one page: "user asks X → open file Y, use key Z"   (VE / mograph v21 Style Bank & Creative Synthesis)
+# AGENT_INDEX — one page: "user asks X → open file Y, use key Z"   (VE / mograph v22 · Concat-inspired kit on v21 Style Bank)
 
 > ⛔ **SUPREME LAW (v21) — قانون منع مطلق کپی و تکرار:** never copy a reference image, a template, an archived
 > spec or a previous project (texts, shapes, widget sequence, colours, ordering). References are STYLE STUDIES
@@ -14,7 +14,8 @@ cd /home/user/webapp/sdk && python3 -m mograph.pro doctor --fix      # deps · b
 python3 -m mograph.motion resolve "<the user's sentence in Persian/English>"   # words → engine keys
 python3 -m mograph.pro style-bank --list                # v21: principles of every reference (study, never copy)
 ```
-`doctor` must end with `ALL GOOD ✓` (v14 9/9 · aefx 9/9 · aecomp 13/13 · motion 10/10 · pro 12/12 · three3d 8/8 · three_anim 7/7 · style_bank 3/3 = 71 tests).
+`doctor` must end with `ALL GOOD ✓` (v14 9/9 · aefx 9/9 · aecomp 13/13 · motion 10/10 · pro 12/12 · three3d 8/8 · three_anim 7/7 · style_bank 3/3 · v22 10/10 = 81 tests).
+Agents with MCP: `python3 -m mograph.mcp` (stdio) gives the same loop as tools with a warm renderer — `sdk/V22_GUIDE.md` §1.
 The tracking cache (normally 9 min of MODNet/MediaPipe) is restored in seconds from `work/input/raw.mp4.v14pack/`.
 
 ## 1. Which engine?
@@ -62,6 +63,13 @@ The tracking cache (normally 9 min of MODNet/MediaPipe) is restored in seconds f
 | حذف مکث / جامپ‌کات نامرئی | `"source":{"segments":[…],"morph_cuts":{…}}` | `v14 words` | V14_GUIDE §1 |
 | تدوین خودکار از صفر (semantic, per-video style seed) | `python3 -m mograph.v14 auto-edit words.json media/raw.mp4 -o edit_auto.json` (`--legacy-showcase` = old widget cycle) | | V14_GUIDE v14.8 |
 | حرکت دوربین / پانچ / لرزش | `"camera":{"keys":[…],"shakes":[…]}` | | V14_GUIDE §1 |
+| **لرزش‌گیر ویدیو (دوربین روی دست)** | `"source":{"stabilize":true}` | `pro stabilize edit.json` | V22_GUIDE §6 |
+| **ماسک سریع‌تر و پایدارتر (RVM)** | `"source":{"matte_engine":"rvm"}` + `v14.track … --engine rvm` | | V22_GUIDE §2 |
+| **افزایش کیفیت تصویر / لوگوی بی‌کیفیت** | broll `"enhance":{"factor":2,"mix":.6}` · `"source":{"enhance":{"punch_in":1.3}}` | `pro enhance x.png` | V22_GUIDE §5 |
+| **حذف پس‌زمینه عکس محصول** | broll `"cutout":true` | `pro cutout x.jpg` | V22_GUIDE §7 |
+| **ماسک شکل (دایره/قلب/ستاره/مورب)** | broll `"mask":{"shape":"heart"}` · `"mode":"split_diag"` | | V22_GUIDE §8 |
+| **گویندگی فارسی آفلاین (بدون API)** | `"voice":{"provider":"local","voice":"amir"}` | `python -m mograph voice spec.json` | V22_GUIDE §3 |
+| **اصلاح زمان کلمات (زیرنویس زودتر از گفتار)** | `python3 -m mograph.vad raw.mp4 --words words.json` | | V22_GUIDE §4 |
 | صدا: نویزگیری / موزیک / SFX / لاودنس | `"audio":{"denoise","music","sfx_gain","lufs"}` | `v14 render` | V14_GUIDE §6 |
 
 ## 3. Times (every "t" / "out" / "at")
@@ -89,7 +97,8 @@ warning) · 4 **world-locked stability** (follow ≈ 0.12–0.18; nothing on the
 footage (`@accent @alert @ink`) · grid off by default.
 
 ## 6. Repo rules
-Work only in `/home/user/webapp` · commit after each step · repo < 100 MB (big binaries are fetched by doctor) ·
+Work only in `/home/user/webapp` · commit after each step · repo < 100 MB (big binaries are fetched by doctor; v22 ML
+models ONLY via `mograph/models_hub.py` into ~/.cache/mograph_models — never commit an .onnx) ·
 `projects/maghale/` keeps ONE example (`edit_v14.json`); the 9 old clones live in `sdk/tests/legacy_maghale/`
 (regression fixtures — never templates) · `projects/*/media` and `*.v14/` caches are git-ignored (doctor restores them) · do not run renders in parallel with
 `v14.track` prep (RAM).
