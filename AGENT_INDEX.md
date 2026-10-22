@@ -1,11 +1,17 @@
-# AGENT_INDEX — one page: "user asks X → open file Y, use key Z"   (VE / mograph v20 Procedural 3D & Pro Editor)
+# AGENT_INDEX — one page: "user asks X → open file Y, use key Z"   (VE / mograph v21 Style Bank & Creative Synthesis)
+
+> ⛔ **SUPREME LAW (v21) — قانون منع مطلق کپی و تکرار:** never copy a reference image, a template, an archived
+> spec or a previous project (texts, shapes, widget sequence, colours, ordering). References are STYLE STUDIES
+> (`sdk/style_bank/STYLE_BANK_PLAYBOOK.md`). Every video gets a new visual identity.
+> `python3 -m mograph.pro originality edit.json` must say `originality ✓` before you render.
 
 ## 0. Every session (2 commands)
 ```bash
 cd /home/user/webapp/sdk && python3 -m mograph.pro doctor --fix      # deps · binaries · fonts · footage · tracking cache · 5 selftests
 python3 -m mograph.motion resolve "<the user's sentence in Persian/English>"   # words → engine keys
+python3 -m mograph.pro style-bank --list                # v21: principles of every reference (study, never copy)
 ```
-`doctor` must end with `ALL GOOD ✓` (v14 9/9 · aefx 9/9 · aecomp 13/13 · motion 10/10 · pro 12/12 · three3d 7/7 · three_anim 7/7 = 67 tests).
+`doctor` must end with `ALL GOOD ✓` (v14 9/9 · aefx 9/9 · aecomp 13/13 · motion 10/10 · pro 12/12 · three3d 8/8 · three_anim 7/7 · style_bank 3/3 = 71 tests).
 The tracking cache (normally 9 min of MODNet/MediaPipe) is restored in seconds from `work/input/raw.mp4.v14pack/`.
 
 ## 1. Which engine?
@@ -17,7 +23,12 @@ The tracking cache (normally 9 min of MODNet/MediaPipe) is restored in seconds f
 ## 2. Request → key (v14 edit.json)
 | the user says | key | LOOK first | guide |
 |---|---|---|---|
-| تایتل / متن سه‌بعدی / کلمه کلیدی | `{"type":"kinetic_title","text":"…|*hero*","t":"w:word"}` | `v14 sheet` | V14_GUIDE §2–3 |
+| **رفرنس / سبک / «مثل این ویدیو»** | study → `style-bank --list`; add → drop file in `sdk/style_bank/references/` + `style-bank --sync` | `style-bank --sheet` | STYLE_BANK_PLAYBOOK |
+| **بررسی کپی/تکرار** | `python3 -m mograph.pro originality edit.json` | | STYLE_BANK_PLAYBOOK §0 |
+| تایتل / متن نوری خالص (پیش‌فرض ۶۰–۷۰٪ بیت‌ها) | `{"type":"kinetic_title","text":"…|*hero*","t":"w:word","follow":0.12,"stage":{"grid":0}}` | `v14 sheet` | V14_GUIDE §1–3 |
+| مقایسهٔ دو مفهوم | two `kinetic_title` on a shared baseline + `morph_shape` (design it fresh) | | USER_TASTE_GUIDE law 3 |
+| ترکیب فونت | `"styles":{"hero":{"font":"Delbar-Bold.ttf"}}` (font_lock off by default) | | USER_TASTE_GUIDE law 6 |
+| سبک زیرنویس | `"subtitles":{"style":"minimal_clean|soft_scrim|glass_matte|jelly_crescent"}` (auto-hide under lower thirds) | | V14_GUIDE §3 |
 | انیمیشن متن افترافکتی (حرف‌به‌حرف) | `"preset":"atp_23"` on kinetic_title | `aefx sheet text …` | AEFX_GUIDE |
 | حرکت آماده (shake, glitch, zoom) روی هر لایه | `"fx":[{"motion":"shake_03","at":"w:…"}]` | `aefx suggest punchy` | AEFX_GUIDE |
 | درخشش / گلو | `"fx":[{"glow":{…}}]` | | AEFX_GUIDE |
@@ -29,8 +40,8 @@ The tracking cache (normally 9 min of MODNet/MediaPipe) is restored in seconds f
 | انفجار / کانفتی / فلش / شکل‌های افترافکتی | `{"type":"aecomp","gen":"burst"}` | `aecomp sheet` | AECOMP_GUIDE |
 | زیرنویس معرفی (lower third) بدون باکس | `{"type":"aecomp","lower_third":"line_reveal","title","role"}` | `aecomp lt-sheet` | AECOMP_GUIDE |
 | تایتل تمام‌صفحه | `{"type":"aecomp","title_style":"burst_hero","hero"}` | `aecomp title-sheet` | AECOMP_GUIDE |
-| حلقه متن دور سر / هاله / دیسک / شیشه / کادر | `orbit_ring` · `halo` · `disc` · `glass_shape` · `frame_box` | `v14 sheet` | V14_GUIDE §3 |
-| برچسب ترک‌شده روی دست/شانه | `tracked_tag` `"anchor":"hand_r"` | | V14_GUIDE §3 |
+| حلقه متن دور سر / هاله / دیسک / شیشه / کادر (*legacy, ≤1 per video, only if meaningful*) | `orbit_ring` · `halo` · `disc` · `glass_shape` · `frame_box` | `v14 sheet` | V14_GUIDE §3 |
+| برچسب ترک‌شده روی دست/شانه (*legacy, intentional gesture only*) | `tracked_tag` `"anchor":"hand_r"` | | V14_GUIDE §3 |
 | **انیمیشن داخل شی سه‌بعدی** (ساعت شنی که شن می‌ریزد و برمی‌گردد، لپ‌تاپ باز شود، قطعات سر هم شوند) | `object_3d` `"three_model":"hourglass_3d","anim":"hourglass_loop","flips_at":["w:…"]` · `"anim":"laptop_open"` · `"anim":"assemble"` · `"explode_at":"w:…"` | `python3 -m mograph three3d-anim-sheet hourglass_loop` | V14_3D_GUIDE §0.1 |
 | **شی سه‌بعدی واقعی (اسکریپتی Three.js / PBR)** | `object_3d` `"three_model":"hourglass_3d"` or `"three_script":"my.js:buildFn"` | `python3 -m mograph three3d-list` · `three3d-sheet` | V14_3D_GUIDE |
 | شی سه‌بعدی اسکن‌شده (Poly Haven GLB) | `object_3d` `"model"` | `python3 -m mograph pbr3d-search` | V14_3D_GUIDE |
@@ -46,7 +57,7 @@ The tracking cache (normally 9 min of MODNet/MediaPipe) is restored in seconds f
 | **ترنزیشن** | broll `"in"/"out_fx"`: 12 names | | PRO_EDITOR_GUIDE |
 | تطبیق رنگ با ویدیوی رفرنس | `"grade":{"match":{"ref":"…","strength":.7}}` | | V14_GUIDE v15.1 |
 | حذف مکث / جامپ‌کات نامرئی | `"source":{"segments":[…],"morph_cuts":{…}}` | `v14 words` | V14_GUIDE §1 |
-| تدوین خودکار از صفر | `python3 -m mograph.v14 auto-edit words.json media/raw.mp4 -o edit_auto.json` | | V14_GUIDE v14.8 |
+| تدوین خودکار از صفر (semantic, per-video style seed) | `python3 -m mograph.v14 auto-edit words.json media/raw.mp4 -o edit_auto.json` (`--legacy-showcase` = old widget cycle) | | V14_GUIDE v14.8 |
 | حرکت دوربین / پانچ / لرزش | `"camera":{"keys":[…],"shakes":[…]}` | | V14_GUIDE §1 |
 | صدا: نویزگیری / موزیک / SFX / لاودنس | `"audio":{"denoise","music","sfx_gain","lufs"}` | `v14 render` | V14_GUIDE §6 |
 
@@ -58,7 +69,8 @@ seconds (moves correctly through retime) · `"s:3.2"` raw on-screen seconds · `
 ```bash
 cd projects/<p> && export PYTHONPATH=../../sdk
 python3 -m mograph.pro lint edit.json            # types / typos / files / anchors / hero overlaps
-python3 -m mograph.v14 qa edit.json              # on-screen: face cover, edges, subtitle lengths
+python3 -m mograph.v14 qa edit.json              # on-screen: face cover, edges, subtitles, collisions, originality
+python3 -m mograph.pro originality edit.json     # v21: copy / clone / rotation audit → must be ✓
 python3 -m mograph.v14 sheet edit.json           # LOOK at it (12 frames)
 python3 -m mograph.pro render edit.json --preview  # client preview, half res
 python3 -m mograph.pro render edit.json -j 2       # master + .srt/.vtt + timeline (resumable)
@@ -66,11 +78,15 @@ python3 -m mograph.pro reformat out/edit.mp4 --to 1:1 --spec edit.json   # other
 ```
 Delivery extras: `pro captions` · `pro edl` · `pro chapters` · `pro thumbnail` · `pro platform`.
 
-## 5. Laws (user taste — never break)
-Zero-box (no flat 2D boxes behind text) · one hero idea at a time · hero = the spoken key word · Doran theme ·
-colour tokens `@accent @alert @ink` · subtitles hidden under lower-third heroes · `sdk/USER_TASTE_AND_DNA_LAWS.md`.
+## 5. Laws (user taste — never break) → `sdk/USER_TASTE_GUIDE.md` (6 Core Creative Laws)
+1 **No copying, no repetition** (references = style studies; originality guard) · 2 **pure glow typography first**
+(60–70 % of beats, no container around every sentence) · 3 **form follows meaning** (comparison / object /
+warning) · 4 **world-locked stability** (follow ≈ 0.12–0.18; nothing on the face, forehead or hair) ·
+5 **subtitle variety + zero collision** · 6 **curated font pairing**. Plus: zero flat 2D boxes · colours from the
+footage (`@accent @alert @ink`) · grid off by default.
 
 ## 6. Repo rules
 Work only in `/home/user/webapp` · commit after each step · repo < 100 MB (big binaries are fetched by doctor) ·
-`projects/*/media` and `*.v14/` caches are git-ignored (doctor restores them) · do not run renders in parallel with
+`projects/maghale/` keeps ONE example (`edit_v14.json`); the 9 old clones live in `sdk/tests/legacy_maghale/`
+(regression fixtures — never templates) · `projects/*/media` and `*.v14/` caches are git-ignored (doctor restores them) · do not run renders in parallel with
 `v14.track` prep (RAM).

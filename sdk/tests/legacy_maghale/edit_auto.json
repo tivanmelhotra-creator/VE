@@ -8,8 +8,8 @@
   "palette": "auto"
  },
  "source": {
-  "src": "media/raw.mp4",
-  "words": "words.json",
+  "src": "../../../projects/maghale/media/raw.mp4",
+  "words": "../../../projects/maghale/words.json",
   "segments": [
    [
     1.18,
@@ -418,5 +418,6 @@
   "denoise": "auto",
   "multiband": true,
   "vocal_booth_reverb": 0.04
- }
+ },
+ "_archived": "v21: archived example clone (same widget sequence as edit_v14.json). Kept for regression tests ONLY — never use as a template (originality law)."
 }

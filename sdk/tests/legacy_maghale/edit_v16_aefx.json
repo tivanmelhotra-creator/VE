@@ -8,8 +8,8 @@
   "palette": "auto"
  },
  "source": {
-  "src": "media/raw.mp4",
-  "words": "words.json",
+  "src": "../../../projects/maghale/media/raw.mp4",
+  "words": "../../../projects/maghale/words.json",
   "segments": [
    [
     1.12,
@@ -24,23 +24,11 @@
     17.62
    ]
   ],
-  "retime": [
-   {
-    "op": "speed_ramp",
-    "t": "w:مقاله",
-    "dur": 0.3,
-    "from": 1,
-    "to": 0.3,
-    "hold": 0.3,
-    "back": 0.3
-   },
-   {
-    "op": "freeze_frame",
-    "t": "we:چکیده",
-    "dur": 0.7
-   }
-  ],
-  "interpolate": "flow"
+  "cut_presets": {
+   "out": "blur_02_out",
+   "in": "blur_02_in",
+   "dur": 0.4
+  }
  },
  "grade": {
   "bg": {
@@ -233,6 +221,15 @@
   "fade": [
    0.0,
    0.35
+  ],
+  "aefx": [
+   {
+    "glow": {
+     "radius": 50,
+     "threshold": 0.85,
+     "exposure": 0.2
+    }
+   }
   ]
  },
  "subtitles": {
@@ -302,7 +299,11 @@
     "light": 0.7
    },
    "hero_hit": "w:مقاله",
-   "stagger": 0.03
+   "stagger": 0.03,
+   "preset": "atp_23",
+   "preset_dur": 0.8,
+   "preset_out": "atp_100",
+   "preset_out_dur": 0.45
   },
   {
    "type": "orbit_ring",
@@ -383,7 +384,19 @@
    "badge_text": "۲",
    "extrude": {
     "depth": 6
-   }
+   },
+   "fx": [
+    {
+     "motion": "glitch_04_in"
+    },
+    {
+     "glow": {
+      "radius": 40,
+      "threshold": 0.7,
+      "exposure": -0.8
+     }
+    }
+   ]
   },
   {
    "type": "disc",
@@ -434,7 +447,11 @@
    },
    "extrude": {
     "depth": 12
-   }
+   },
+   "preset": "atp_340",
+   "preset_dur": 0.8,
+   "preset_out": "atp_100",
+   "preset_out_dur": 0.45
   },
   {
    "type": "halo",
@@ -508,7 +525,12 @@
     }
    },
    "style": "nested",
-   "gap": 7
+   "gap": 7,
+   "fx": [
+    {
+     "motion": "scale_10_in"
+    }
+   ]
   },
   {
    "type": "kinetic_title",
@@ -532,7 +554,11 @@
     "tiny": {
      "scale": 0.8
     }
-   }
+   },
+   "preset": "atp_13",
+   "preset_dur": 0.8,
+   "preset_out": "atp_100",
+   "preset_out_dur": 0.45
   }
  ],
  "audio": {
@@ -547,5 +573,6 @@
   "sfx_gain": 0.55,
   "lufs": -14,
   "denoise": "auto"
- }
+ },
+ "_archived": "v21: archived example clone (same widget sequence as edit_v14.json). Kept for regression tests ONLY — never use as a template (originality law)."
 }

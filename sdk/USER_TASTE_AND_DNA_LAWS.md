@@ -1,4 +1,9 @@
 # 🧬 USER TASTE & VISUAL-DNA CONSTITUTION (قانون اساسی سلیقهٔ کارفرما و دی‌ان‌ای بصری پروژه)
+> **v21 HARMONISATION:** read together with `USER_TASTE_GUIDE.md` (6 Core Creative Laws) and
+> `style_bank/STYLE_BANK_PLAYBOOK.md`. **Supreme law: copying and repetition are forbidden.** The techniques below
+> are a vocabulary of principles, not a template. Use each one only when the meaning calls for it, and never
+> repeat the same combination from one video to the next.
+>
 > **MANDATORY CROSS-SESSION MEMORY FOR ALL AI AGENTS:**
 > Read this file FIRST whenever a new session begins. This document permanently records the User's exact aesthetic taste, creative direction rules, and strict prohibitions established across our production sessions.
 
@@ -18,6 +23,8 @@
 When editing a raw talking-head video (`footage`), raw room backgrounds often have poor contrast for text. **Never solve poor background contrast by putting a box behind the text!** Instead, use these two signature techniques implemented in `mograph v13.5`:
 
 ### Technique A — Behind-Speaker Full-Environment Coordinate Grid Pass (`"behind": "clip"`)
+> v21: an OPTIONAL technique for engineering/data topics, at most once per video. It is no longer drawn behind
+> every element (stage grid default = 0). The default contrast tool is soft scrim + coloured light pool + glow.
 - Segment the speaker using `portrait_seg.onnx` (`mograph/matte.py`).
 - Transform the **entire background behind the speaker** (`_draw_dna_grid_environment` in `reelfx.py`) into a color-graded dark studio environment with:
   - A subtle `0.6px` engineering coordinate grid + `+` intersection tick marks,
@@ -45,7 +52,9 @@ When editing a raw talking-head video (`footage`), raw room backgrounds often ha
 
 ## ✒️ LAW 4: MULTI-FONT PERSIAN KINETIC TYPOGRAPHY & ONE THREAD OF COLOR
 
-> ⚠️ **SUPERSEDED (v14):** multi-font is retired. Use **Doran only, +12% width** — see `USER_TASTE_GUIDE.md` §3. Colours are auto-designed from footage (§4).
+> ✅ **v21: multi-font pairing is ACTIVE again** (USER_TASTE_GUIDE Law 6). The v14 "Doran only" lock is retired
+> (`font_lock` false by default). Pair one structural family with one expressive hero voice per video, and vary
+> the pairing between videos. Colours are still designed from the footage.
 1. **Multi-Font Pairing (Never Monotonous Single-Font Layouts):**
    - Pair heavy 3D-extruded display headlines (`KalamehFaNum-Black`, `Peyda-Black`) with expressive handwritten/calligraphic accents (`DigiGhasedak-Bold`, `Delbar-Bold`, `Shoko-Bold`, `Miremad` Nastaliq) and crisp numeric counters (`PelakFA-Black`).
 2. **Glowing Caliper Underlines Instead of Boxes (`_draw_glow_underline`):**
@@ -54,7 +63,8 @@ When editing a raw talking-head video (`footage`), raw room backgrounds often ha
 ---
 
 ## خلاصهٔ فارسی قوانین دائمی سلیقهٔ شما (ثبت‌شده در حافظهٔ پروژه برای تمام سشن‌های بعدی)
+0. **قانون برتر (v21): کپی‌کاری و تکرار اکیداً ممنوع.** رفرنس‌ها، تمپلیت‌ها و پروژه‌های قبلی فقط برای سبک‌شناسی و الگوبرداری هستند. هر ویدیو هویت بصری خودش را دارد و `pro originality` آن را بررسی می‌کند.
 1. **ممنوعیت مطلق باکس‌های مستطیلی دوبعدی (`Zero-Box Law`):** هیچ نوشته، تیتر، قیمت، لوگو یا آیکونی نباید داخل باکس یا کپسول مستطیلی تخت قرار بگیرد. تنها استثناها: (الف) **احجام واقعاً سه‌بعدی** از جنس شیشهٔ مات و فلز تراش‌خورده (مثل بلوک‌های سه‌بعدی `A+ / B / C`)، و (ب) **نوار لودینگ به سبک بازی‌ها (`hud_loading_bar`)** وقتی که خودِ مفهوم، بارگذاری یا لودینگ باشد.
-2. **گرید مهندسی در کل پس‌زمینهٔ پشت گوینده (`Behind-Speaker Coordinate Grid`):** به جای گذاشتن باکس پشت متن، کل پس‌زمینهٔ پشت شخص دوربری‌شده به محیط استودیویی تیره با گرید مهندسی ظریف (`0.6px`) و نورپردازی هم‌رنگ با گوینده تبدیل می‌شود.
+2. **گرید مهندسی (اختیاری، حداکثر یک بار در هر ویدیو؛ پیش‌فرض خاموش):** به جای گذاشتن باکس پشت متن، کل پس‌زمینهٔ پشت شخص دوربری‌شده به محیط استودیویی تیره با گرید مهندسی ظریف (`0.6px`) و نورپردازی هم‌رنگ با گوینده تبدیل می‌شود.
 3. **تار کردن کل تصویر گوینده (`dof_blur`) برای نکات مهم:** در لحظات اوج (مثل «نکته خیلی مهم!»)، کل تصویر گوینده به نرمی تار و مات (`f/2.8 Blur`) شده و تیتر سه‌بعدی در مرکزِ کل صفحه بدون هیچ باکسی می‌درخشد.
 4. **لوگوها و المان‌های سه‌بعدی چرخان (`Tactile 3D + Perspective Spin`):** تمام لوگوهای برندها و آیکون‌های اصلی به صورت آبجکت سه‌بعدی واقعی با چرخش پرسپکتیو سه‌بعدی (`yaw/pitch`) و ترکیب فونت‌های متنوع فارسی (`KalamehFaNum-Black` + `DigiGhasedak-Bold` دست‌نویس + `PelakFA-Black`) اجرا می‌شوند.

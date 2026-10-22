@@ -14,7 +14,7 @@ Parameters: `pour_dur` 3.0 · `flip_dur` 0.7 · `hold` 0.25 · `settle` 0.3 · `
 Guarantees (selftest `python3 -m mograph.three_anim selftest`, also in `pro doctor`): sand volume conserved (<0.2 %), sand never pokes through
 the glass, frame at the end of a flip == frame at the start of the next pour (no pop), camera framing locked (no breathing while
 the bounding box changes), pure function of time (parallel chunk render safe).  LOOK first: `python3 -m mograph three3d-anim-sheet hourglass_loop`.
-Example: `projects/maghale/edit_v20_anim.json` (hourglass flips on «آخر» and «شروع», laptop opens).
+Example: `sdk/tests/legacy_maghale/edit_v20_anim.json (archived regression fixture — NOT a template)` (hourglass flips on «آخر» and «شروع», laptop opens).
 **Agent rule:** a new animated object = a builder with a state argument (`build_x(mats, state)`) + a pure `state(cfg, lt)` in
 three_anim.py + a sheet + a seam/volume-style selftest. Do NOT fake it with yaw keyframes or 2D sprite swaps.
 **Why v20 replaces 2D sprite slab extrusion (`obj3d.py`):** Extruding a 2D AI-generated image (`depth=0.14`) creates a flat cardboard cutout that collapses at side angles (>45°–85°), has frozen painted highlights, and cannot animate sub-parts or transparent glass. `mograph.three3d` builds true 360° mathematical 3D meshes (`LatheGeometry`, `TubeGeometry`, `ExtrudeGeometry`, `OctahedronGeometry`, `TorusGeometry`, `CylinderGeometry`) with a **Two-Pass Deferred PBR + Refractive Glass Renderer** (opaque metallic/emissive pass + depth-tested Fresnel clearcoat glass pass).
@@ -76,7 +76,7 @@ Rules / gotchas (all tested)
   only then `real3d` / `sculpt3d` (§0b).
 - Look: `hdri` = any Poly Haven HDRI id (`brown_photostudio_02`, `ferndale_studio_05` …), `env_rot` rotates it
   (moves reflections), `light.key` 0–150 (key + shadow), `light.env` (ambient / reflections).
-- Tests: `tests/v146_pbr3d.json` · footage: `projects/maghale/edit_v14_pbr3d.json` · compare sheet:
+- Tests: `tests/v146_pbr3d.json` · footage: `sdk/tests/legacy_maghale/edit_v14_pbr3d.json (archived regression fixture — NOT a template)` · compare sheet:
   `work/renders/3d_compare_v14_6.jpg`.
 
 ## 0b. v14.5 — `real3d`: TRUE 3D textured product models (use this when the object must turn freely)

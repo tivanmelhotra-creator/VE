@@ -435,3 +435,10 @@ def selftest():
         print(f"  {'✓' if ok else '✗'} {name:<10} {msg}")
     print(f"style_bank selftest: {r1 + r2 + r3}/3 pass")
     return 0 if ok_all else 1
+
+
+if __name__ == "__main__":
+    import sys
+    if len(sys.argv) > 1 and sys.argv[1] == "selftest":
+        sys.exit(selftest())
+    print(__doc__)
