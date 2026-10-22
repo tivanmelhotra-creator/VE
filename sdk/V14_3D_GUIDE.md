@@ -167,3 +167,12 @@ Then render real frames (`mograph frame` / `mograph.v14 frame`) and LOOK at them
 - textures projected onto sculpt parts from the reference image (now only procedural laptop decals)
 - depth-anything ONNX depth for `image_to_3d` relief (function exists, model not bundled)
 - motion blur on fast spins; object reflections in the v14 glass layers
+
+## v21 — multi-object metaphors never fuse (`three3d.check_mesh_overlap`)
+Two separate concepts (e.g. «چرخ یا سفال» — wheel *or* pottery) must stay two readable objects:
+- **Preferred**: two separate `object_3d` layers staged side by side (left/right of the speaker, different times).
+- **Inside one THREE.Group**: every concept is a direct child group, spaced **≥ 1.4 units apart on X**. Sub-parts
+  of ONE object are tagged `userData.part_of = "<concept>"`, so they are grouped and not compared.
+- Check before use: `from mograph.three3d import check_mesh_overlap; check_mesh_overlap(group)` → `[]` = OK; otherwise
+  `(a, b, "intersect" | "too close on X")`. The three3d selftest `concept_gap` guards it.
+- Never glue two 3D objects on top of each other to "mean both". Pick one prop per idea (USER_TASTE_GUIDE law 3).
