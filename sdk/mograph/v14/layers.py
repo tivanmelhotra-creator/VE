@@ -7,7 +7,8 @@ Each layer is a JSON dict.  Common keys:
   pass      "back" (behind the speaker) | "front" (default) | "both" (3D layers split themselves by depth)
   anchor    tracked point the layer is glued to: head_top face nose chin neck chest belly shoulder_l/r hand_l/r hands
             or "screen" (fixed).  "offset": [dx, dy] in units of HEAD WIDTH (so it scales with the speaker/zoom)
-            "x","y" = screen px when anchor == "screen".   "follow": 0..1 how much it follows (default 1)
+            "x","y" = screen px when anchor == "screen".   "follow": 0..1 how much it follows (default 1;
+            v21: kinetic_title / frame_box / halo default 0.18 = world-stabilised, "track": true = full tracking)
   size      base font px (scaled by "head_scale" × head width when anchored, default true)
   text      MARKUP (see glyphs.py):  "آمپول‌های|*لاغری*"
   styles    per-layer style overrides       palette  {"accent": "#FF2E42", ...}
@@ -100,7 +101,7 @@ def pos(L, F):
     ax, ay = F.anchor(a)
     hw = F.head_px()
     off = L.get("offset", [0, 0])
-    fl = float(L.get("follow", 1.0))
+    fl = follow_of(L)
     if fl < 1.0:                              # partial follow: blend with the clip-average anchor
         mx, my = F.R.tracks.A[a].mean(axis=0)
         bx, by = F.uv(mx, my)
@@ -114,7 +115,7 @@ def pos(L, F):
     # rotate the offset with the head tilt (layer orbits with the head instead of floating rigidly)
     roll = F.R.tracks.head_roll(F.src_t) if a in ("head_top", "head_c", "face", "nose", "chin") else \
         F.R.tracks.shoulder_roll(F.src_t)
-    tilt = float(L.get("tilt_follow", 0.8)) * roll
+    tilt = float(L.get("tilt_follow", 0.8 * min(1.0, fl + 0.1))) * roll   # stabilised layers barely orbit
     L["_roll"] = tilt
     ca, sa = math.cos(math.radians(tilt)), math.sin(math.radians(tilt))
     ox, oy = off[0] * hw, off[1] * hw
@@ -131,7 +132,22 @@ def pos(L, F):
         x, y = guard(L, F, x, y, r_est)
     # scale with the speaker, but damped (sqrt) so titles never shrink to unreadable or explode on push-ins
     k = (hw / float(L.get("head_ref", 300.0))) ** 0.5 if L.get("head_scale", True) else 1.0
+    k *= float(L.get("_gscale", 1.0))         # v21: guard shrinks an above-head title when the head is too high
     return x, y, k
+
+
+# v21 WORLD-LOCKED STABILITY: titles / boxes / halos no longer bob with every head move.  They sit in studio space
+# around the clip-median anchor with a gentle 18 % drift.  "track": true or an explicit "follow" restores tracking
+# (use body tracking only for intentional moments: a hand holding / pointing at something).
+STABLE_FOLLOW = {"kinetic_title": 0.18, "frame_box": 0.18, "halo": 0.18}
+
+
+def follow_of(L):
+    if "follow" in L:
+        return float(L["follow"])
+    if L.get("track"):
+        return 1.0
+    return STABLE_FOLLOW.get(L.get("type"), 1.0)
 
 
 def element_radius(L, F, hw):

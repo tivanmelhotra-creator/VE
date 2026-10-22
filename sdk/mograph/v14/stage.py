@@ -21,6 +21,8 @@ B) STAGE LIGHT  (the user's taste: a translucent engineering grid, low opacity, 
                element look like it EMITS light) — the same colour also feeds the emission buffer so it spills
                onto the speaker.
    Strength per layer: "stage": {"scrim": 0.55, "grid": 0.22, "light": 0.5, "radius": 1.7}  or  "stage": false.
+   v21: the GRID IS OFF BY DEFAULT (grid 0.0) — only scrim + coloured light pool are drawn.  Turn the grid on
+   explicitly per layer ("stage": {"grid": 0.25}) and at most once per video (originality guard warns otherwise).
 """
 from __future__ import annotations
 
@@ -42,12 +44,22 @@ GUARD_DEFAULT = {"disc": "down", "glass_shape": "down", "frame_box": "up", "kine
 
 
 # ------------------------------------------------------------------------------------------------ A) guard
-def face_zone(F, margin=0.18):
-    """Protected ellipse (cx, cy, rx, ry) in screen px: forehead … below the chin."""
+def face_zone(F, margin=0.18, crown=True):
+    """Protected ellipse (cx, cy, rx, ry) in screen px: HAIR CROWN … below the chin.
+    v21 fix: the top used to stop at the eyebrows (fy − 0.55·hw) → titles were pushed onto the forehead.  Now the
+    whole forehead + hair crown (head_top − 0.18·hw) is inside the ellipse."""
     hw = F.head_px()
     fx, fy = F.anchor("face")
     cx_, cy_ = F.anchor("chin")
-    top = fy - 0.55 * hw
+    if not crown:                                  # QA "covers the face" test: eyes … chin only
+        top = fy - 0.55 * hw
+        bot = cy_ + 0.20 * hw
+        return fx, (top + bot) / 2, hw * (0.5 + margin), (bot - top) / 2 + hw * margin
+    try:
+        _, htop_y = F.anchor("head_top")
+    except Exception:  # noqa: BLE001
+        htop_y = fy - 0.85 * hw
+    top = min(fy - 0.85 * hw, htop_y - 0.18 * hw)
     bot = cy_ + 0.20 * hw
     return fx, (top + bot) / 2, hw * (0.5 + margin), (bot - top) / 2 + hw * margin
 
@@ -91,8 +103,39 @@ def guard(L, F, x, y, r, kind=None):
                     tx = cx_c + s * (rc_c + r * 0.75 + 12)
     # safe frame
     W, H = F.W, F.H
-    tx = min(max(tx, r * 0.60 + 44), W - r * 0.60 - 44)
-    ty = min(max(ty, r * 0.90 + 145), H - r * 1.0 - 80)       # element must stay fully on screen
+    top_lim = r * 0.90 + 145
+    # wide text blocks: r ≈ half the block width → the whole width must stay inside (v21: side titles were clipped)
+    sx_k = 1.0 if L.get("type") in ("kinetic_title", "shatter_text") else 0.60
+    tx = min(max(tx, r * sx_k + 40), W - r * sx_k - 40)
+    ty = min(max(ty, top_lim), H - r * 1.0 - 80)              # element must stay fully on screen
+    # v21 HIGH-HEAD FIX: an "up" element (title above the head) that the top safe boundary pushed back DOWN onto
+    # the head must never land on the forehead → slide it sideways into the open upper-left / upper-right
+    # shoulder space; if the frame is too narrow for that, shrink it (L["_gscale"]) so it stays above the hair.
+    gscale = 1.0
+    if mode == "up" and _overlap(zone, tx, ty, r):
+        hw = F.head_px()
+        try:
+            htop_y = F.anchor("head_top")[1]
+        except Exception:  # noqa: BLE001
+            htop_y = zy - ry
+        room_l, room_r = zx - rx, W - (zx + rx)
+        s = -1 if room_l > room_r else 1
+        if abs(x - zx) > 0.25 * rx:
+            s = 1 if x >= zx else -1
+        tx = zx + s * (rx + r * 0.80 + 10)
+        ty = max(top_lim, min(ty, zy - 0.25 * ry))
+        tx_c = min(max(tx, r * sx_k + 40), W - r * sx_k - 40)
+        if abs(tx_c - tx) > 2 or _overlap(zone, tx_c, ty, r):
+            # no side room either → scale down so the element ends above the hair crown
+            avail = max(20.0, (htop_y - 0.08 * hw) - 145)
+            gscale = max(0.5, min(1.0, avail / max(1.0, 1.9 * r)))
+            r2 = r * gscale
+            ty = max(r2 * 0.90 + 145, min(ty, htop_y - 0.08 * hw - r2))
+            side_x = zx + s * (rx + r2 * 0.80 + 10)
+            tx_c = min(max(side_x, r2 * sx_k + 40), W - r2 * sx_k - 40)
+        tx = tx_c
+    gs_prev = L.get("_gscale", 1.0)
+    L["_gscale"] = gscale if abs(gscale - gs_prev) < 0.02 else gs_prev + (gscale - gs_prev) * 0.35
     # temporal smoothing of the CORRECTION (state on the layer, keyed by frame time)
     dx, dy = tx - x, ty - y
     st = L.setdefault("_guard", {"t": None, "dx": 0.0, "dy": 0.0})
@@ -183,7 +226,7 @@ def draw_stage(F, L, cx, cy, size, color="@accent", alpha=1.0):
     ctx.arc(cx, cy, R, 0, 2 * math.pi); ctx.set_source(rg); ctx.fill()
     # 2 grid
     gcol = G.rgba(cfg.get("grid_color", "@grid"))
-    _grid(ctx, F, cx, cy, R * 0.95, gcol, float(cfg.get("grid", 0.30)) * alpha, k)
+    _grid(ctx, F, cx, cy, R * 0.95, gcol, float(cfg.get("grid", 0.0)) * alpha, k)   # v21: grid OFF by default
     # 3 coloured light pool (centre → fades)
     la = float(cfg.get("light", 0.42)) * alpha
     rg = cairo.RadialGradient(cx, cy, 0, cx, cy, R * 0.9)

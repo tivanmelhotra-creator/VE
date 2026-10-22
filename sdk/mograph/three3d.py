@@ -1183,6 +1183,65 @@ def audit_sheet(model_name="hourglass_3d", out_path=None, cell=280):
     return out_path
 
 
+# ============================================================================================ v21 concept spacing
+MIN_CONCEPT_GAP_X = 1.4
+
+
+def _subtree_bounds(node, R_parent=None, t_parent=None):
+    """World-space AABB (min, max) of every mesh under `node` (same transform maths as CompiledThreeScene)."""
+    if R_parent is None:
+        R_parent, t_parent = np.eye(3, dtype=np.float32), np.zeros(3, np.float32)
+    R_loc = _euler_xyz(node.rotation.x, node.rotation.y, node.rotation.z)
+    pos = np.array([node.position.x, node.position.y, node.position.z], np.float32)
+    R_w = R_parent @ R_loc
+    t_w = t_parent + (pos @ R_parent.T)
+    pts = []
+    if getattr(node, "isMesh", False) and len(node.geometry.v):
+        pts.append(node.geometry.v @ R_w.T + t_w)
+    for ch in node.children:
+        b = _subtree_bounds(ch, R_w, t_w)
+        if b is not None:
+            pts.append(np.stack(b))
+    if not pts:
+        return None
+    allp = np.concatenate(pts, 0)
+    return allp.min(0), allp.max(0)
+
+
+def check_mesh_overlap(group, min_gap_x=MIN_CONCEPT_GAP_X, log=None):
+    """v21: separate CONCEPTS (the direct children of a THREE.Group, e.g. "wheel" + "pottery") must never intersect
+    or fuse into one object.  Returns a list of (i, j, reason) problems — empty list = OK.
+      * the AABBs of two concept sub-trees intersect                         → "intersect"
+      * their centres are closer than `min_gap_x` (1.4 units) on X           → "too close on X (<1.4)"
+    Children flagged `userData["part_of"] = "<concept>"` (sub-parts of ONE object) are grouped, not compared.
+    Multi-object metaphors: stage two separate object_3d layers side-by-side, or space the concepts ≥ 1.4 on X."""
+    kids = list(getattr(group, "children", []))
+    concepts = {}
+    for i, ch in enumerate(kids):
+        key = ch.userData.get("part_of", i) if hasattr(ch, "userData") else i
+        concepts.setdefault(key, []).append(ch)
+    boxes = []
+    for key, nodes in concepts.items():
+        bs = [b for b in (_subtree_bounds(n) for n in nodes) if b is not None]
+        if bs:
+            boxes.append((key, np.min([b[0] for b in bs], 0), np.max([b[1] for b in bs], 0)))
+    probs = []
+    for a in range(len(boxes)):
+        for b in range(a + 1, len(boxes)):
+            ka, lo_a, hi_a = boxes[a]
+            kb, lo_b, hi_b = boxes[b]
+            inter = bool(np.all(lo_a < hi_b) and np.all(lo_b < hi_a))
+            dx = abs(float((lo_a[0] + hi_a[0]) / 2 - (lo_b[0] + hi_b[0]) / 2))
+            if inter:
+                probs.append((ka, kb, "intersect"))
+            elif dx < min_gap_x:
+                probs.append((ka, kb, f"too close on X ({dx:.2f} < {min_gap_x})"))
+    if log:
+        for p in probs:
+            log(f"[three3d] concept overlap {p}")
+    return probs
+
+
 # ============================================================================================ Selftest Suite (v20)
 def _t_models():
     canonical = ("hourglass_3d", "microblading_pen_3d", "emerald_tree_3d", "star_trophy_3d",
@@ -1262,8 +1321,25 @@ def _t_cairo_paint():
     return 0.05 < cov < 0.65, f"Cairo paint coverage {cov:.2f}"
 
 
+def _t_concept_gap():
+    mats = create_studio_materials()
+    m = list(mats.values())[0] if isinstance(mats, dict) else mats[0]
+    def obj(x):
+        g = Group()
+        me = Mesh(SphereGeometry(0.5), m)
+        g.add(me)
+        g.position.x = x
+        return g
+    bad, good = Group(), Group()
+    bad.add(obj(0.0)); bad.add(obj(0.4))
+    good.add(obj(-0.8)); good.add(obj(0.8))
+    pb, pg = check_mesh_overlap(bad), check_mesh_overlap(good)
+    return bool(pb) and not pg, f"fused concepts flagged ({pb[0][2] if pb else '-'}), spaced 1.6 apart OK"
+
+
 TESTS = [
     ("models", _t_models),
+    ("concept_gap", _t_concept_gap),
     ("volume360", _t_volume_360),
     ("glass_pbr", _t_glass),
     ("specular", _t_specular),

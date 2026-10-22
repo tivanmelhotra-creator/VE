@@ -13,6 +13,14 @@ v14: the capsule keeps physical state across phrases:
 "subtitles": {"anchor": "chest", "offset": [0, 0.35], "size": 46, "max_words": 4, "emph": ["مقدمه", ...],
               "phrases": [["w:درسته", "we:مقاله"], ...]  (optional manual phrasing; default = auto by gaps/punct),
               "hide": [[t0, t1], ...]  (no subs while a big title owns the screen), "rim": "#2DD4BF"}
+
+v21 — SUBTITLE VARIETY & ZERO COLLISION
+  "style": "minimal_clean"   (NEW DEFAULT) box-free crisp text, soft legibility shadow, active word in @accent
+           "soft_scrim"      feathered dark gradient behind the text (blur 28), no border, no brackets
+           "glass_matte"     neutral frosted capsule, hairline rgba(255,255,255,.12) border, NO coloured crescents
+           "jelly_crescent"  the legacy @novadent teal-bracketed jelly capsule (only when asked for explicitly)
+  AUTO-HIDE: subtitles are hidden (±0.12 s) while an aecomp lower_third, or a chest/belly disc · glass_shape ·
+  kinetic_title is on screen — no lower-zone collision, ever.  "auto_hide": false disables it.
 """
 from __future__ import annotations
 
@@ -23,6 +31,28 @@ import cairo
 from . import glyphs as G
 from . import physics as ph
 from .compositor import glass, norm_word
+
+SUB_STYLES = ("minimal_clean", "soft_scrim", "glass_matte", "jelly_crescent")
+HIDE_PAD = 0.12
+
+
+def lower_zone_windows(R, pad=HIDE_PAD):
+    """[[t0, t1], …] (edited seconds) of every layer that owns the lower zone: aecomp lower thirds and chest/belly
+    hero elements.  Used by prepare_subs (auto-hide) and by qa (collision check)."""
+    out = []
+    for L in R.spec.get("layers", []):
+        t = L.get("type")
+        lower = (t == "aecomp" and L.get("lower_third")) or \
+            (L.get("anchor") in ("chest", "belly") and t in ("disc", "glass_shape", "kinetic_title"))
+        if not lower:
+            continue
+        try:
+            a = R.tl.resolve(L.get("t", 0.0))
+            b = R.tl.resolve(L.get("out"), R.duration + 1)
+        except Exception:  # noqa: BLE001
+            continue
+        out.append([a - pad, b + pad])
+    return out
 
 
 def prepare_subs(cfg, R):
@@ -79,6 +109,10 @@ def prepare_subs(cfg, R):
         out.append({"t0": t0, "t1": t1, "words": ws, "blk": b, "w": b.w, "h": b.h})
     S["_phr"] = out
     S["_hide"] = [[R.tl.resolve(a), R.tl.resolve(b)] for a, b in cfg.get("hide", [])]
+    if cfg.get("auto_hide", True):
+        S["_hide"] += lower_zone_windows(R)
+    st = cfg.get("style", "minimal_clean")
+    S["_style"] = st if st in SUB_STYLES else "minimal_clean"
     return S
 
 
@@ -140,23 +174,51 @@ def draw_subs(ctx, S, F):
         c.arc(x0 + r, y, r, math.pi / 2, 3 * math.pi / 2)
         c.close_path()
 
-    glass(ctx, F, path, (x0, y - H_ / 2, x1, y + H_ / 2), blur=16,
-          tint=tuple(S.get("tint", (0.02, 0.07, 0.06, 0.55))), lift=0.02, sat=0.7, alpha=a)
-    # thin border + teal crescents on the two end caps
-    rim = G.rgba(S.get("rim", "@accent2"), S["_pal"])
-    ctx.save()
-    path(ctx)
-    ctx.set_source_rgba(1, 1, 1, 0.14 * a)
-    ctx.set_line_width(1.4)
-    ctx.stroke()
-    for (cx_, a0, a1) in ((x1 - r, -math.pi / 2 + 0.35, math.pi / 2 - 0.35), (x0 + r, math.pi / 2 + 0.35, 3 * math.pi / 2 - 0.35)):
-        for lw, aa in ((7, .25), (2.6, 1.0)):
-            ctx.arc(cx_, y, r - 2, a0, a1)
-            ctx.set_source_rgba(rim[0], rim[1], rim[2], aa * a)
-            ctx.set_line_width(lw)
-            ctx.set_line_cap(cairo.LINE_CAP_ROUND)
-            ctx.stroke()
-    ctx.restore()
+    style = S.get("_style", "minimal_clean")
+    if style == "jelly_crescent":
+        glass(ctx, F, path, (x0, y - H_ / 2, x1, y + H_ / 2), blur=16,
+              tint=tuple(S.get("tint", (0.02, 0.07, 0.06, 0.55))), lift=0.02, sat=0.7, alpha=a)
+        # thin border + teal crescents on the two end caps (legacy look — explicit opt-in only)
+        rim = G.rgba(S.get("rim", "@accent2"), S["_pal"])
+        ctx.save()
+        path(ctx)
+        ctx.set_source_rgba(1, 1, 1, 0.14 * a)
+        ctx.set_line_width(1.4)
+        ctx.stroke()
+        for (cx_, a0, a1) in ((x1 - r, -math.pi / 2 + 0.35, math.pi / 2 - 0.35), (x0 + r, math.pi / 2 + 0.35, 3 * math.pi / 2 - 0.35)):
+            for lw, aa in ((7, .25), (2.6, 1.0)):
+                ctx.arc(cx_, y, r - 2, a0, a1)
+                ctx.set_source_rgba(rim[0], rim[1], rim[2], aa * a)
+                ctx.set_line_width(lw)
+                ctx.set_line_cap(cairo.LINE_CAP_ROUND)
+                ctx.stroke()
+        ctx.restore()
+    elif style == "glass_matte":
+        glass(ctx, F, path, (x0, y - H_ / 2, x1, y + H_ / 2), blur=18,
+              tint=tuple(S.get("tint", (0.05, 0.05, 0.06, 0.42))), lift=0.03, sat=0.55, alpha=a, chroma=0.0)
+        ctx.save()
+        path(ctx)
+        ctx.set_source_rgba(1, 1, 1, 0.12 * a)
+        ctx.set_line_width(1.0)
+        ctx.stroke()
+        ctx.restore()
+    elif style == "soft_scrim":
+        # feathered dark pool: stacked translucent ellipses ≈ gaussian (blur ~28 px), zero edge, zero brackets
+        ctx.save()
+        ex, ey = W_ * 0.5 + 28, H_ * 0.5 + 28
+        rg = cairo.RadialGradient(0, 0, 0, 0, 0, 1)
+        dark = float(S.get("scrim", 0.55))
+        rg.add_color_stop_rgba(0.0, 0, 0, 0, dark * a)
+        rg.add_color_stop_rgba(0.55, 0, 0, 0, dark * 0.62 * a)
+        rg.add_color_stop_rgba(1.0, 0, 0, 0, 0)
+        ctx.translate(x, y)
+        ctx.scale(ex, ey)
+        ctx.arc(0, 0, 1, 0, 2 * math.pi)
+        ctx.set_source(rg)
+        ctx.fill()
+        ctx.restore()
+    # minimal_clean: no background at all — legibility comes from the text shadow below
+
     # text: per-word pop on its timestamp, active word accent
     ws = ph_["words"]
     act = max((j for j, w in enumerate(ws) if w["t"] <= t + 0.02), default=-1)
@@ -177,5 +239,18 @@ def draw_subs(ctx, S, F):
             s.color = accent
         return s
     sx = min(1.0, w / max(1.0, ph_["w"]))
+    shadow = {"alpha": .55, "dy": 2}
+    if style == "minimal_clean":
+        # legibility WITHOUT a box: three widening dark outline passes (≈ a soft 10–14 px halo) under the glyphs
+        def m_dark(g):
+            q = m(g)
+            q.color = "#000000"
+            q.fill_alpha = 0.0
+            return q
+        for wdt, al in ((14.0, 0.10), (9.0, 0.16), (5.0, 0.26)):
+            G.draw_block(ctx, ph_["blk"], x, y + 0.03 * ph_["h"], motion=m_dark, pal=S["_pal"], ectx=None,
+                         scale=k * (0.85 + 0.15 * sx), alpha=a * al,
+                         stroke={"color": "#000000", "width": wdt})
+        shadow = {"alpha": .6, "dy": 2}
     G.draw_block(ctx, ph_["blk"], x, y + 0.03 * ph_["h"], motion=m, pal=S["_pal"], ectx=None,
-                 scale=k * (0.85 + 0.15 * sx), alpha=a, shadow={"alpha": .55, "dy": 2})
+                 scale=k * (0.85 + 0.15 * sx), alpha=a, shadow=shadow)

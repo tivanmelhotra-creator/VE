@@ -392,7 +392,9 @@ def glass(ctx, F, path_fn, bbox, blur=16.0, tint=(0.06, 0.07, 0.09, 0.42), lift=
 # =====================================================================================================  renderer
 class Renderer:
     def __init__(self, spec, base_dir="."):
+        self.spec_path = None
         if isinstance(spec, str):
+            self.spec_path = os.path.abspath(spec)
             base_dir = os.path.dirname(os.path.abspath(spec))
             with open(spec, encoding="utf-8") as f:
                 spec = json.load(f)
@@ -424,6 +426,9 @@ class Renderer:
         from . import layers as LY
         from . import glyphs as _G
         _G.DEFAULT_THEME[0] = m.get("theme", "doran")
+        _G.FONT_LOCK.clear()                       # v21: font_lock false by default (curated multi-font pairing)
+        if m.get("font_lock"):
+            _G.FONT_LOCK[_G.DEFAULT_THEME[0]] = True
         pm = m.get("palette", "auto")             # colours DESIGNED from this footage (palette.py), not copied
         if pm == "auto":
             from .palette import auto_palette
