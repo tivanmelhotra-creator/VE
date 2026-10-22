@@ -381,6 +381,7 @@ def build_layers(tl, tw, scores, beats, duration, seg_of, legacy=False, seed=Non
             for side, txt, sx, tt, col in (("a", left, -1, ta, base_glow), ("b", right, 1, tb, "@alert")):
                 layers.append({"type": "kinetic_title", "id": f"{lid}_{side}", "t": tt, "out": t1, "anchor": "chest",
                                "offset": [round(sx * 0.95, 2), yb], "size": sz, "pass": "front", "text": f"*{txt}*",
+                               "group": lid,
                                "follow": 0.12, "guard": "side", "enter": rng.pick(ENTERS), "exit": "sink",
                                "idle": "breathe",
                                "styles": {"hero": {"glow": 0.6, "scale": 1.35, "glow_color": col, "color": "#FFFFFF",

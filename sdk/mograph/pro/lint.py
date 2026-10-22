@@ -31,7 +31,7 @@ LOWER = {"disc", "glass_shape", "tracked_tag"}
 TOP = {"type", "id", "t", "out", "pass", "z", "anchor", "offset", "size", "text", "styles", "clamp_y", "clamp_x",
        "sfx", "sfx_gain", "fx", "palette", "guard", "stage", "depth", "follow", "tilt_follow", "motion_blur",
        "preset", "preset_dur", "preset_out", "preset_out_dur", "selectors", "ease", "chapter", "comment", "note",
-       "_comment", "x", "y", "w", "h", "color", "opacity", "font", "seed", "quality", "dur", "at",
+       "_comment", "group", "track", "x", "y", "w", "h", "color", "opacity", "font", "seed", "quality", "dur", "at",
        # read through loops in layers.prepare / bokeh defaults (invisible to the regex)
        "land", "flip_at", "hero_hit", "pulse_at", "turn_on", "break_at", "words_at", "lines_at", "front", "back",
        # v20.1 three_anim (read through three_anim.DEFAULTS / config)
@@ -187,6 +187,8 @@ def lint(spec_path):
     hs = sorted([L for L in R.layers if L["type"] in HERO and L.get("pass", "front") == "front"], key=lambda L: L["_t0"])
     for a, b in zip(hs, hs[1:]):
         ov = min(a["_t1"], b["_t1"]) - b["_t0"]
+        if a.get("group") and a.get("group") == b.get("group"):
+            continue                                       # v21: parts of ONE composition (e.g. a dual comparison)
         if ov > 0.8:                                       # short hand-offs (exit while the next enters) are normal
             Wn.append(f"two FRONT hero layers overlap {ov:.2f}s: {a.get('id', a['type'])} & {b.get('id', b['type'])} "
                       f"at {b['_t0']:.2f}s (one idea at a time)")

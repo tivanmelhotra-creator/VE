@@ -1,0 +1,406 @@
+{
+ "_about": "v21 creative-synthesis verification spec (own design for this clip — NOT a copy of any reference / template / archived spec). Covers: pure container-free glow typography (shoulder + chest), a symmetrical dual comparison (reading vs writing) built from kinetic_title + morph_shape, minimal_clean subtitles that auto-hide under an aecomp lower third, and a deliberately oversized title above the head to prove the guard never lands on the forehead.",
+ "meta": {
+  "w": 1080,
+  "h": 1920,
+  "fps": 30,
+  "theme": "doran",
+  "palette": "auto"
+ },
+ "source": {
+  "src": "../../projects/maghale/media/raw.mp4",
+  "words": "../../projects/maghale/words.json",
+  "segments": [
+   [
+    1.12,
+    7.14
+   ],
+   [
+    7.44,
+    12.06
+   ],
+   [
+    12.24,
+    17.62
+   ]
+  ]
+ },
+ "grade": {
+  "bg": {
+   "blur": 6,
+   "dim": 0.38,
+   "desat": 0.3,
+   "tint": "#101826",
+   "tint_amt": 0.22,
+   "vignette_bg": 0.4
+  },
+  "fg": {
+   "contrast": 1.06,
+   "warm": 0.02,
+   "sat": 1.02
+  },
+  "keys": [
+   [
+    "w:دقیقا-0.1",
+    {
+     "dim": 0.6,
+     "blur": 10,
+     "tint": "#1A0909",
+     "desat": 0.5
+    }
+   ],
+   [
+    "we:صف+0.2",
+    {
+     "dim": 0.4,
+     "blur": 6,
+     "tint": "#101826",
+     "desat": 0.3
+    }
+   ]
+  ]
+ },
+ "camera": {
+  "keys": [
+   [
+    0.0,
+    1.06,
+    0.5,
+    0.42
+   ],
+   [
+    "w:خوندن",
+    1.1,
+    0.5,
+    0.45,
+    "silk"
+   ],
+   [
+    "w:نگارش",
+    1.14,
+    0.5,
+    0.45,
+    "expo"
+   ],
+   [
+    "w:دقیقا",
+    1.08,
+    0.5,
+    0.41,
+    "silk"
+   ],
+   [
+    "w:اولین#2",
+    1.22,
+    0.5,
+    0.36,
+    "expo"
+   ],
+   [
+    "w:مقدمه",
+    1.1,
+    0.5,
+    0.44,
+    "silk"
+   ]
+  ],
+  "shakes": [
+   [
+    "w:آخر",
+    0.28,
+    7
+   ]
+  ]
+ },
+ "subtitles": {
+  "style": "minimal_clean",
+  "anchor": "chest",
+  "offset": [
+   0,
+   0.95
+  ],
+  "size": 42,
+  "max_words": 4,
+  "emph": [
+   "خوندن",
+   "نگارش",
+   "آخر",
+   "مقدمه"
+  ]
+ },
+ "layers": [
+  {
+   "type": "progress",
+   "id": "prog",
+   "t": 0,
+   "h": 5,
+   "color": "@accent"
+  },
+  {
+   "type": "aecomp",
+   "id": "intro_lt",
+   "lower_third": "line_reveal",
+   "title": "ترتیب نوشتن مقاله",
+   "role": "یک نکته‌ی کوچک، یک تفاوت بزرگ",
+   "t": 0.1,
+   "out": "w:چکیده-0.1",
+   "accent": "@accent"
+  },
+  {
+   "type": "kinetic_title",
+   "id": "cmp_read",
+   "t": "w:چکیده",
+   "out": "we:مقاله#2",
+   "anchor": "chest",
+   "offset": [
+    -0.95,
+    0.1
+   ],
+   "size": 60,
+   "pass": "front",
+   "guard": "side",
+   "follow": 0.12,
+   "text": "^موقع^|*خوندن*",
+   "enter": "rise_blur",
+   "exit": "sink",
+   "idle": "breathe",
+   "styles": {
+    "hero": {
+     "color": "#FFFFFF",
+     "gradient": [
+      "#FFFFFF",
+      "#FFFFFF",
+      "@accent"
+     ],
+     "glow": 0.6,
+     "glow_color": "@accent",
+     "scale": 1.4
+    }
+   },
+   "stage": {
+    "scrim": 0.4,
+    "grid": 0.0,
+    "light": 0.5,
+    "color": "@accent"
+   },
+   "group": "compare_read_write"
+  },
+  {
+   "type": "kinetic_title",
+   "id": "cmp_write",
+   "t": "w:نگارش-0.05",
+   "out": "we:مقاله#2",
+   "anchor": "chest",
+   "offset": [
+    0.95,
+    0.1
+   ],
+   "size": 60,
+   "pass": "front",
+   "guard": "side",
+   "follow": 0.12,
+   "text": "^برای^|*نگارش*",
+   "enter": "stretch_in",
+   "exit": "sink",
+   "idle": "breathe",
+   "styles": {
+    "hero": {
+     "color": "#FFFFFF",
+     "gradient": [
+      "#FFFFFF",
+      "#FFFFFF",
+      "@alert"
+     ],
+     "glow": 0.6,
+     "glow_color": "@alert",
+     "scale": 1.4
+    }
+   },
+   "stage": {
+    "scrim": 0.4,
+    "grid": 0.0,
+    "light": 0.5,
+    "color": "@alert"
+   },
+   "group": "compare_read_write"
+  },
+  {
+   "type": "morph_shape",
+   "id": "cmp_pivot",
+   "t": "w:چکیده",
+   "out": "we:مقاله#2",
+   "anchor": "chest",
+   "offset": [
+    0,
+    0.12
+   ],
+   "w": 0.34,
+   "shapes": [
+    "circle",
+    "diamond"
+   ],
+   "at": [
+    "w:اما"
+   ],
+   "dur": 0.4,
+   "color": "@accent",
+   "fill_alpha": 0.16,
+   "glow": 0.45,
+   "pass": "front",
+   "group": "compare_read_write"
+  },
+  {
+   "type": "kinetic_title",
+   "id": "glow_last",
+   "t": "w:دقیقا-0.08",
+   "out": "we:صف+0.15",
+   "anchor": "shoulder_l",
+   "offset": [
+    0.05,
+    -0.05
+   ],
+   "size": 80,
+   "pass": "front",
+   "follow": 0.12,
+   "text": "^چکیده رو بذار^|!آخر!",
+   "enter": "jelly_pop",
+   "exit": "fall",
+   "idle": "float",
+   "hero_hit": "w:آخر",
+   "styles": {
+    "alert": {
+     "font": "Delbar-Bold.ttf",
+     "glow": 0.9,
+     "glow_color": "@alert",
+     "scale": 1.8
+    }
+   },
+   "stage": {
+    "scrim": 0.45,
+    "grid": 0.0,
+    "light": 0.55,
+    "color": "@alert"
+   }
+  },
+  {
+   "type": "kinetic_title",
+   "id": "highhead_first",
+   "t": "w:اولین#2-0.05",
+   "out": "we:نویسی+0.1",
+   "anchor": "head_top",
+   "offset": [
+    0,
+    -0.35
+   ],
+   "size": 104,
+   "pass": "back",
+   "follow": 0.15,
+   "text": "*قدم اول*",
+   "enter": "drop_bounce",
+   "exit": "pop_out",
+   "idle": "breathe",
+   "styles": {
+    "hero": {
+     "font": "Peyda-Black.ttf",
+     "color": "#FFFFFF",
+     "gradient": [
+      "#FFFFFF",
+      "#FFFFFF",
+      "@accent"
+     ],
+     "glow": 0.55,
+     "glow_color": "@accent"
+    }
+   },
+   "stage": {
+    "scrim": 0.4,
+    "grid": 0.0,
+    "light": 0.5
+   }
+  },
+  {
+   "type": "kinetic_title",
+   "id": "glow_intro",
+   "t": "w:شروع-0.05",
+   "out": 15.85,
+   "anchor": "chest",
+   "offset": [
+    0,
+    0.42
+   ],
+   "size": 64,
+   "pass": "front",
+   "follow": 0.12,
+   "text": "^شروعِ واقعی با^|*مقدمه*",
+   "enter": "swing_3d",
+   "exit": "sink",
+   "idle": "breathe",
+   "hero_hit": "w:مقدمه",
+   "styles": {
+    "hero": {
+     "font": "FONT_2417.ttf",
+     "color": "#FFFFFF",
+     "gradient": [
+      "#FFFFFF",
+      "#FFF4E0",
+      "@accent"
+     ],
+     "glow": 0.65,
+     "glow_color": "@accent",
+     "scale": 2.0
+    }
+   },
+   "stage": {
+    "scrim": 0.45,
+    "grid": 0.0,
+    "light": 0.6,
+    "color": "@accent"
+   }
+  },
+  {
+   "type": "flash",
+   "id": "cut1",
+   "t": 5.99,
+   "out": 6.3,
+   "dur": 0.14,
+   "amount": 0.3
+  },
+  {
+   "type": "flash",
+   "id": "cut2",
+   "t": 10.62,
+   "out": 10.93,
+   "dur": 0.14,
+   "amount": 0.3
+  }
+ ],
+ "post": {
+  "bloom": 1.0,
+  "spill": 1.4,
+  "wrap_bg": 0.5,
+  "wrap_glow": 1.8,
+  "vignette": 0.32,
+  "grain": 0.014,
+  "fade": [
+   0.0,
+   0.3
+  ],
+  "decontaminate": 0.75,
+  "motion_blur": {
+   "shutter": 180
+  }
+ },
+ "audio": {
+  "voice_gain": 1.0,
+  "denoise": "auto",
+  "lufs": -14,
+  "sfx_gain": 0.5,
+  "music": {
+   "style": "lofi",
+   "bpm": 88,
+   "key": "F",
+   "scale": "minor",
+   "gain": 0.14
+  }
+ }
+}
