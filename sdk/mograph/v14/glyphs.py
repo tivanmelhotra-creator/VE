@@ -616,9 +616,12 @@ def _local(g, gs, extra_z=0.0):
 
 
 def _poly(ctx, q, x, y):
-    ctx.move_to(q[0, 0] + x, q[0, 1] + y)
-    for i in range(1, len(q)):
-        ctx.line_to(q[i, 0] + x, q[i, 1] + y)
+    """v22: one vectorised offset + .tolist() instead of 2·n numpy scalar reads (≈ 2× faster path building)."""
+    pts = (q[:, :2] + (x, y)).tolist()
+    ctx.move_to(*pts[0])
+    lt = ctx.line_to
+    for px, py in pts[1:]:
+        lt(px, py)
     ctx.close_path()
 
 
