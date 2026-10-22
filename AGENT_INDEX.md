@@ -4,6 +4,9 @@
 > spec or a previous project (texts, shapes, widget sequence, colours, ordering). References are STYLE STUDIES
 > (`sdk/style_bank/STYLE_BANK_PLAYBOOK.md`). Every video gets a new visual identity.
 > `python3 -m mograph.pro originality edit.json` must say `originality ✓` before you render.
+>
+> 🎬 **Artistic framework** (how a senior editor thinks: narrative per cut, attention, easing, retime, sound,
+> transitions, QA, delivery — in Persian): `sdk/MASTER_PROJECT_GUIDE.md`. This index tells you HOW in the engine.
 
 ## 0. Every session (2 commands)
 ```bash
