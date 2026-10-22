@@ -1,11 +1,32 @@
-# CONTINUE_HERE — VE v20.1 three3d + three_anim (resume point after any sandbox reset)
+# CONTINUE_HERE — VE v21 Style Bank & Creative Synthesis (resume point after any sandbox reset)
 
 ## Restore in 1 command (replaces the old 3-step / 9-minute restore)
 ```bash
 cd /home/user/webapp/sdk && python3 -m mograph.pro doctor --fix   # deps, binaries, fonts, media copy, tracking cache
-                                                                 # from work/input/raw.mp4.v14pack (seconds), 67 tests
+                                                                 # from work/input/raw.mp4.v14pack (seconds), 71 tests
 ```
 Then read `/home/user/webapp/AGENT_INDEX.md` (request → file → key).
+
+## v21 — Style Bank & Creative Synthesis (SUPREME LAW: no copying, no repetition)
+- `sdk/style_bank/` — 3 reference sheets (ref_01 pure glow typo + dual nodes · ref_02 state flip + split stage ·
+  ref_03 multi-creator diversity), `catalog.json` (principles / when / synthesis / forbidden_texts), playbook
+  `STYLE_BANK_PLAYBOOK.md`. CLI: `python3 -m mograph.pro style-bank --sync|--list|--sheet`. Add a reference = drop the
+  file in `references/` + `--sync`, then fill in the analysis.
+- **Originality guard** `mograph/style_bank.py`: `python3 -m mograph.pro originality edit.json` (exit 2 = copied
+  reference text / reference pixels / cloned spec; 1 = fixed rotation, monotony, legacy widget ×2, pure-typo < 55 %,
+  grid repeat). Also inside `v14 qa`. Selftest 3/3 in doctor.
+- Guides rewritten: `sdk/USER_TASTE_GUIDE.md` (6 Core Creative Laws), `V14_GUIDE.md` §1 Inspiration-Driven workflow,
+  §3 primitives (tracked_tag/disc/halo/frame_box = legacy, ≤1/video), `AGENT_INDEX.md`, DNA laws harmonised.
+- Engine: director = semantic (`choose_beat_treatment`, `compare_sides`, per-video `style_seed`; ROTATION removed;
+  `--legacy-showcase` for the old cycle) · subs `style` minimal_clean (default) / soft_scrim / glass_matte /
+  jelly_crescent + auto-hide under lower thirds & chest heroes · guard protects forehead + hair crown, high head →
+  side-shift / shrink · stage grid default 0 · follow 0.18 default for titles/boxes/halo (`"track": true`) ·
+  `font_lock` off (`meta.font_lock` to restore) · `three3d.check_mesh_overlap` (concepts ≥ 1.4 apart) · qa collision
+  check · lint `group` key (one composition = one idea).
+- 9 maghale clones → `sdk/tests/legacy_maghale/` (regression fixtures, never templates). `projects/maghale/` keeps
+  `edit_v14.json` only.
+- Verification: `sdk/tests/v21_creative_synthesis_test.json` (lint ✓ · qa ✓ · originality ✓ · subtitles during lower
+  third = 0 frames · high-head title ≥ 78 px above the hair crown) + `sdk/tests/v21_creative_synthesis_sheet.jpg`.
 
 ## v20.1 — animation INSIDE 3D objects (mograph/three_anim.py) — see sdk/V14_3D_GUIDE.md §00.1
 - `object_3d` + `"three_model":"hourglass_3d","anim":"hourglass_loop","flips_at":["w:…"]` (pour → flip → pour), `laptop_open`,

@@ -8,6 +8,13 @@ designed to run inside a small sandbox (2 vCPU, ~1 GB RAM, no GPU).
 The agent writes one JSON spec; the engine does the drawing, word-locked timing, tracking, depth matte,
 3D objects, sound and QA.
 
+## v21 — Style Bank & Creative Synthesis
+**Copying and repetition are forbidden.** References in `sdk/style_bank/` are style studies (principles, never
+templates). `python3 -m mograph.pro originality edit.json` audits every spec. The auto-director picks forms from the
+meaning, using pure glow typography as the backbone. Subtitles come in 4 styles and auto-hide under lower thirds.
+The layout guard keeps titles off the forehead. Fonts can be paired freely. See `sdk/style_bank/STYLE_BANK_PLAYBOOK.md`
+and `sdk/USER_TASTE_GUIDE.md`.
+
 ## What's inside
 | Path | Contents |
 |---|---|
@@ -55,7 +62,7 @@ bash ../../sdk/tools/render_chunks.sh edit_v14.json 4                # resumable
 - `sdk/CRAFT_REPOS_ANALYSIS.md` — evaluation of storytold EffectCraft / VectorCraft / FilmCraft
 - `sdk/USER_TASTE_GUIDE.md`, `sdk/SKILL_TOOLBOX.md`, `sdk/TOOLS_INDEX.md`
 
-## Status (tested 2026-10-20)
+## Status (tested 2026-10-22 — v21, doctor 71/71 ✓)
 - 66/66 modules import · 12 test specs + 4 examples render · v14 footage edit renders (~2 s/frame), QA clean
 - pbr3d photoreal objects render standalone and on footage
 
