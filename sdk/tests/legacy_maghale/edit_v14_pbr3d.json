@@ -1,5 +1,5 @@
 {
- "_about": "v19 PRO EDITOR demo — the v14 reference edit + colour look (teal_orange, skin protected, grain, halation), B-roll cutaway with whip transitions, picture-in-picture, background replace behind the speaker, lightsaber held in the tracked right hand.",
+ "_about": "v14.6 photoreal 3D test: object_3d with \"model\" (scanned PBR glTF via pbr3d/EffectCraft). Main edit untouched.",
  "meta": {
   "w": 1080,
   "h": 1920,
@@ -8,8 +8,8 @@
   "palette": "auto"
  },
  "source": {
-  "src": "media/raw.mp4",
-  "words": "words.json",
+  "src": "../../../projects/maghale/media/raw.mp4",
+  "words": "../../../projects/maghale/words.json",
   "segments": [
    [
     1.12,
@@ -81,13 +81,7 @@
      "desat": 0.5
     }
    ]
-  ],
-  "look": "teal_orange",
-  "look_strength": 0.75,
-  "protect_skin": 0.65,
-  "grain": 0.18,
-  "halation": 0.15,
-  "sharpen": 0.15
+  ]
  },
  "camera": {
   "keys": [
@@ -242,7 +236,7 @@
   ],
   "hide": [
    [
-    "w:آخر-0.05",
+    "w:دقیقا-0.05",
     "we:صف+0.25"
    ],
    [
@@ -375,6 +369,26 @@
    }
   },
   {
+   "type": "disc",
+   "id": "disc",
+   "t": "w:دقیقا-0.05",
+   "out": "we:صف+0.2",
+   "anchor": "chest",
+   "offset": [
+    0,
+    0.15
+   ],
+   "radius": 0.92,
+   "flip_at": "w:آخر-0.1",
+   "neon": "@alert",
+   "spill": 1.2,
+   "center_text": "*چکیده*|کجا؟",
+   "top_text": "اولین بخشی که می‌خونید",
+   "bottom_text": "آخرین بخشی که می‌نویسید",
+   "arc_size": 0.15,
+   "follow": 0.6
+  },
+  {
    "type": "kinetic_title",
    "id": "akhar",
    "t": "w:آخر",
@@ -426,6 +440,29 @@
    "peek_glyphs": 1,
    "text_mode": "center",
    "size": 96
+  },
+  {
+   "type": "tracked_tag",
+   "id": "tag2",
+   "t": "w:بخشی#2-0.3",
+   "out": "w:مقاله#3+0.1",
+   "anchor": "shoulder_r",
+   "offset": [
+    0.2,
+    -0.6
+   ],
+   "size": 40,
+   "text": "^بخش^ *اول*",
+   "pass": "front",
+   "styles": {
+    "hero": {
+     "scale": 1.35,
+     "glow": 0.5
+    },
+    "tiny": {
+     "scale": 0.75
+    }
+   }
   },
   {
    "type": "glass_shape",
@@ -481,91 +518,36 @@
    }
   },
   {
-   "type": "broll",
-   "id": "cutaway",
-   "src": "../../work/input/ref_novadent.mp4",
-   "src_in": 12.0,
-   "mode": "full",
-   "t": "w:دقیقا-0.05",
-   "out": "w:آخر-0.02",
-   "in": "whip_left",
-   "out_fx": "whip_right",
-   "in_dur": 0.28,
-   "out_dur": 0.28,
-   "kenburns": {
-    "from": [
-     1.0,
-     0.5,
-     0.5
-    ],
-    "to": [
-     1.12,
-     0.5,
-     0.45
-    ]
-   },
-   "grade": {
-    "look": "teal_orange",
-    "look_strength": 0.6
-   }
-  },
-  {
-   "type": "broll",
-   "id": "pip_laptop",
-   "src": "../../sdk/mograph/assets_3d/laptop_3d.png",
-   "mode": "pip",
-   "t": "w:نگارش-0.1",
-   "out": "w:مقاله#2+0.3",
-   "in": "zoom",
-   "out_fx": "fade",
-   "x": 230,
-   "y": 1230,
-   "pip": {
-    "w": 0.3,
-    "aspect": 1.0,
-    "radius": 36,
-    "shadow": 0.6,
-    "tilt": -4
-   },
-   "kenburns": true
-  },
-  {
-   "type": "saber",
-   "id": "blade",
-   "preset": "default",
-   "color": "#4fc3ee",
-   "t": "w:شروع-0.1",
-   "out": "w:مقدمه-0.1",
-   "reveal": {
-    "dur": 0.35
-   },
-   "pass": "front",
-   "start_anchor": "shoulder_r",
-   "start_offset": [
-    0.15,
-    0.9
+   "type": "object_3d",
+   "id": "obj_doc",
+   "t": "w:مقاله-0.3",
+   "out": "w:چکیده-0.1",
+   "anchor": "shoulder_l",
+   "offset": [
+    -0.35,
+    -0.9
    ],
-   "end_anchor": "shoulder_r",
-   "end_offset": [
-    -0.05,
-    -1.6
-   ]
+   "size": 1.25,
+   "motion": "hover",
+   "yaw": -25,
+   "pitch": 18,
+   "model": "croissant"
   },
   {
-   "type": "broll",
-   "id": "bg_swap",
-   "src": "../../work/input/ref_novadent.mp4",
-   "src_in": 30.0,
-   "mode": "behind",
-   "t": "w:مواجه",
-   "out": "w:اما-0.05",
-   "in": "fade",
-   "out_fx": "cut",
-   "in_dur": 0.25,
-   "kenburns": true,
-   "grade": {
-    "look": "cinematic_cool"
-   }
+   "type": "object_3d",
+   "id": "obj_tooth",
+   "t": "w:مقدمه-0.1",
+   "out": 15.85,
+   "anchor": "shoulder_l",
+   "offset": [
+    -0.55,
+    -0.45
+   ],
+   "size": 0.8,
+   "motion": "turntable_osc",
+   "yaw_amp": 35,
+   "pitch": 14,
+   "model": "food_apple_01"
   }
  ],
  "audio": {
@@ -580,5 +562,6 @@
   "sfx_gain": 0.55,
   "lufs": -14,
   "denoise": "auto"
- }
+ },
+ "_archived": "v21: archived example clone (same widget sequence as edit_v14.json). Kept for regression tests ONLY — never use as a template (originality law)."
 }

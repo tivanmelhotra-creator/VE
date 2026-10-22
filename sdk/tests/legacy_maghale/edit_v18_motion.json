@@ -1,5 +1,5 @@
 {
- "_about": "v15.1 craft test: every v15 engine on the real footage (selftest visual counterpart)",
+ "_about": "v14 Studio Depth — raw talking head 'مقاله نویسی: چکیده آخر، مقدمه اول' → professional reel. Every effect is tracked to the speaker (zero-lag pose), drawn in true depth (behind/front of her), with physics motion and light spill.",
  "meta": {
   "w": 1080,
   "h": 1920,
@@ -8,8 +8,8 @@
   "palette": "auto"
  },
  "source": {
-  "src": "media/raw.mp4",
-  "words": "words.json",
+  "src": "../../../projects/maghale/media/raw.mp4",
+  "words": "../../../projects/maghale/words.json",
   "segments": [
    [
     1.12,
@@ -24,10 +24,23 @@
     17.62
    ]
   ],
-  "morph_cuts": {
-   "dur": 0.24,
-   "max_motion": 60
-  }
+  "retime": [
+   {
+    "op": "speed_ramp",
+    "t": "w:مقاله",
+    "dur": 0.3,
+    "from": 1,
+    "to": 0.3,
+    "hold": 0.3,
+    "back": 0.3
+   },
+   {
+    "op": "freeze_frame",
+    "t": "we:چکیده",
+    "dur": 0.7
+   }
+  ],
+  "interpolate": "flow"
  },
  "grade": {
   "bg": {
@@ -85,11 +98,7 @@
      "desat": 0.5
     }
    ]
-  ],
-  "match": {
-   "ref": "../../work/input/ref_novadent.mp4",
-   "strength": 0.7
-  }
+  ]
  },
  "camera": {
   "keys": [
@@ -224,11 +233,7 @@
   "fade": [
    0.0,
    0.35
-  ],
-  "decontaminate": 0.75,
-  "glass": {
-   "fresnel": 0.35
-  }
+  ]
  },
  "subtitles": {
   "anchor": "chest",
@@ -248,8 +253,20 @@
   ],
   "hide": [
    [
-    12.7,
-    16.0
+    "w:دقیقا-0.05",
+    "we:صف+0.25"
+   ],
+   [
+    "w:مقدمه-0.1",
+    16.1
+   ],
+   [
+    "w:مقاله-0.4",
+    "w:چکیده-0.15"
+   ],
+   [
+    "w:بخشی#2-0.25",
+    "w:مقاله#3+0.1"
    ]
   ]
  },
@@ -262,178 +279,120 @@
    "color": "@accent"
   },
   {
-   "type": "flash",
-   "id": "cut_flash",
-   "t": "w:اما-0.02",
-   "dur": 0.16,
-   "amount": 0.45
-  },
-  {
-   "type": "shatter_text",
-   "id": "v15_shatter",
-   "t": 0.2,
-   "out": 3.0,
-   "text": "*مقاله*",
-   "size": 110,
+   "type": "orbit_ring",
+   "id": "ring",
+   "t": "w:چکیده-0.08",
+   "out": "w:مواجه",
    "anchor": "head_top",
    "offset": [
     0,
-    -0.75
-   ],
-   "pass": "back",
-   "break_at": 1.6,
-   "rows": 4,
-   "cols": 7
-  },
-  {
-   "type": "kinetic_title",
-   "id": "v15_sel",
-   "t": 3.0,
-   "out": 6.2,
-   "anchor": "head_top",
-   "offset": [
-    0,
-    -0.7
+    0.15
    ],
    "size": 80,
-   "pass": "back",
-   "text": "چکیده|*اولین بخش*",
-   "enter": "drop_bounce",
-   "selectors": [
-    {
-     "shape": "smooth",
-     "start": 0,
-     "end": 0.35,
-     "offset": [
-      0.5,
-      1.6,
-      -0.4,
-      1.05
-     ],
-     "props": {
-      "ty": -22,
-      "glow": 1.0,
-      "scale": 0.12
-     }
+   "radius": 1.4,
+   "tilt": -14,
+   "spin": 48,
+   "phase": 160,
+   "text": "*چکیده* = اولین بخش",
+   "styles": {
+    "hero": {
+     "scale": 1.45
     }
-   ]
+   },
+   "extrude": {
+    "depth": 7,
+    "light": 0.6
+   },
+   "max_copies": 2,
+   "sep": 1.0,
+   "max_radius": 1.6
   },
   {
-   "type": "morph_shape",
-   "id": "v15_morph",
-   "t": 6.3,
-   "out": 9.4,
-   "shapes": [
-    "circle",
-    "star",
-    "heart"
-   ],
-   "at": [
-    7.0,
-    8.2
-   ],
-   "dur": 0.5,
-   "w": 0.9,
+   "type": "tracked_tag",
+   "id": "tag1",
+   "t": "w:مقاله-0.45",
+   "out": "w:چکیده-0.2",
    "anchor": "shoulder_r",
    "offset": [
-    0.35,
-    0.2
-   ],
-   "color": "@accent",
-   "glow": 0.7
-  },
-  {
-   "type": "god_rays",
-   "id": "v15_rays",
-   "t": 9.5,
-   "out": 12.6,
-   "anchor": "head_top",
-   "offset": [
-    0,
-    -0.3
-   ],
-   "radius": 2.2,
-   "pass": "back",
-   "alpha": 0.45
-  },
-  {
-   "type": "kinetic_title",
-   "id": "v15_path",
-   "t": 9.6,
-   "out": 12.6,
-   "anchor": "head_top",
-   "offset": [
-    0,
+    0.15,
     -0.75
    ],
-   "size": 70,
-   "pass": "back",
-   "text": "*نتیجه گیری*",
-   "field": {
-    "kind": "bezier_path",
-    "points": [
-     [
-      -320,
-      60
-     ],
-     [
-      0,
-      -60
-     ],
-     [
-      320,
-      60
-     ]
-    ]
+   "size": 40,
+   "text": "*۱* ^مرحله^",
+   "pass": "front",
+   "styles": {
+    "hero": {
+     "scale": 1.35,
+     "glow": 0.5
+    },
+    "tiny": {
+     "scale": 0.75
+    }
    }
   },
   {
-   "type": "vegas_comet",
-   "id": "v15_comet",
-   "t": 12.7,
-   "out": 16.0,
-   "shape": "hex",
-   "anchor": "chest",
+   "type": "saber",
+   "id": "neon_word",
+   "preset": "neon",
+   "core": "text",
+   "text": "مقاله",
+   "size": 190,
+   "anchor": "head_top",
    "offset": [
     0,
-    0.5
+    -0.75
    ],
-   "w": 1.7,
-   "h": 1.4,
-   "comets": 2,
-   "speed": 0.6
+   "t": "w:مقاله",
+   "out": "we:مقاله+0.6",
+   "reveal": {
+    "dur": 0.5
+   }
   },
   {
-   "type": "puppet_sticker",
-   "id": "v15_puppet",
-   "t": 12.7,
-   "out": 16.0,
-   "src": "warn_3d.png",
-   "anchor": "shoulder_l",
+   "type": "saber",
+   "id": "ring_e",
+   "preset": "electric",
+   "core": "shape",
+   "shape": "circle",
+   "w": 360,
+   "anchor": "head_top",
    "offset": [
-    -0.3,
-    0.1
+    0,
+    0.35
    ],
-   "size": 0.85,
-   "pins": [
+   "t": "w:چکیده",
+   "out": "w:اولین",
+   "pass": "back"
+  },
+  {
+   "type": "character",
+   "id": "bean",
+   "rig": "bean",
+   "anchor": "screen",
+   "x": 860,
+   "y": 1820,
+   "size": 300,
+   "t": 0,
+   "actions": [
     {
-     "uv": [
-      0.5,
-      1.0
-     ]
+     "do": "enter",
+     "t": "w:درسته",
+     "from": "right"
     },
     {
-     "uv": [
-      0.5,
-      0.0
-     ],
-     "wiggle": [
-      30,
-      0
-     ],
-     "freq": 1.4
+     "do": "hop",
+     "t": "w:مقاله"
+    },
+    {
+     "do": "talk",
+     "t": "w:چکیده",
+     "dur": 3
     }
-   ]
+   ],
+   "lip_sync": {
+    "words": "words.json"
+   },
+   "timing": "twos"
   }
  ],
  "audio": {
@@ -448,5 +407,6 @@
   "sfx_gain": 0.55,
   "lufs": -14,
   "denoise": "auto"
- }
+ },
+ "_archived": "v21: archived example clone (same widget sequence as edit_v14.json). Kept for regression tests ONLY — never use as a template (originality law)."
 }

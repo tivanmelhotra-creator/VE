@@ -1,0 +1,150 @@
+{
+ "version": 21,
+ "law": "STYLE STUDIES ONLY — extract principles, synthesise new forms. Copying any reference frame, text, widget, colour scheme or ordering, or cloning another project's spec, is FORBIDDEN (enforced by `python3 -m mograph.pro originality <edit.json>`).",
+ "updated": "2026-10-22",
+ "references": [
+  {
+   "title": "Pure glow typography + symmetrical comparison nodes",
+   "source": "user reference sheet 3.jpg (6 panels, one creator, studio desk)",
+   "principles": [
+    "Container-free hierarchy: a thin context line frames ONE heavy hero word; the hero is the only loud thing.",
+    "Light is the container: the hero emits a soft coloured glow that spills onto the dark clothes behind it, so contrast comes from optics, not from a box.",
+    "Colour = emotional temperature: cool violet for calm/teaching beats, red only when the meaning turns to a problem/warning.",
+    "Two concepts compared = two equal nodes placed symmetrically left/right of the body, the shared word sits between them.",
+    "A Latin script accent can contrast a Persian hero once (bilingual texture), never as decoration everywhere."
+   ],
+   "when_to_use": [
+    "teaching / explaining beats",
+    "a single key word per sentence",
+    "explicit comparison of two options (A vs B, before vs after)"
+   ],
+   "synthesis": [
+    "Pick your OWN hero word from the transcript and your OWN palette from the footage (palette.py).",
+    "Vary where the glow lives (behind shoulder / chest / beside the head) and its colour per section.",
+    "For comparisons design a fresh dual composition: e.g. two light-pools, two morph_shape outlines, two kinetic_titles on a shared baseline, a split-tone grade — never two copied diamond pills."
+   ],
+   "forbidden_texts": [
+    "KBar",
+    "آموزش ساده",
+    "Tutorial",
+    "مشکل حل بشه",
+    "حرف آخر",
+    "ادیت میزنی",
+    "اگه نظم",
+    "تایم ادیتت",
+    "تایم تدوینت",
+    "پایین تر",
+    "کامنت کنید"
+   ],
+   "tags": [
+    "pure_typography",
+    "glow",
+    "light_spill",
+    "dual_nodes",
+    "comparison",
+    "bilingual_accent"
+   ],
+   "id": "ref_01_pure_glow_typo_and_dual_nodes",
+   "file": "references/ref_01_pure_glow_typo_and_dual_nodes.jpg",
+   "sha1": "f49589e1c53dadbf",
+   "bytes": 258149,
+   "kind": "image",
+   "w": 866,
+   "h": 1024
+  },
+  {
+   "title": "Two-state flip (cause → effect) + split stage product comparison",
+   "source": "user reference sheet -1.jpg (6 panels)",
+   "principles": [
+    "A neutral state first, then the meaning flips it: the same centre label stays while its surrounding context changes (state A text → state B text), so the viewer reads a CHANGE, not two graphics.",
+    "The light moves with the meaning: the glow travels from one side to the other at the flip.",
+    "Above-the-head title + a thin luminous arc line separates title space from speaker space.",
+    "Split background: the plate behind the speaker is replaced by two product/scene panels that slide in while the title stays world-locked."
+   ],
+   "when_to_use": [
+    "cause/effect, myth/fact, before/after",
+    "naming two products or brands",
+    "a sentence that pivots on «اما / ولی / بیشتر از اینکه»"
+   ],
+   "synthesis": [
+    "Express the flip with YOUR form: text morph, colour temperature shift, shatter_text break, grade key, or a morph_shape — the circle-badge-with-arc-text is only one historical answer.",
+    "Split stage: broll mode behind / split_* with your own media; change panel geometry and transition."
+   ],
+   "forbidden_texts": [
+    "بیشتر از اینکه",
+    "روی کاهش وزن اثر بذارن",
+    "روی سلامت دهان و دندونتون",
+    "آمپول های لاغری",
+    "اسپارتینا",
+    "SPARTINA"
+   ],
+   "tags": [
+    "state_flip",
+    "cause_effect",
+    "split_stage",
+    "broll_behind",
+    "arc_divider",
+    "world_locked_title"
+   ],
+   "id": "ref_02_state_flip_and_split_stage",
+   "file": "references/ref_02_state_flip_and_split_stage.jpg",
+   "sha1": "d071d0c890c4a816",
+   "bytes": 251545,
+   "kind": "image",
+   "w": 1003,
+   "h": 1024
+  },
+  {
+   "title": "Multi-creator diversity matrix (10 panels, 4 creators)",
+   "source": "user reference sheet 2.jpg",
+   "principles": [
+    "Every video has its OWN visual identity — four creators, four different systems; diversity is the rule.",
+    "Habit/option comparison as two small object cards side by side with labels below (objects carry meaning).",
+    "Loupe/zoom window behind the shoulder magnifies the detail being talked about.",
+    "A live B-roll window on the chest shows the thing while it is named.",
+    "A physical prop (tool) interacts with the typography — the object and the word share one gesture.",
+    "Warning hook = environmental change (shattered glass over the whole plate, colour cast), not a sticker.",
+    "Sometimes the best graphic is almost nothing: minimal box-free floating subtitle only."
+   ],
+   "when_to_use": [
+    "deciding the identity of a new video",
+    "objects/habits named in speech",
+    "a warning or hook in the first second",
+    "calm personal beats (minimal treatment)"
+   ],
+   "synthesis": [
+    "Start each video by choosing a DIFFERENT treatment family than the previous project (see originality).",
+    "Objects: one clean 3D prop or cutout per idea; two ideas = two separate, spaced objects.",
+    "Warnings: grade keys / dof / overlay textures generated fresh — not the reference's glass crack."
+   ],
+   "forbidden_texts": [
+    "این اشتباه رو نکن",
+    "سیگار",
+    "قهوه",
+    "ماندگاری کامپوزیت",
+    "سوهان ناخن",
+    "آقا از من می",
+    "خشکی دهان",
+    "سود نداریم",
+    "بدون قند",
+    "حتما الکلی"
+   ],
+   "tags": [
+    "diversity",
+    "habit_cards",
+    "loupe",
+    "chest_broll",
+    "prop_interaction",
+    "env_warning",
+    "minimal_subtitle"
+   ],
+   "id": "ref_03_multi_creator_diversity_matrix",
+   "file": "references/ref_03_multi_creator_diversity_matrix.jpg",
+   "sha1": "21460e024e8f86e4",
+   "bytes": 216360,
+   "kind": "image",
+   "w": 1024,
+   "h": 688
+  }
+ ]
+}

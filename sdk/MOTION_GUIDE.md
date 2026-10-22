@@ -48,7 +48,7 @@ v14 spec (times = EDITED seconds or word anchors; `"e:3.2"` = edited time explic
 * fast motion = shutter blend of 2–5 source frames; whoosh / hit / scratch sfx at op starts
 * ops may not overlap: the error message tells the first legal start (`"e:3.18"`)
 * any file, no spec: `python3 -m mograph.motion retime in.mp4 out.mp4 --ops '[{"op":"slow_motion","t":1,"dur":1}]'`
-* test edit: `projects/maghale/edit_v18_retime.json`
+* test edit: `sdk/tests/legacy_maghale/edit_v18_retime.json (archived regression fixture — NOT a template)`
 
 ## 3. Saber — `motion/saber.py` (Video Copilot Saber parameter set, own implementation)
 51 presets = Saber's list (Arc Reactor … Zap) → `python3 -m mograph.motion saber sheet --core text --text "سلام"` → LOOK.

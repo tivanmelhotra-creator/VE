@@ -1,3 +1,9 @@
+> ⛔ **v21 SUPREME LAW — NO COPYING, NO REPETITION (قانون منع مطلق کپی و تکرار):** references
+> (`sdk/style_bank/references/`), templates, archived specs (`sdk/tests/legacy_maghale/`) and earlier projects are
+> STYLE STUDIES ONLY. Extract the principle, synthesise a new form. Read `sdk/style_bank/STYLE_BANK_PLAYBOOK.md` and
+> `sdk/USER_TASTE_GUIDE.md` (6 Core Creative Laws) first. `python3 -m mograph.pro originality edit.json` must pass.
+> Artistic decision framework: `sdk/MASTER_PROJECT_GUIDE.md` (Persian).
+
 # 🧊 v20 PROCEDURAL THREE.JS 3D ENGINE & FAST PIPELINE — true 360° procedural 3D + 6–8× faster renders → read `V14_3D_GUIDE.md`
 > **Never use flat 2D sprite slab extrusion (`obj3d.py` / `extract3d`) for turning 3D objects!** Use `mograph.three3d`:
 > `{"type": "object_3d", "three_model": "hourglass_3d" | "microblading_pen_3d" | "emerald_tree_3d" | "star_trophy_3d", "motion": "spin_360", "explode": 0.0}`

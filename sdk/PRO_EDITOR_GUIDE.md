@@ -45,4 +45,4 @@ cache from the committed pack, all 5 selftests). `python3 -m mograph.pro selftes
 4. Whip / zoom transitions only on energy beats. Use fade or cut otherwise. Dip to black only at chapter breaks.
 5. Always `lint` → `sheet`/`frame` (LOOK) → `render --preview` → `render`.
 
-Test edit: `projects/maghale/edit_v19_pro.json` (look + grain + cutaway + pip + background replace + hand saber).
+Test edit: `sdk/tests/legacy_maghale/edit_v19_pro.json (archived regression fixture — NOT a template)` (look + grain + cutaway + pip + background replace + hand saber).

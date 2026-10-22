@@ -195,7 +195,11 @@ CALLIG = {"pelak": "Delbar-Bold.ttf", "doran": "FONT_2417.ttf", "yekanbakh": "De
           "abar": "FONT_2417.ttf", "pinar": "Delbar-Bold.ttf"}       # FONT_2417 = IranNastaliq Bold
 
 
-FONT_LOCK = {"doran": True}           # user law: Doran ONLY — no second family anywhere in a Doran video
+# v21 CURATED FONT PAIRING: the Doran-only lock is RETIRED (user taste law #6).  A layer may pair a structural family
+# (Doran, Peyda, KalamehFaNum, Morabba, Pelak, YekanBakh) with an expressive hero voice (Delbar, Miremad,
+# DigiGhasedak, a clean Latin script) through `styles: {"hero": {"font": "Delbar-Bold.ttf"}}`.
+# Re-enable the old lock per video with  "meta": {"font_lock": true}.
+FONT_LOCK = {}                        # theme → bool; filled from meta.font_lock by the Renderer (default: unlocked)
 STRETCH = {"doran": 1.12}             # reference Doran reads a little extended (wider) → +12 % horizontal
 
 

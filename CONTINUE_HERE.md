@@ -1,15 +1,36 @@
-# CONTINUE_HERE — VE v20.1 three3d + three_anim (resume point after any sandbox reset)
+# CONTINUE_HERE — VE v21 Style Bank & Creative Synthesis (resume point after any sandbox reset)
 
 ## Restore in 1 command (replaces the old 3-step / 9-minute restore)
 ```bash
 cd /home/user/webapp/sdk && python3 -m mograph.pro doctor --fix   # deps, binaries, fonts, media copy, tracking cache
-                                                                 # from work/input/raw.mp4.v14pack (seconds), 67 tests
+                                                                 # from work/input/raw.mp4.v14pack (seconds), 71 tests
 ```
 Then read `/home/user/webapp/AGENT_INDEX.md` (request → file → key).
 
+## v21 — Style Bank & Creative Synthesis (SUPREME LAW: no copying, no repetition)
+- `sdk/style_bank/` — 3 reference sheets (ref_01 pure glow typo + dual nodes · ref_02 state flip + split stage ·
+  ref_03 multi-creator diversity), `catalog.json` (principles / when / synthesis / forbidden_texts), playbook
+  `STYLE_BANK_PLAYBOOK.md`. CLI: `python3 -m mograph.pro style-bank --sync|--list|--sheet`. Add a reference = drop the
+  file in `references/` + `--sync`, then fill in the analysis.
+- **Originality guard** `mograph/style_bank.py`: `python3 -m mograph.pro originality edit.json` (exit 2 = copied
+  reference text / reference pixels / cloned spec; 1 = fixed rotation, monotony, legacy widget ×2, pure-typo < 55 %,
+  grid repeat). Also inside `v14 qa`. Selftest 3/3 in doctor.
+- Guides rewritten: `sdk/USER_TASTE_GUIDE.md` (6 Core Creative Laws), `V14_GUIDE.md` §1 Inspiration-Driven workflow,
+  §3 primitives (tracked_tag/disc/halo/frame_box = legacy, ≤1/video), `AGENT_INDEX.md`, DNA laws harmonised.
+- Engine: director = semantic (`choose_beat_treatment`, `compare_sides`, per-video `style_seed`; ROTATION removed;
+  `--legacy-showcase` for the old cycle) · subs `style` minimal_clean (default) / soft_scrim / glass_matte /
+  jelly_crescent + auto-hide under lower thirds & chest heroes · guard protects forehead + hair crown, high head →
+  side-shift / shrink · stage grid default 0 · follow 0.18 default for titles/boxes/halo (`"track": true`) ·
+  `font_lock` off (`meta.font_lock` to restore) · `three3d.check_mesh_overlap` (concepts ≥ 1.4 apart) · qa collision
+  check · lint `group` key (one composition = one idea).
+- 9 maghale clones → `sdk/tests/legacy_maghale/` (regression fixtures, never templates). `projects/maghale/` keeps
+  `edit_v14.json` only.
+- Verification: `sdk/tests/v21_creative_synthesis_test.json` (lint ✓ · qa ✓ · originality ✓ · subtitles during lower
+  third = 0 frames · high-head title ≥ 78 px above the hair crown) + `sdk/tests/v21_creative_synthesis_sheet.jpg`.
+
 ## v20.1 — animation INSIDE 3D objects (mograph/three_anim.py) — see sdk/V14_3D_GUIDE.md §00.1
 - `object_3d` + `"three_model":"hourglass_3d","anim":"hourglass_loop","flips_at":["w:…"]` (pour → flip → pour), `laptop_open`,
-  `assemble`, `explode_at` on any model.  Test edit: projects/maghale/edit_v20_anim.json.  LOOK: `python3 -m mograph three3d-anim-sheet`
+  `assemble`, `explode_at` on any model.  Test edit: sdk/tests/legacy_maghale/edit_v20_anim.json (archived regression fixture — NOT a template).  LOOK: `python3 -m mograph three3d-anim-sheet`
 - v20 = mograph/three3d.py (procedural Three.js engine, review report V20_PR_REVIEW.md)
 - next ideas: more stateful models (pen click-extend, trophy shine sweep), motion blur on the flip, sand grain sparkle
 
@@ -23,7 +44,7 @@ Then read `/home/user/webapp/AGENT_INDEX.md` (request → file → key).
   `"s:"` = raw screen seconds, `"src:"` = seconds in the source file
 - tools: `pro lint` · `pro timeline` · `pro render -j 2` (parallel, resumable, frame-exact) · `pro captions` · `pro edl`
   · `pro chapters` · `pro thumbnail` · `pro reformat --to 1:1` · `pro platform` · `pro looks` · `pro lut-export`
-- test edit: projects/maghale/edit_v19_pro.json (QA clean, lint clean)
+- test edit: sdk/tests/legacy_maghale/edit_v19_pro.json (archived regression fixture — NOT a template) (QA clean, lint clean)
 - merged: the other agent's v18.1 omni-polish patch (retime numeric anchors, subtitle 3.4 s cap, halo/frame_box edge
   guards, character-vs-subtitle guard, qa keys) — all 9 maghale edits QA clean + lint clean (pbr3d obj_tooth edge fixed)
 - next ideas: lip sync from audio only (whisper word timings), character rigs from user PNG parts (puppet_arap),
@@ -53,7 +74,7 @@ Then: `cd /home/user/webapp/projects/maghale && PYTHONPATH=/home/user/webapp/sdk
 - user's brief = sdk/mograph/motion/glossary.yaml (5 concepts) — `python3 -m mograph.motion resolve "…"` maps words → keys
 - reference: Video Copilot Saber 1.0.40 (parameter list + 52 preset names read from the plugin binary; NOT in repo;
   rar password www.bitgraph.ir, needs 7zz ≥ 21).  Our saber.py is an own implementation of that parameter set.
-- tests: sdk/tests/v18_motion.json (v5 scene) · projects/maghale/edit_v18_retime.json (v14 retime)
+- tests: sdk/tests/v18_motion.json (v5 scene) · sdk/tests/legacy_maghale/edit_v18_retime.json (archived regression fixture — NOT a template) (v14 retime)
 - next: saber on tracked hands (anchor hand_r → blade start/end), viseme from audio only (no transcript),
   more rigs (cutout from user PNG parts via puppet_arap), retime in v5 footage element
 
@@ -91,17 +112,17 @@ Then: `cd /home/user/webapp/projects/maghale && PYTHONPATH=/home/user/webapp/sdk
 - new spec keys: source.morph_cuts · grade.match · post.decontaminate · post.glass.fresnel · audio.multiband ·
   audio.music.file (bar-grid remix) · "selectors" on text layers · field bezier_path
 - new layers: shatter_text · puppet_sticker · morph_shape · vegas_comet · god_rays   (v14/craftlayers.py, layers.py)
-- visual test: projects/maghale/edit_v15_craft.json (QA clean)
+- visual test: sdk/tests/legacy_maghale/edit_v15_craft.json (archived regression fixture — NOT a template) (QA clean)
 
 ## v14.8 — Studio Optical & Auto-Director — see sdk/V14_GUIDE.md "v14.8 additions"
 - refractive glass (compositor._glass_optics) · 180° shutter motion blur (v14/motionblur.py) · bokeh dust (v14/bokeh.py,
   layer `ambient_bokeh` or post.bokeh_dust) · AUTO EDIT: `cd projects/maghale && PYTHONPATH=../../sdk python3 -m mograph.v14 auto-edit words.json media/raw.mp4 -o edit_auto.json`
-- generated example: projects/maghale/edit_auto.json (QA clean) · patch: ve_v14_8.patch (repo root)
+- generated example: sdk/tests/legacy_maghale/edit_auto.json (archived regression fixture — NOT a template) (QA clean) · patch: ve_v14_8.patch (repo root)
 
 ## v14.6 — pbr3d (PHOTOREAL scanned PBR 3D via bundled EffectCraft CLI) — see sdk/V14_3D_GUIDE.md §0 + sdk/CRAFT_REPOS_ANALYSIS.md
 - `sdk/bin/effectcraft-cli`, `sdk/mograph/bin/deep-filter`, `sdk/mograph/models/modnet.onnx` are NOT in git (repo < 100 MB) →
   `setup_env.sh` / `python3 -m mograph.fetch_assets` downloads them (also auto on first use). v14.2 zip/mp4 → release `v14.2-deliverables`. Models: sdk/mograph/pbr_assets/models/
-- test: `cd sdk && python3 -m mograph frame tests/v146_pbr3d.json --t 2` · footage test: projects/maghale/edit_v14_pbr3d.json
+- test: `cd sdk && python3 -m mograph frame tests/v146_pbr3d.json --t 2` · footage test: sdk/tests/legacy_maghale/edit_v14_pbr3d.json (archived regression fixture — NOT a template)
 - demo: work/renders/demo_pbr3d_v14_6.mp4 · compare: work/renders/3d_compare_v14_6.jpg
 - cache lives in ~/.cache/mograph_pbr3d (NEVER /tmp: tmpfs = RAM)
 
@@ -112,7 +133,7 @@ Then: `cd /home/user/webapp/projects/maghale && PYTHONPATH=/home/user/webapp/sdk
 - obj3d.py (extruded sprite / multiview), sculpt3d.py (+zraster numba z-buffer, MATERIALS, extrude, validate,
   fit_pose, comparison_sheet), sculpts/dental_implant.json, v14/object3d.py (`object_3d` layer)
 - CLI: turntable3d · sculpt-check · sculpt-compare · img2mesh.   Guide: sdk/V14_3D_GUIDE.md
-- test edit: projects/maghale/edit_v14_3d.json (main edit_v14.json untouched)
+- test edit: sdk/tests/legacy_maghale/edit_v14_3d.json (archived regression fixture — NOT a template) (main edit_v14.json untouched)
 
 ## v14.3
 - DeepFilterNet3 denoise default (chmod +x sdk/mograph/bin/deep-filter after restore)

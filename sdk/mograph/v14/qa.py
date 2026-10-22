@@ -4,6 +4,8 @@ mograph.v14.qa — fast checks before any render (< 5 s):
   * every layer: duration > 0.25 s, inside the edit, sampled at 3 instants → ink bbox on screen (warn if clipped)
   * overlapping FRONT layers at the same instant in the same screen region (clutter)
   * subtitle phrases: none longer than 3.5 s, none shorter than 0.35 s
+  * v21: no aecomp lower_third / chest-zone hero visible while a subtitle phrase is visible (zero collision)
+  * v21: originality audit (mograph.style_bank) — copied reference text / cloned spec / fixed widget rotation
 Exit code 0 = clean, 1 = warnings.
 """
 from __future__ import annotations
@@ -43,6 +45,32 @@ def qa_warnings(R, verbose=False):
                 warn.append(f"subtitle too long ({dd:.1f}s): {txt}")
             if dd < 0.35:
                 warn.append(f"subtitle flashes ({dd:.2f}s): {txt}")
+    # v21 lower-zone collision: a lower third / chest hero and an UNHIDDEN subtitle phrase on screen together
+    if R.subs:
+        from .subs import lower_zone_windows
+        hid = R.subs.get("_hide", [])
+        for a, b in lower_zone_windows(R, pad=0.0):
+            for p in R.subs["_phr"]:
+                lo, hi = max(a, p["t0"]), min(b, p["t1"])
+                if hi - lo <= 0.04:
+                    continue
+                # sample the overlap: any instant where the phrase is not hidden = collision
+                n = max(2, int((hi - lo) / 0.05))
+                bad = [lo + (hi - lo) * i / n for i in range(n + 1)
+                       if not any(h0 <= lo + (hi - lo) * i / n <= h1 for h0, h1 in hid)]
+                if bad:
+                    txt = " ".join(w["w"] for w in p["words"])
+                    warn.append(f"subtitle collides with a lower-third/chest layer at t={bad[0]:.2f}: {txt}")
+                    break
+    # v21 originality (copy = warning here; `pro originality` returns a hard error code)
+    try:
+        from ..style_bank import originality_report
+        E, W_, _ = originality_report(R.spec, getattr(R, "spec_path", None))
+        warn += [f"originality: {e}" for e in E]
+        warn += [f"originality: {w}" for w in W_ if w.startswith(("ROTATION", "LEGACY"))]
+    except Exception as e:  # noqa: BLE001
+        if verbose:
+            print(f"  (originality audit skipped: {e})")
     # on-screen check: render ink of each layer alone at its mid-time
     from .compositor import Frame
     from . import layers as LY
@@ -71,7 +99,7 @@ def qa_warnings(R, verbose=False):
         # FACE CHECK: ink over the mouth/eyes region (layers designed around her are exempt)
         if L["type"] not in ("halo", "orbit_ring", "strike"):
             from .stage import face_zone
-            zx, zy, rx, ry = face_zone(F, 0.0)
+            zx, zy, rx, ry = face_zone(F, 0.0, crown=False)
             yy, xx = np.mgrid[0:R.H:4, 0:R.W:4]
             m = ((xx - zx) / rx) ** 2 + ((yy - zy) / ry) ** 2 < 1
             cover = float((a[::4, ::4][m] > 20).mean()) if m.any() else 0.0

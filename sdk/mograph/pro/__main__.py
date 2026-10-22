@@ -18,6 +18,8 @@ python3 -m mograph.pro <command>      — v19 PRO EDITOR (colour · B-roll · de
   render <edit.json> [-j 2] [--chunk 4] [--preview] [--start a --end b] [--crf 17]   parallel resumable master
   reformat <in.mp4> --to 1:1|4:5|16:9|9:16|4:3 [--spec edit.json] [--mode crop|blur] [-o out.mp4]
   pack-cache <video> [-o pack_dir] / unpack-cache <video>   tracking cache ⇄ small committed pack
+  style-bank [--sync | --list | --sheet] [-o sheet.jpg]   v21 inspiration bank (sdk/style_bank/references → catalog.json)
+  originality <edit.json>                     v21 ANTI-COPY / ANTI-REPETITION audit (exit 2 = copy, 1 = repetition)
 """
 from __future__ import annotations
 
@@ -51,9 +53,24 @@ def main(argv=None):
     ap.add_argument("--start", type=float)
     ap.add_argument("--end", type=float)
     ap.add_argument("--crf", type=int)
+    ap.add_argument("--sync", action="store_true")
+    ap.add_argument("--list", action="store_true")
+    ap.add_argument("--sheet", action="store_true")
     a = ap.parse_args(rest)
     A = a.args
 
+    if cmd == "style-bank":
+        from .. import style_bank as SB
+        if a.sync or not (a.list or a.sheet):
+            SB.sync()
+        if a.list:
+            SB.list_refs()
+        if a.sheet:
+            SB.sheet(a.out)
+        return 0
+    if cmd == "originality":
+        from ..style_bank import run_originality
+        return run_originality(A[0])
     if cmd == "selftest":
         from .selftest import main as st
         return st()
