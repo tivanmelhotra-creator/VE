@@ -8,7 +8,13 @@ v13.9 audit: live one-euro tracking is causal (text trails the speaker) and the 
   pose   MediaPipe pose every frame → CENTRED Gaussian smoothing (no lag) → anchors:
          head_top face nose chin neck chest belly shoulder_l shoulder_r hand_l hand_r hands head_c
          + head_width / shoulder_width (u units) so layers scale with the speaker.
-CLI:  python3 -m mograph.v14.track media/raw.mp4      (run once; resumable)
+CLI:  python3 -m mograph.v14.track media/raw.mp4 [--engine modnet|rvm]     (run once; resumable)
+
+v22 matte engine "rvm" (Robust Video Matting, MobileNetV3, 15 MB, idea from Concat concat-vision/segment.rs):
+  a RECURRENT model — the hidden state r1..r4 is carried from frame t-1 to t, so the alpha is temporally coherent
+  by construction (no 3-frame median, no hair/hijab edge flicker on fast moves) and it runs ≈ 0.18 s/frame on
+  2 CPU cores vs ≈ 1.5 s for MODNet (≈ 8× faster prep).  Cached separately in <video>.v14/matte_rvm/ so the
+  committed MODNet pack keeps working.  Spec: "source": {"matte_engine": "rvm"}.  Model: models_hub "rvm".
 """
 from __future__ import annotations
 
@@ -68,7 +74,59 @@ def matte_frame(bgr, ref=512):
     return np.clip(cv2.resize(m, (w, h), interpolation=cv2.INTER_CUBIC), 0, 1).astype(np.float32)
 
 
-def prep_matte(path, log=print):
+RVM_DOWNSAMPLE = 0.25          # RVM internal working scale for 1080p+ (author recommendation for HD/4K)
+
+
+def _rvm_downsample(h, w):
+    return float(min(1.0, max(0.125, 512.0 / min(h, w) * RVM_DOWNSAMPLE * 2)))
+
+
+def prep_matte_rvm(path, log=print, reset_every=0):
+    """RVM over the whole clip, sequential (the recurrent state needs order).  Resumable: on restart the state is
+    warmed up on the 15 frames before the first missing one."""
+    from ..models_hub import session
+    s = session("rvm")
+    if s is None:
+        log("[v14 matte rvm] model unavailable → MODNet", flush=True)
+        return prep_matte(path, log=log, engine="modnet")
+    d = cache_dir(path)
+    md = os.path.join(d, "matte_rvm")
+    os.makedirs(md, exist_ok=True)
+    cap = cv2.VideoCapture(path)
+    n = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    first = next((i for i in range(n) if not os.path.exists(os.path.join(md, f"{i:05d}.png"))), n)
+    if first >= n:
+        log(f"[v14 matte rvm] ready ({n} frames, 0 new)", flush=True)
+        return
+    start = max(0, first - 15)
+    cap.set(cv2.CAP_PROP_POS_FRAMES, start)
+    rec = [np.zeros((1, 1, 1, 1), np.float32)] * 4
+    i, new = start, 0
+    while i < n:
+        ok, fr = cap.read()
+        if not ok:
+            break
+        h, w = fr.shape[:2]
+        src = np.ascontiguousarray((cv2.cvtColor(fr, cv2.COLOR_BGR2RGB).astype(np.float32) / 255.0).transpose(2, 0, 1)[None])
+        out = s.run(["pha", "r1o", "r2o", "r3o", "r4o"], {"src": src, "r1i": rec[0], "r2i": rec[1], "r3i": rec[2],
+                                                          "r4i": rec[3], "downsample_ratio": np.array(
+                                                              [_rvm_downsample(h, w)], np.float32)})
+        pha, rec = out[0][0, 0], out[1:]
+        if reset_every and i % reset_every == 0:
+            rec = [np.zeros((1, 1, 1, 1), np.float32)] * 4
+        f = os.path.join(md, f"{i:05d}.png")
+        if i >= first and not os.path.exists(f):
+            cv2.imwrite(f, (np.clip(pha, 0, 1) * 255 + 0.5).astype(np.uint8), [cv2.IMWRITE_PNG_COMPRESSION, 1])
+            new += 1
+            if new % 50 == 0:
+                log(f"[v14 matte rvm] {i + 1}/{n}", flush=True)
+        i += 1
+    log(f"[v14 matte rvm] ready ({i} frames, {new} new)", flush=True)
+
+
+def prep_matte(path, log=print, engine="modnet"):
+    if engine == "rvm":
+        return prep_matte_rvm(path, log=log)
     d = cache_dir(path)
     cap = cv2.VideoCapture(path)
     n = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
@@ -182,9 +240,18 @@ def _smooth(a, sigma):
     return np.stack([np.convolve(pad[:, c], k, mode="valid") for c in range(a.shape[1])], 1)
 
 
+def matte_dir(path, engine=None):
+    """cache dir of the chosen matte engine; engine None/"modnet" = classic, "rvm" = v22, "auto" = rvm if complete."""
+    if engine == "auto":
+        rd = os.path.join(path + ".v14", "matte_rvm")
+        engine = "rvm" if os.path.isdir(rd) and len(os.listdir(rd)) > 0 else "modnet"
+    return os.path.join(path + ".v14", "matte_rvm" if engine == "rvm" else "matte"), engine or "modnet"
+
+
 class Tracks:
-    def __init__(self, path, sigma=2.2):
+    def __init__(self, path, sigma=2.2, engine=None):
         self.path = path
+        self.mdir, self.engine = matte_dir(path, engine)
         with open(prep_pose(path)) as f:
             data = json.load(f)
         self.fps, self.w, self.h = data["fps"], data["w"], data["h"]
@@ -250,7 +317,19 @@ class Tracks:
         idx = max(0, min(self.n - 1, int(idx)))
         if idx in self._mc:
             return self._mc[idx]
-        d = os.path.join(self.path + ".v14", "matte")
+        d = self.mdir
+        if self.engine == "rvm":                  # recurrent model: already temporally coherent → no median
+            a = cv2.imread(os.path.join(d, f"{idx:05d}.png"), cv2.IMREAD_GRAYSCALE)
+            if a is None:
+                prep_matte_rvm(self.path)
+                a = cv2.imread(os.path.join(d, f"{idx:05d}.png"), cv2.IMREAD_GRAYSCALE)
+            if a is not None:
+                m = a.astype(np.float32) / 255.0
+                if len(self._mc) > 6:
+                    self._mc.clear()
+                self._mc[idx] = m
+                return m
+            d = os.path.join(self.path + ".v14", "matte")
         ims = []
         for j in (idx - 1, idx, idx + 1):
             j = max(0, min(self.n - 1, j))
@@ -269,5 +348,8 @@ class Tracks:
 
 
 if __name__ == "__main__":
-    prep_pose(sys.argv[1])
-    prep_matte(sys.argv[1])
+    _a = [x for x in sys.argv[1:] if not x.startswith("--")]
+    _eng = sys.argv[sys.argv.index("--engine") + 1] if "--engine" in sys.argv else "modnet"
+    _a = [x for x in _a if x != _eng]
+    prep_pose(_a[0])
+    prep_matte(_a[0], engine=_eng)

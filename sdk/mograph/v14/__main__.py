@@ -52,7 +52,7 @@ def main(argv=None):
         s = json.load(open(a.spec))
         src = os.path.join(base, s["source"]["src"])
         prep_pose(src)
-        prep_matte(src)
+        prep_matte(src, engine=s["source"].get("matte_engine") or "modnet")
         return
     R = Renderer(a.spec)
     if a.cmd == "words":

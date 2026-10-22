@@ -35,14 +35,15 @@ def _chunk_worker(spec, out, f0, f1, scale, crf):
     """render frames [f0, f1) of spec into out (runs in a subprocess)."""
     import cv2
     from ..v14.compositor import Renderer
+    from .rtime import ff_rate, time_of
     R = Renderer(spec)
     W, H = int(R.W * scale) // 2 * 2, int(R.H * scale) // 2 * 2
     p = subprocess.Popen(["ffmpeg", "-y", "-v", "error", "-f", "rawvideo", "-pix_fmt", "bgr24", "-s", f"{W}x{H}", "-r",
-                          str(R.fps), "-i", "-", "-c:v", "libx264", "-preset", "superfast", "-crf", str(crf), "-threads",
+                          ff_rate(R.fps), "-i", "-", "-c:v", "libx264", "-preset", "superfast", "-crf", str(crf), "-threads",
                           "1", "-x264-params", "rc-lookahead=10:ref=2", "-pix_fmt", "yuv420p", out],
                          stdin=subprocess.PIPE)
     for i in range(f0, f1):
-        img, _ = R.render(i / R.fps)
+        img, _ = R.render(float(time_of(i, R.fps)))     # v22 exact rational frame time
         if scale != 1.0:
             img = cv2.resize(img, (W, H), interpolation=cv2.INTER_AREA)
         p.stdin.write(img.tobytes())
@@ -63,12 +64,13 @@ def render(spec_path, jobs=2, chunk=4.0, preview=False, crf=None, start=None, en
     cd = os.path.join(od, "chunks", name)
     os.makedirs(cd, exist_ok=True)
     R = Renderer(spec_path)
+    from . import rtime as RT                      # v22: every frame<->time conversion is an exact Fraction
     fps = R.fps
-    total = int(round(R.duration * fps))
-    a = 0 if start is None else max(0, int(round(start * fps)))
-    b = total if end is None else min(int(round(end * fps)), total)
-    step = max(1, int(round(chunk * fps)))
-    ranges = [(f, min(b, f + step)) for f in range(a, b, step)]
+    total = RT.frames_in(R.duration, fps)
+    a = 0 if start is None else max(0, RT.frame_at(start, fps))
+    b = total if end is None else min(RT.frame_at(end, fps), total)
+    step = max(1, RT.frame_at(chunk, fps))
+    ranges = RT.chunks(a, b, step)
     sh = _spec_hash(spec_path)
     scale, q = (0.5, crf or 23) if preview else (1.0, crf or 17)
     mem = _mem_avail_mb()
@@ -80,7 +82,7 @@ def render(spec_path, jobs=2, chunk=4.0, preview=False, crf=None, start=None, en
     audio_p = subprocess.Popen([sys.executable, "-c",
                                 "import sys; from mograph.v14.compositor import Renderer; from mograph.v14.audio import "
                                 "build_audio; build_audio(Renderer(sys.argv[1]), sys.argv[2], float(sys.argv[3]), "
-                                "float(sys.argv[4]))", spec_path, wav, str(a / fps), str(b / fps)],
+                                "float(sys.argv[4]))", spec_path, wav, str(float(RT.time_of(a, fps))), str(float(RT.time_of(b, fps)))],
                                cwd=SDK, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
     todo = []
     for f0, f1 in ranges:

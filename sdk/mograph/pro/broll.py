@@ -18,7 +18,10 @@ The thing every professional editor does in every talking-head video, as ONE v14
      "grade": {"look": "teal_orange"},            # its own colour (pro.color) so stock footage matches the A-roll
      "key": {"color": "#00ff00", "tol": 0.2, "soft": 0.1, "spill": 0.6},   # chroma key (green screen)
      "pip": {"w": 0.42, "radius": 34, "shadow": 0.55, "tilt": 0, "aspect": "src" | 1.0 | 0.8},
-     "opacity": 1.0}
+     "opacity": 1.0,
+     "mask": {"shape": "linear", "angle": -12, "feather": 0.03, "invert": true},   # v22 SDF shape mask (pro.masks)
+     "mode": "split_diag"  (v22) = full-frame B-roll behind an angled soft linear mask (diagonal comparison split);
+             "diag": {"angle": -14, "feather": 0.025, "side": "top" | "bottom", "cy": 0.5}}
 
 Depth inside the v14 compositor:
     behind            → BACK pass (drawn before the speaker composite → her matte occludes it)
@@ -36,7 +39,7 @@ import numpy as np
 
 TRANSITIONS = ("cut", "fade", "dip_black", "dip_white", "zoom", "whip_left", "whip_right", "slide_up", "push_left",
                "luma_wipe", "circle", "blur")
-MODES = ("full", "pip", "behind", "split_top", "split_bottom")
+MODES = ("full", "pip", "behind", "split_top", "split_bottom", "split_diag")
 _IMG = (".jpg", ".jpeg", ".png", ".webp", ".bmp")
 
 
@@ -303,6 +306,14 @@ def render_layer(L, F):
         A = np.ones((H, W), np.float32) if valid is None else valid
         if a_src is not None:                             # PNG alpha / chroma key travels with the picture
             A = A * cv2.warpAffine(a_src, M, (W, H), flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT)
+    if mode == "split_diag" or L.get("mask"):              # v22 analytic SDF masks (resolution independent)
+        from .masks import mask_alpha
+        if mode == "split_diag":
+            dg = dict({"angle": -14, "feather": 0.025, "side": "top", "cy": 0.5}, **(L.get("diag") or {}))
+            A = A * mask_alpha({"shape": "linear", "angle": dg["angle"], "feather": dg["feather"], "cy": dg["cy"],
+                                "invert": dg["side"] == "top"}, W, H, u)
+        if L.get("mask"):
+            A = A * mask_alpha(L["mask"], W, H, u)
     if dx or dy:
         Mt = np.float32([[1, 0, dx], [0, 1, dy]])
         rgb = cv2.warpAffine(rgb, Mt, (W, H))
@@ -335,7 +346,7 @@ def prepare(L, R):
     if mode not in MODES:
         raise ValueError(f"broll: mode '{mode}' unknown ({', '.join(MODES)})")
     L.setdefault("pass", "back" if mode == "behind" else "front")
-    if mode in ("full", "split_top", "split_bottom"):
+    if mode in ("full", "split_top", "split_bottom", "split_diag"):
         L.setdefault("z", -50)
     L.setdefault("sfx", "whoosh" if L.get("in", "fade") in ("whip_left", "whip_right", "zoom") else "none")
     return L

@@ -416,7 +416,17 @@ class Renderer:
         if src.get("retime") or float(src.get("speed", 1.0)) != 1.0:      # v18 motion kit: slow/fast/ramp/freeze/reverse
             from ..motion.retime import install_v14
             self.retimed = install_v14(self) is not None
-        self.tracks = Tracks(self.src)
+        self.tracks = Tracks(self.src, engine=src.get("matte_engine"))
+        self.stab = None
+        if src.get("stabilize"):                                  # v22 range-aware stabilisation (pro/stabilize.py)
+            from ..pro.stabilize import install as _stab
+            _stab(self)
+        self.enh = None
+        if src.get("enhance"):                                    # v22 restore the plate on punch-ins (pro/enhance.py)
+            from ..pro.enhance import FrameEnhancer
+            ec = src["enhance"] if isinstance(src["enhance"], dict) else {}
+            self.enh = (FrameEnhancer(self.src + ".v14/enhance", 1, float(ec.get("mix", 0.5))),
+                        float(ec.get("punch_in", 1.3)))
         cam = spec.get("camera", {})
         keys = [[self.tl.resolve(k[0])] + list(k[1:]) for k in cam.get("keys", [[0, 1, .5, .5]])]
         shakes = [[self.tl.resolve(s[0])] + list(s[1:]) for s in cam.get("shakes", [])]
@@ -479,6 +489,20 @@ class Renderer:
         self._pos, self._last = i, fr
         return fr, i
 
+    def _enhanced(self, fr, idx, M):
+        """restore only the visible source rectangle of a punch-in (cached per frame on disk)."""
+        Mi = cv2.invertAffineTransform(M.astype(np.float64))
+        cs = np.array([[0, 0, 1], [self.W, 0, 1], [0, self.H, 1], [self.W, self.H, 1]], np.float64) @ Mi.T
+        x0, y0 = [max(0, int(v) - 8) for v in cs.min(0)]
+        x1, y1 = min(self.sw, int(cs[:, 0].max()) + 8), min(self.sh, int(cs[:, 1].max()) + 8)
+        if x1 - x0 < 32 or y1 - y0 < 32:
+            return fr
+        out = fr.copy()
+        crop = fr[y0:y1, x0:x1]
+        out[y0:y1, x0:x1] = cv2.resize(self.enh[0].get(f"{idx:05d}_{x0}_{y0}_{x1}_{y1}", crop),
+                                       (x1 - x0, y1 - y0), interpolation=cv2.INTER_AREA)
+        return out
+
     def matrix(self, t):
         z, cx, cy, rot, dx, dy = self.cam.at(t)
         k0 = max(self.W / self.sw, self.H / self.sh)
@@ -491,6 +515,9 @@ class Renderer:
             Rm = cv2.getRotationMatrix2D((self.W / 2, self.H / 2), rot, 1.0)
             M = np.vstack([Rm, [0, 0, 1]]) @ np.vstack([M, [0, 0, 1]])
             M = M[:2]
+        if self.stab is not None:          # v22: shake removed INSIDE the camera matrix → plate, matte, anchors agree
+            i = int(round(self.tl.to_src(t) * self.sfps))
+            M = (np.vstack([M, [0, 0, 1]]) @ self.stab.matrix(i))[:2]
         return M, z
 
     def grade_at(self, t):
@@ -531,6 +558,8 @@ class Renderer:
                 mf = self.morph.frame(*win)
                 if mf is not None:
                     fr, mat = mf
+        if self.enh is not None and z >= self.enh[1]:     # v22: restored detail only where the punch-in magnifies
+            fr = self._enhanced(fr, idx, M)
         plate = cv2.warpAffine(fr, M, (W, H), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REFLECT)
         if self._gmatch is not None:
             from .palette import apply_grade_match
