@@ -145,15 +145,61 @@ def prep_matte(path, log=print, engine="modnet"):
     log(f"[v14 matte] ready ({i} frames, {new} new)", flush=True)
 
 
+# v22: silhouette calibration (measured on maghale vs MediaPipe: hijab/hair silhouette at the eye line ≈ 1.81 ×
+# ear-to-ear width; body silhouette 40 px below the shoulder line ≈ 1.49 × shoulder width).  The Haar box only gives
+# the face position; widths and the shoulder line come from the person matte → no dependence on Haar box padding.
+SIL_HEAD, SIL_SHOULDER = 1.81, 1.49
+
+
+def _silhouette_geometry(a, eye_y, cx):
+    """a = person alpha (h×w float, any size), eye_y / cx in px of a → (head_w, shoulder_w, shoulder_y, top_y) in
+    NORMALISED units, or None when the silhouette is unusable."""
+    h, w = a.shape
+    m = a > 0.5
+    rows = np.where(m.any(1))[0]
+    if len(rows) < h * 0.2:
+        return None
+
+    def span(y):
+        y = int(min(h - 1, max(0, y)))
+        xs = np.where(m[y])[0]
+        if not len(xs):
+            return 0, cx, cx
+        # the run that contains cx (ignore other blobs)
+        left = xs[xs <= cx]
+        right = xs[xs >= cx]
+        if not len(left) or not len(right):
+            return 0, cx, cx
+        return int(right.max() - left.min()), int(left.min()), int(right.max())
+
+    head_sil, _, _ = span(eye_y)
+    if head_sil < w * 0.08:
+        return None
+    sh_y = None
+    for y in range(int(eye_y), h):                         # shoulder line: silhouette ≥ 1.85 × head (measured 1.89)
+        if span(y)[0] >= 1.85 * head_sil:
+            sh_y = y
+            break
+    if sh_y is None:
+        return None
+    body = span(min(h - 1, sh_y + 0.02 * h))[0]
+    head_w = head_sil / SIL_HEAD
+    sw = max(body / SIL_SHOULDER, head_w * 1.9)
+    return head_w / w, sw / w, sh_y / h, rows.min() / h
+
+
 def _prep_pose_offline_fallback(path, out, log=print, work_w=360):
+    """no MediaPipe: Haar face box (position) + person-matte silhouette (scale, shoulder line).  v22 calibrated."""
     from ..matte import matte_onnx
     fc = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
     cap = cv2.VideoCapture(path)
     fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
     W, H = int(cap.get(3)), int(cap.get(4))
     work_h = int(H * work_w / W)
+    asp = H / W
     frames, i = [], 0
     last_box = [0.35, 0.30, 0.30, 0.18]  # normalized [x, y, w, h]
+    geo = None
     while True:
         ok, fr = cap.read()
         if not ok:
@@ -166,25 +212,39 @@ def _prep_pose_offline_fallback(path, out, log=print, work_w=360):
             if valid:
                 bx, by, bw, bh = max(valid, key=lambda b: b[2]*b[3])
                 last_box = [bx / work_w, by / work_h, bw / work_w, bh / work_h]
+            fx, fy, fw, fh = last_box
+            try:
+                g = _silhouette_geometry(matte_onnx(sm), (fy + fh * 0.40) * work_h, (fx + fw * 0.5) * work_w)
+            except Exception:  # noqa: BLE001
+                g = None
+            if g is not None:
+                geo = g if geo is None else tuple(0.6 * a + 0.4 * b for a, b in zip(geo, g))
         fx, fy, fw, fh = last_box
         cx = fx + fw * 0.5
-        cy = fy + fh * 0.5
+        eye_y = fy + fh * 0.40
+        if geo is not None:
+            hw, sw, sh_y, _top = geo
+        else:                                   # no usable matte → calibrated clamps (report v22 §1)
+            hw = float(np.clip(fw * 0.56, 0.22, 0.26))
+            sw = float(np.clip(hw * 2.35, 0.52, 0.60))
+            sh_y = eye_y + hw * 1.35 / asp
         pts = [[0.5, 0.5] for _ in range(33)]
-        pts[0]  = [round(cx, 4), round(fy + fh * 0.56, 4)]              # nose
-        pts[2]  = [round(cx + fw * 0.18, 4), round(fy + fh * 0.40, 4)]  # eye_l (subject left = image right)
-        pts[5]  = [round(cx - fw * 0.18, 4), round(fy + fh * 0.40, 4)]  # eye_r (subject right = image left)
-        pts[7]  = [round(cx + fw * 0.34, 4), round(fy + fh * 0.48, 4)]  # ear_l
-        pts[8]  = [round(cx - fw * 0.34, 4), round(fy + fh * 0.48, 4)]  # ear_r
-        pts[11] = [round(cx + fw * 0.78, 4), round(fy + fh * 1.32, 4)]  # sh_l
-        pts[12] = [round(cx - fw * 0.78, 4), round(fy + fh * 1.32, 4)]  # sh_r
-        pts[15] = [round(cx + fw * 0.55, 4), round(min(0.90, fy + fh * 2.35), 4)] # hand_l
-        pts[16] = [round(cx - fw * 0.55, 4), round(min(0.90, fy + fh * 2.35), 4)] # hand_r
+        pts[0]  = [round(cx, 4), round(fy + fh * 0.56, 4)]                 # nose
+        pts[2]  = [round(cx + hw * 0.30, 4), round(eye_y, 4)]              # eye_l (subject left = image right)
+        pts[5]  = [round(cx - hw * 0.30, 4), round(eye_y, 4)]              # eye_r
+        pts[7]  = [round(cx + hw * 0.50, 4), round(fy + fh * 0.48, 4)]     # ear_l
+        pts[8]  = [round(cx - hw * 0.50, 4), round(fy + fh * 0.48, 4)]     # ear_r
+        pts[11] = [round(cx + sw * 0.50, 4), round(sh_y, 4)]               # sh_l
+        pts[12] = [round(cx - sw * 0.50, 4), round(sh_y, 4)]               # sh_r
+        hy = round(min(0.92, sh_y + sw * 0.95 / asp), 4)
+        pts[15] = [round(cx + sw * 0.35, 4), hy]                           # hand_l
+        pts[16] = [round(cx - sw * 0.35, 4), hy]                           # hand_r
         frames.append(pts)
         i += 1
     cap.release()
     with open(out, "w") as f:
-        json.dump({"fps": fps, "w": W, "h": H, "frames": frames}, f)
-    log(f"[v14 pose offline fallback] ready ({i} frames)", flush=True)
+        json.dump({"fps": fps, "w": W, "h": H, "frames": frames, "source": "haar+silhouette"}, f)
+    log(f"[v14 pose offline fallback] ready ({i} frames, silhouette-calibrated {geo is not None})", flush=True)
     return out
 
 

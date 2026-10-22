@@ -36,14 +36,42 @@ SUB_STYLES = ("minimal_clean", "soft_scrim", "glass_matte", "jelly_crescent")
 HIDE_PAD = 0.12
 
 
+LOWER_Y = 0.72                                   # v22: anything placed at y ≥ 72 % of the frame owns the subtitle zone
+
+
+def _in_lower_third(L, H):
+    """screen-placed layers (any type) whose centre / box reaches the lower third, bottom b-roll modes, pip low."""
+    t = L.get("type")
+    if t in ("subtitles", "progress", "ambient_bokeh", "god_rays", "vegas_comet"):
+        return False
+    if t == "broll":                              # cutaways / splits keep subtitles ON the picture (normal edit);
+        m = L.get("mode", "full")                 # only a PiP card sitting low collides with them
+        if m == "pip":
+            y = L.get("y")
+            return y is not None and float(y) >= LOWER_Y * H - 0.2 * H
+        return False
+    if L.get("anchor", "screen") == "screen" and L.get("y") is not None:
+        y = float(L["y"])
+        y = y * H if y <= 1.0 else y                # fractions or px
+        return y >= LOWER_Y * H
+    if t == "aecomp" and L.get("y") is not None:
+        y = float(L["y"])
+        return (y if y <= 1.0 else y / H) >= LOWER_Y
+    return False
+
+
 def lower_zone_windows(R, pad=HIDE_PAD):
     """[[t0, t1], …] (edited seconds) of every layer that owns the lower zone: aecomp lower thirds and chest/belly
     hero elements.  Used by prepare_subs (auto-hide) and by qa (collision check)."""
     out = []
+    H = float(getattr(R, "H", 1920))
     for L in R.spec.get("layers", []):
         t = L.get("type")
+        if L.get("subs_hide") is False:          # explicit opt-out
+            continue
         lower = (t == "aecomp" and L.get("lower_third")) or \
-            (L.get("anchor") in ("chest", "belly") and t in ("disc", "glass_shape", "kinetic_title"))
+            (L.get("anchor") in ("chest", "belly") and t in ("disc", "glass_shape", "kinetic_title")) or \
+            _in_lower_third(L, H) or bool(L.get("subs_hide"))
         if not lower:
             continue
         try:

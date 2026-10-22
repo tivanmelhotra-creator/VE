@@ -71,9 +71,27 @@ def _overlap(zone, x, y, r):
     return dx * dx + dy * dy < 1.0
 
 
+# v22: the default push direction follows the ANCHOR, not only the type.  A title on the chest / shoulders / neck
+# that grazes the chin must move DOWN a few px — the old type default "up" threw it over the whole face to the top.
+ANCHOR_GUARD = {"chest": "down", "belly": "down", "neck": "down", "shoulders": "down", "shoulder_l": "down",
+                "shoulder_r": "down", "hands": "down", "hand_l": "side", "hand_r": "side", "chin": "down",
+                "head_top": "up", "head_c": "up", "face": "up", "nose": "up"}
+
+
+def guard_mode(L, kind=None):
+    if kind is not None:
+        return kind
+    if "guard" in L:
+        return L["guard"]
+    base = GUARD_DEFAULT.get(L["type"], None)
+    if base in ("up", "down"):
+        return ANCHOR_GUARD.get(L.get("anchor", "screen"), base)
+    return base
+
+
 def guard(L, F, x, y, r, kind=None):
     """Return a safe (x, y) for an element of radius r.  Smooth over time (no jumps)."""
-    mode = L.get("guard", GUARD_DEFAULT.get(L["type"], None) if kind is None else kind)
+    mode = guard_mode(L, kind)
     if not mode:
         return x, y
     zone = face_zone(F, float(L.get("guard_margin", 0.12)))
