@@ -231,6 +231,7 @@ class Part:
     clip: np.ndarray | None = None       # per-vertex scalar; contour points with clip > 0 are discarded
     boundary: bool = False               # draw open-mesh boundary edges (hems) as lines
     occ_tris: np.ndarray | None = None   # bool per triangle: rendered into the depth/id buffer (None = all)
+    boundary_keep: np.ndarray | None = None  # bool per vertex: boundary edges drawn only where both ends are kept
     kind: str = "body"                   # body | cloth | hair (affects the default style)
 
 
@@ -314,6 +315,8 @@ def iso_segments(part: Part, field_v: np.ndarray, level=0.0):
 
 def boundary_polyline_segments(part: Part):
     b = part.topo.boundary
+    if part.boundary_keep is not None and len(b):
+        b = b[part.boundary_keep[b].all(1)]
     if not len(b):
         return np.zeros((0, 3)), np.zeros((0, 2), np.int64)
     used, inv = np.unique(b.ravel(), return_inverse=True)

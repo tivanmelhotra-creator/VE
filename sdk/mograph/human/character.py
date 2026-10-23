@@ -199,7 +199,8 @@ class Character:
         for k, g in enumerate(self.garments):
             V = b.skin(G, g.rest, g.W)
             parts.append(Part(g.name, V, g.tris, g.topo, pid=2 + k, smooth_iters=g.smooth_iters,
-                              min_jump=g.min_jump, weight=g.weight, boundary=g.hem, kind=g.kind))
+                              min_jump=g.min_jump, weight=g.weight, boundary=g.hem, kind=g.kind,
+                              boundary_keep=g.boundary_keep))
         return parts
 
     # --------------------------------------------------------------------------------------------- render

@@ -108,6 +108,7 @@ class Garment:
     cover: np.ndarray | None = None # (BODY verts) field: >0 where this garment hides the body
     attrs: dict = field(default_factory=dict)   # per-vertex attributes (arm_s, leg_s, y, x, front…)
     details: list = field(default_factory=list) # iso-line details: (attr, level, mask_attr, mask_min, weight, kind)
+    boundary_keep: np.ndarray | None = None
 
 
 def _vnormals(X, tris, n):
@@ -463,7 +464,10 @@ def _skirt(body, top_y, frac, flare=True, name="skirt"):
     pel[bone_index("root")] = 0.4
     k = np.clip((R.lm["hip"] - y) / 3.0, 0, 1)[:, None]
     leg_part = Wg.copy()
-    Wn = Wg * (1 - 0.55 * (1 - k)) * 0 + (Wg * 0.45 + pel[None] * 0.55)
+    # top band rides the pelvis, the rest mostly follows the (symmetric) helper leg weights → sitting drapes
+    # over the thighs, walking keeps a single tube
+    a = 0.25 + 0.6 * k
+    Wn = Wg * a + pel[None] * (1 - a)
     Wn = Wn / Wn.sum(1, keepdims=True)
     g = mesh_garment(body, V, Tt, Wn, name, "cloth", smooth=3, weight=1.0, min_jump=0.3)
     # body coverage: torso band + legs above the hem
@@ -493,30 +497,8 @@ def build_hair(body, style) -> list[Garment]:
     nb = len(bones())
     headW = _bone_w(nb, {"head": 1.0})
     if style in ("long", "bob"):
-        from .lineart import MeshTopo
-        idx = group_vertices("helper-hair")
-        Q = group_faces("helper-hair")
-        T = np.vstack([Q[:, [0, 1, 2]], Q[:, [0, 2, 3]]])
-        X = body.rest
-        cut_y = L["chin"] - 0.1 if style == "bob" else L["chest"] - 1.2
-        ff = np.full(len(X), 1.0)
-        ff[idx] = cut_y - X[idx, 1]
-        # keep hair off the face: cut a front opening below the brow
-        front = X[idx, 2] - (L["head_c"][2] + 0.35)
-        ff[idx] = np.maximum(ff[idx], np.where((X[idx, 1] < L["brow"] + 0.2) & (np.abs(X[idx, 0]) < 0.95),
-                                               front * 4, -1))
-        V, Tt, Wg, src, t, _ = cut_mesh(X, T, ff, body.W)
-        # head-follow for the top, blend to neck/spine as it falls
-        k = np.clip((L["neck"] - V[:, 1]) / 2.5, 0, 1)[:, None]
-        sp = _bone_w(nb, {"neck01": 0.5, "spine01": 0.5})
-        Wn = headW[None] * (1 - k) + sp[None] * k
-        if style == "bob":
-            # puff the bob outward
-            cc = np.array([0, L["eye"], L["head_c"][2]])
-            r = V - cc
-            r[:, 1] = 0
-            V = V + r * 0.08
-        out.append(mesh_garment(body, V, Tt, Wn, f"hair_{style}_fall", "hair", smooth=4, min_jump=0.15))
+        cut_y = L["chin"] + 0.15 if style == "bob" else L["chest"] - 0.6
+        out.append(_hair_curtain(body, cut_y, 125 if style == "long" else 150, style))
     if style == "bun":
         hc = L["head_c"]
         cc = np.array([0.0, L["top"] - 0.35, hc[2] - 0.75])
@@ -654,4 +636,76 @@ def build_shoe(body, side, style="shoes"):
                      1.0, -1.0)
     cover[BODY_N:] = -1
     g.cover = cover
+    return g
+
+
+def _hair_curtain(body, bottom_y, theta_max, style):
+    """Hair volume falling from the cap: a sheet parametrised by angle θ around the head axis (0 = straight back)
+    and height y. Radius follows the head (+ volume) and below the jaw the body (+ clearance), clamped so long
+    hair passes BEHIND the shoulders. Ends are slightly flared/tapered; only the bottom edge is drawn as a line."""
+    R = regions(body)
+    L = R.lm
+    X = body.rest[:BODY_N]
+    ax = np.array([0.0, L["head_c"][2] - 0.15])          # (x, z) of the vertical axis
+    rel = X[:, [0, 2]] - ax
+    th_all = np.degrees(np.arctan2(rel[:, 0], -rel[:, 1]))  # 0 = back, +90 = character's left
+    r_all = np.hypot(rel[:, 0], rel[:, 1])
+    top_y = L["eye"] + 0.2
+    nth, ny = 48, 44
+    ys = np.linspace(top_y, bottom_y, ny)
+    vol = 0.3 if style == "long" else 0.34
+    # angular extent per row: wide around the face, narrowing to the back below the jaw (hair falls BEHIND the
+    # shoulders on the back; it never cuts through the shoulder)
+    def tmax(y):
+        k = np.clip((L["chin"] + 0.2 - y) / 1.0, 0, 1)
+        return theta_max * (1 - k) + (48 if style == "long" else theta_max) * k
+    Rr = np.zeros((ny, nth))
+    TH = np.zeros((ny, nth))
+    for i, y in enumerate(ys):
+        tm = tmax(y)
+        ths = np.linspace(-tm, tm, nth)
+        TH[i] = ths
+        m = np.abs(X[:, 1] - y) < 0.2
+        for j, t in enumerate(ths):
+            mm = m & (np.abs(((th_all - t + 180) % 360) - 180) < 10)
+            Rr[i, j] = r_all[mm].max() if mm.any() else np.nan
+    for j in range(nth):
+        col = Rr[:, j]
+        good = ~np.isnan(col)
+        Rr[:, j] = np.interp(np.arange(ny), np.nonzero(good)[0], col[good]) if good.any() else 1.0
+    head_cap = Rr[: max(2, ny // 8)].max(0)
+    for i, y in enumerate(ys):
+        k = np.clip((L["chin"] + 0.3 - y) / 1.0, 0, 1)
+        hang = head_cap * (1 - 0.45 * k)                      # hangs from the skull, then settles on the back
+        Rr[i] = np.maximum(Rr[i] + vol * (1 - 0.55 * k), hang + vol * (1 - 0.5 * k))
+    for _ in range(8):
+        Rr[1:-1] = 0.25 * Rr[:-2] + 0.5 * Rr[1:-1] + 0.25 * Rr[2:]
+        Rr[:, 1:-1] = 0.25 * Rr[:, :-2] + 0.5 * Rr[:, 1:-1] + 0.25 * Rr[:, 2:]
+    V = []
+    for i, y in enumerate(ys):
+        u = i / (ny - 1)
+        for j in range(nth):
+            t = TH[i, j]
+            r = Rr[i, j] * (1 + 0.05 * u ** 2)
+            yy = y - 0.15 * u ** 3 * (0.5 + 0.5 * math.cos(math.radians(t) * 2.4))
+            tr = math.radians(t)
+            V.append((ax[0] + r * math.sin(tr), yy, ax[1] - r * math.cos(tr)))
+    V = np.asarray(V, np.float32)
+    T = []
+    for i in range(ny - 1):
+        for j in range(nth - 1):
+            a = i * nth + j
+            T += [(a, a + nth, a + 1), (a + 1, a + nth, a + nth + 1)]
+    T = np.asarray(T, np.int32)
+    nb = len(bones())
+    headW = _bone_w(nb, {"head": 1.0})
+    neckW = _bone_w(nb, {"neck02": 0.5, "neck01": 0.5})
+    spW = _bone_w(nb, {"spine01": 0.7, "neck01": 0.3})
+    yv = V[:, 1]
+    k1 = np.clip((L["chin"] + 0.3 - yv) / 0.8, 0, 1)[:, None]
+    k2 = np.clip((L["neck"] - 0.4 - yv) / 1.5, 0, 1)[:, None]
+    W = headW[None] * (1 - k1) + neckW[None] * k1 * (1 - k2) + spW[None] * k2
+    W /= W.sum(1, keepdims=True)
+    g = mesh_garment(body, V, T, W, f"hair_{style}_fall", "hair", smooth=3, min_jump=0.15)
+    g.boundary_keep = V[:, 1] < top_y - 0.25          # sides + ends drawn, the top row hides under the cap
     return g
