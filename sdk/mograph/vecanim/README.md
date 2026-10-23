@@ -1,4 +1,4 @@
-# vecanim — code-only VECTOR line-art animation (v27)
+# vecanim — code-only VECTOR line-art animation (v27-v29)
 
 Raster panel → vector scene (once) → rig JSON (once) → a few lines of acting → MP4 + SVG + Lottie.
 No video model; nothing is warped as pixels — every frame moves Bézier control points.
@@ -46,6 +46,48 @@ panel (nose/shoulders plausible) but gives inconsistent results on the girl → 
 - Lottie size: path keys every 3 frames; key reduction (fit per-point curves) would cut it ~5×
 
 Restore after a sandbox reset: `bash sdk/tools/restore_vecanim.sh`
+
+## v29 — one command: image -> film (no manual coordinates)
+
+```bash
+cd sdk
+python3 -m mograph.vecanim templates                       # duo_affection, duo_friends, solo_portrait
+python3 -m mograph.vecanim make PANEL.png --shot duo_affection -o OUT --preview   # contact sheet, ~10-25 s
+python3 -m mograph.vecanim make PANEL.png --shot duo_affection -o OUT --lottie    # MP4 + SVG + Lottie
+python3 -m mograph.vecanim rig  PANEL.png -o OUT            # trace + auto rig only (rig_debug.png)
+```
+
+Stages (`pipeline.py`), each cached by the panel's content hash in `OUT/cache/<hash>/`:
+
+| stage | module | output |
+|---|---|---|
+| load (auto-invert dark-on-white, normalise) | `pipeline.load_panel` | `panel.npy` |
+| vector trace | `trace.py` | `scene.json` |
+| auto rig: faces, eyes, mouth, neck, shoulders, pins, z-order, hair springs | `autorig.py` | `rig.json`, `rig_debug.png` |
+| shot: actions on `left/right/back/front/main/charN/all`, `t` in s or `beat:N`, snapped to music | `templates/*.json` | |
+| auto camera (wide -> faces -> title), auto title placement in empty space, auto candle flame | `pipeline` | |
+| parallel render (N processes, spring pre-roll, x264 chunks, concat + music) | `pipeline.render` | `<shot>.mp4`, `contact_sheet.png`, `final_pose.svg`, `timing.json` |
+| Lottie (validated) | `lottie.py` | `<shot>.lottie.json` |
+
+`rig.json` is never overwritten once created: fix a landmark by hand and re-run (`--rerig` regenerates).
+A shot is plain JSON - copy a template and change times / gestures / title.
+
+Measured, 2-core / 1 GB sandbox, cold cache:
+
+| panel | items | prepare | render | lottie | total |
+|---|---|---|---|---|---|
+| birthday (1996x920, 12 s) | 405 | 15 s | 62 s | 14 s | ~100 s |
+| unseen "friends" (1584x672, 10 s) | 87 | 5 s | 30 s | 4 s | ~47 s |
+
+Previously the same result took ~2 h of manual rigging/keying; now ~1-2 min per new image.
+
+Generality fixes found on the unseen panel: tracer no longer closes a skeleton "loop" whose ends
+never meet (it drew a false straight line); `hand_on_shoulder(side='auto')` uses the far shoulder
+when the actor stands behind and the near shoulder (mirrored hand) when in front; hand scales with
+the target's face width; title placement keeps a margin from all ink.
+
+Process note: every heavy stage runs in its own process (the orchestrator holds no scene), which is
+what keeps two renderers + two x264 encoders inside 1 GB.
 
 ## v28 — professional pass (example: `examples/vecanim/birthday_v3.py`, 12 s)
 - `secondary.py` — follow-through on hair / bun / collar: damped springs driven by the puppet's
