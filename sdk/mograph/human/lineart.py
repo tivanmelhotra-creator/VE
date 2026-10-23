@@ -359,14 +359,23 @@ def depth_maps(depth, rmin=1, rjump=3):
     return Dmin, Dmax
 
 
+def pixel_world(cam, z, ss=1.0):
+    """world size (dm) of one buffer pixel at linear depth z."""
+    if cam.ortho:
+        return np.full_like(z, cam.ortho_h / (cam.H * ss))
+    return z * 2 * math.tan(math.radians(cam.fov) / 2) / (cam.H * ss)
+
+
 def visibility(P, cam, Dmin, Dmax, ss, tol):
+    """Dmin here = the RAW depth buffer (min over 3x3). A contour point is visible when no surface is more than
+    tol + 2.5 px-worth of depth in front of it (grazing surfaces near a silhouette are steep in depth)."""
     xy, z = cam.project(P)
     xs = xy * ss
     H, W = Dmin.shape
     inside = (xs[:, 0] >= 0) & (xs[:, 0] < W) & (xs[:, 1] >= 0) & (xs[:, 1] < H)
     dmin = _sample(Dmin, xs)
     dmax = _sample(Dmax, xs)
-    vis = inside & (z <= dmin + tol)
+    vis = inside & (z <= dmin + tol + 2.5 * pixel_world(cam, z, ss) * 3)
     jump = np.clip(dmax - z, 0, 1e4)
     return xy, z, vis, jump
 
@@ -553,7 +562,7 @@ class LineFrame:
 
 
 def render_lines(parts: list[Part], cam: Camera, style: Style, extra: list[Stroke3D] = (), iso: list = (),
-                 ss: float = 1.0, fig_px: float | None = None, vis_tol: float = 0.06, seed: int = 0) -> LineFrame:
+                 ss: float = 1.0, fig_px: float | None = None, vis_tol: float = 0.22, seed: int = 0) -> LineFrame:
     """parts → visible styled 2D strokes.
     iso: list of (part, field_v, level, weight, kind) iso-line requests (hems, hairline…)."""
     depth, ids = gl_buffers(cam, parts, ss)
