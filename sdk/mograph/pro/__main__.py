@@ -15,7 +15,7 @@ python3 -m mograph.pro <command>      — v19 PRO EDITOR (colour · B-roll · de
   thumbnail <edit.json> [--t auto|3.2] [-o thumb.jpg]     best frame, rendered with all layers
   frame <edit.json> --t 3.2 [-o f.jpg]        one composited frame (same renderer as v14 frame)
   platform <edit.json> [--to instagram_reels|youtube_shorts|tiktok|youtube|instagram_feed|linkedin]
-  render <edit.json> [-j 2] [--chunk 4] [--preview] [--start a --end b] [--crf 17]   parallel resumable master
+  render <edit.json> [-j 2] [--chunk 4] [--preview] [--start a --end b] [--crf 17] [--profile master|web|social]
   reformat <in.mp4> --to 1:1|4:5|16:9|9:16|4:3 [--spec edit.json] [--mode crop|blur] [-o out.mp4]
   pack-cache <video> [-o pack_dir] / unpack-cache <video>   tracking cache ⇄ small committed pack
   style-bank [--sync | --list | --sheet] [-o sheet.jpg]   v21 inspiration bank (sdk/style_bank/references → catalog.json)
@@ -58,6 +58,8 @@ def main(argv=None):
     ap.add_argument("--start", type=float)
     ap.add_argument("--end", type=float)
     ap.add_argument("--crf", type=int)
+    ap.add_argument("--profile", default="master", choices=["master", "web", "social"])
+    ap.add_argument("--x264-preset", dest="x264_preset")
     ap.add_argument("--sync", action="store_true")
     ap.add_argument("--list", action="store_true")
     ap.add_argument("--sheet", action="store_true")
@@ -178,7 +180,7 @@ def main(argv=None):
         return 0
     if cmd == "render":
         from .render import render
-        render(A[0], a.jobs, a.chunk, a.preview, a.crf, a.start, a.end)
+        render(A[0], a.jobs, a.chunk, a.preview, a.crf, a.start, a.end, profile=a.profile, preset=a.x264_preset)
         return 0
     if cmd == "reformat":
         from .export import reformat

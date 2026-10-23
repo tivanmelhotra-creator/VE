@@ -9,6 +9,11 @@ mograph.pro.render — PARALLEL, RESUMABLE, FRAME-EXACT master render of a v14 e
     resumes after a crash / sandbox reset; editing the JSON invalidates stale chunks automatically
   * audio (voice EDL + denoise + SFX + music + loudnorm) is built once, in parallel with the video
   * --preview = half resolution, crf 23 (≈ 3–4× faster) for client review
+  * v22 --profile master | web | social  (delivery size; chunks are encoded ONCE with the profile, no re-encode)
+        master  crf 17 · superfast · AAC 192k           archive / further grading (largest)
+        web     crf 20 · fast      · AAC 160k           site / YouTube upload (≈ 40–45 % of master)
+        social  crf 22 · fast      · maxrate 8 Mb/s · AAC 128k   Instagram / TikTok direct upload (smallest)
+     --crf / --x264-preset override the profile.
 """
 from __future__ import annotations
 
@@ -31,7 +36,21 @@ def _mem_avail_mb():
     return 2048
 
 
-def _chunk_worker(spec, out, f0, f1, scale, crf):
+PROFILES = {"master": {"crf": 17, "preset": "superfast", "abr": "192k"},
+            "web": {"crf": 20, "preset": "fast", "abr": "160k"},
+            "social": {"crf": 22, "preset": "fast", "abr": "128k", "maxrate": "8M", "bufsize": "16M"}}
+
+
+def x264_args(crf, preset="superfast", maxrate=None, bufsize=None):
+    a = ["-c:v", "libx264", "-preset", preset, "-crf", str(crf), "-threads", "1"]
+    if preset in ("ultrafast", "superfast", "veryfast"):
+        a += ["-x264-params", "rc-lookahead=10:ref=2"]
+    if maxrate:
+        a += ["-maxrate", maxrate, "-bufsize", bufsize or maxrate]
+    return a + ["-pix_fmt", "yuv420p"]
+
+
+def _chunk_worker(spec, out, f0, f1, scale, crf, preset="superfast", maxrate=None, bufsize=None):
     """render frames [f0, f1) of spec into out (runs in a subprocess)."""
     import cv2
     from ..v14.compositor import Renderer
@@ -39,8 +58,7 @@ def _chunk_worker(spec, out, f0, f1, scale, crf):
     R = Renderer(spec)
     W, H = int(R.W * scale) // 2 * 2, int(R.H * scale) // 2 * 2
     p = subprocess.Popen(["ffmpeg", "-y", "-v", "error", "-f", "rawvideo", "-pix_fmt", "bgr24", "-s", f"{W}x{H}", "-r",
-                          ff_rate(R.fps), "-i", "-", "-c:v", "libx264", "-preset", "superfast", "-crf", str(crf), "-threads",
-                          "1", "-x264-params", "rc-lookahead=10:ref=2", "-pix_fmt", "yuv420p", out],
+                          ff_rate(R.fps), "-i", "-", *x264_args(crf, preset, maxrate, bufsize), out],
                          stdin=subprocess.PIPE)
     for i in range(f0, f1):
         img, _ = R.render(float(time_of(i, R.fps)))     # v22 exact rational frame time
@@ -55,7 +73,8 @@ def _spec_hash(spec_path):
     return hashlib.sha1(open(spec_path, "rb").read()).hexdigest()[:12]
 
 
-def render(spec_path, jobs=2, chunk=4.0, preview=False, crf=None, start=None, end=None, captions=True, log=print):
+def render(spec_path, jobs=2, chunk=4.0, preview=False, crf=None, start=None, end=None, captions=True, log=print,
+           profile="master", preset=None):
     from ..v14.compositor import Renderer
     spec_path = os.path.abspath(spec_path)
     base = os.path.dirname(spec_path)
@@ -72,7 +91,11 @@ def render(spec_path, jobs=2, chunk=4.0, preview=False, crf=None, start=None, en
     step = max(1, RT.frame_at(chunk, fps))
     ranges = RT.chunks(a, b, step)
     sh = _spec_hash(spec_path)
-    scale, q = (0.5, crf or 23) if preview else (1.0, crf or 17)
+    P = dict(PROFILES.get(profile) or PROFILES["master"])
+    if preset:
+        P["preset"] = preset
+    scale, q = (0.5, crf or 23) if preview else (1.0, crf or P["crf"])
+    enc = f"{P['preset']} {P.get('maxrate') or '-'}"
     mem = _mem_avail_mb()
     jobs = max(1, min(int(jobs), os.cpu_count() or 1, int(mem // 330) or 1, len(ranges)))
     log(f"[pro render] {name}: {b - a} frames, {len(ranges)} chunks, {jobs} worker(s)  (RAM free {mem:.0f} MB)")
@@ -88,7 +111,7 @@ def render(spec_path, jobs=2, chunk=4.0, preview=False, crf=None, start=None, en
     for f0, f1 in ranges:
         c = os.path.join(cd, f"c{f0:06d}_{f1:06d}.mp4")
         okf = c + ".ok"
-        if os.path.exists(okf) and os.path.exists(c) and open(okf).read().strip() == f"{sh} {scale} {q}":
+        if os.path.exists(okf) and os.path.exists(c) and open(okf).read().strip() == f"{sh} {scale} {q} {enc}":
             continue
         todo.append((c, f0, f1))
     log(f"[pro render] {len(ranges) - len(todo)} chunk(s) reused, {len(todo)} to render")
@@ -101,8 +124,10 @@ def render(spec_path, jobs=2, chunk=4.0, preview=False, crf=None, start=None, en
             p = subprocess.Popen([sys.executable, "-c",
                                   "import sys; from mograph.pro.render import _chunk_worker as w; "
                                   "sys.exit(w(sys.argv[1], sys.argv[2], int(sys.argv[3]), int(sys.argv[4]), "
-                                  "float(sys.argv[5]), int(sys.argv[6])))",
-                                  spec_path, tmp, str(f0), str(f1), str(scale), str(q)], env=env, cwd=SDK,
+                                  "float(sys.argv[5]), int(sys.argv[6]), sys.argv[7], sys.argv[8] or None, "
+                                  "sys.argv[9] or None))",
+                                  spec_path, tmp, str(f0), str(f1), str(scale), str(q), P["preset"],
+                                  P.get("maxrate") or "", P.get("bufsize") or ""], env=env, cwd=SDK,
                                  stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
             running.append((p, c, tmp, f0, f1))
         time.sleep(0.5)
@@ -118,7 +143,7 @@ def render(spec_path, jobs=2, chunk=4.0, preview=False, crf=None, start=None, en
                 raise RuntimeError(f"chunk {f0}-{f1} failed:\n{err[-1500:]}")
             os.replace(tmp, c)
             with open(c + ".ok", "w") as f:
-                f.write(f"{sh} {scale} {q}")
+                f.write(f"{sh} {scale} {q} {enc}")
             done += f1 - f0
             el = time.time() - t0
             eta = el / max(1, done) * (need - done)
@@ -134,7 +159,7 @@ def render(spec_path, jobs=2, chunk=4.0, preview=False, crf=None, start=None, en
     out = os.path.join(od, f"{name}.mp4")
     if audio_p.returncode == 0 and os.path.exists(wav):
         subprocess.run(["ffmpeg", "-y", "-v", "error", "-i", silent, "-i", wav, "-c:v", "copy", "-c:a", "aac", "-b:a",
-                        "192k", "-shortest", "-movflags", "+faststart", out], check=True)
+                        P["abr"], "-shortest", "-movflags", "+faststart", out], check=True)
         os.remove(silent)
     else:
         log("[pro render] ⚠ audio build failed → silent master\n" + audio_p.stderr.read().decode(errors="ignore")[-800:])
@@ -146,5 +171,5 @@ def render(spec_path, jobs=2, chunk=4.0, preview=False, crf=None, start=None, en
         EX.write_vtt(ph, os.path.join(od, f"{name}.vtt"))
         with open(os.path.join(od, f"{name}_timeline.txt"), "w", encoding="utf-8") as f:
             f.write(EX.timeline(R) + "\n")
-    log(f"[pro render] DONE {out}  ({time.time() - t0:.0f}s)")
+    log(f"[pro render] DONE {out}  ({os.path.getsize(out) / 1e6:.1f} MB, profile {profile}, {time.time() - t0:.0f}s)")
     return out
