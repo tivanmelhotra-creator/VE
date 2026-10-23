@@ -35,9 +35,11 @@ def _env(t0, dur, ease='io'):
 
 
 # ------------------------------------------------------------------ head
-def tilt_head(ch, t, dur=None, angle=4.0, pivot='neck', ease='io', hold=None, back=None):
+def tilt_head(ch, t, dur=None, angle=4.0, pivot='neck', ease='spring_soft', hold=None, back=None, anticip=0.12):
     dur = dur or 1.0
-    keys = [(t, 0.0), (t + dur, np.radians(angle), ease)]
+    a = np.radians(angle)
+    keys = [(t, 0.0), (t + 0.25 * dur, -anticip * a, 'io'), (t + dur, a, ease)] if anticip else \
+        [(t, 0.0), (t + dur, a, ease)]
     if back is not None:                       # return at time `back`
         keys += [(back, np.radians(angle), 'hold'), (back + dur, 0.0, ease)]
     tr = A.Track(keys)
@@ -57,7 +59,10 @@ def turn_head(ch, t, dur=None, angle=-6.0, from_=None, **kw):
     dur = dur or 1.2
     piv = ch.L['neck']; names = set(ch.groups['head'])
     a0 = np.radians(from_ or 0.0)
-    tr = A.Track([(0, a0), (t, a0), (t + dur, np.radians(angle), 'io'), (t + dur * 1.6, np.radians(angle) * 0.6, 'io')])
+    a1 = np.radians(angle)
+    # anticipation (slight dip the other way) -> spring into the look -> settle
+    tr = A.Track([(0, a0), (t, a0), (t + 0.22 * dur, a0 + 0.1 * (a0 - a1), 'io'),
+                  (t + dur, a1, 'spring_soft'), (t + dur * 1.7, a1 * 0.6, 'io')])
 
     def f(st, tt):
         a = float(tr(tt))
@@ -219,7 +224,7 @@ def hand_on_shoulder(ch, t, dur=None, target=None, side='far', size=1.6, angle=0
     Target landmarks: shoulder_<side> (knuckle anchor) and shoulder_<side>_line (contour)."""
     dur = dur or 1.1
     lift = lift_shoulder(ch, t - 0.4, dur * 0.9, side=ch.spec.get('reach_side', 'r'))
-    k_tr = A.Track([(t, 0.0), (t + dur, 1.0, 'back')])
+    k_tr = A.Track([(t, 0.0), (t + dur, 1.0, 'spring_soft')])
     fade = A.Track([(t, 0.0), (t + dur * 0.55, 1.0, 'smooth')])
     anchor = target.L['shoulder_' + side]
     line = target.L['shoulder_' + side + '_line']
@@ -243,7 +248,25 @@ def hand_on_shoulder(ch, t, dur=None, target=None, side='far', size=1.6, angle=0
     return Gesture(f)
 
 
-GESTURES = dict(tilt_head=tilt_head, turn_head=turn_head, nod=nod, sway=sway, smile=smile, blink=blink,
+def idle_blinks(ch, t, dur=None, every=3.6, jitter=1.2, seed=0, until=None, double=0.25):
+    """Life: natural blink rhythm (random 2.4-4.8 s spacing, sometimes a double blink)."""
+    rng = np.random.default_rng(seed)
+    times, x = [], t + rng.uniform(0.3, every)
+    end = until if until is not None else t + 60
+    while x < end:
+        times.append(x)
+        if rng.random() < double:
+            times.append(x + 0.32)
+        x += every + rng.uniform(-jitter, jitter)
+    gs = [blink(ch, x_) for x_ in times]
+
+    def f(st, tt):
+        for g in gs:
+            g.apply(st, tt)
+    return Gesture(f)
+
+
+GESTURES = dict(idle_blinks=idle_blinks, tilt_head=tilt_head, turn_head=turn_head, nod=nod, sway=sway, smile=smile, blink=blink,
                 look=look, breathe=breathe, lift_shoulder=lift_shoulder, hand_on_shoulder=hand_on_shoulder)
 
 
