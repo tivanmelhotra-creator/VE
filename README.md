@@ -1,12 +1,20 @@
-# VE — mograph: automatic video editor & motion-graphics SDK (v19 Pro Editor)
+# VE — mograph: automatic video editor & motion-graphics SDK (v22)
 
 > **Agents: read [`AGENT_INDEX.md`](AGENT_INDEX.md) first** (one page: request → file → key). After any reset:
-> `cd sdk && python3 -m mograph.pro doctor --fix` → `ALL GOOD ✓` (53 selftests).
+> `cd sdk && python3 -m mograph.pro doctor --fix` → `ALL GOOD ✓` (86 selftests).
 
 An agent-driven engine for editing **Persian talking-head footage** and making **vector motion graphics**,
 designed to run inside a small sandbox (2 vCPU, ~1 GB RAM, no GPU).
 The agent writes one JSON spec; the engine does the drawing, word-locked timing, tracking, depth matte,
 3D objects, sound and QA.
+
+## v22 — Concat-inspired kit (`sdk/V22_GUIDE.md`)
+An MCP server with a warm renderer (`python3 -m mograph.mcp`, 15 tools). The RVM temporal matte runs prep about 5× faster.
+Offline Persian voice (`voice.provider: "local"`, no API key). Silero-VAD snaps word timings to speech onsets. Tiled
+Real-ESRGAN `enhance` restores stills. `source.stabilize` is range-aware and folded into the camera matrix. Product
+`cutout` removes photo backgrounds. SDF shape masks add a `split_diag` b-roll mode. `pro render` uses exact rational
+frame time. All models are sha256-pinned and fetched to `~/.cache/mograph_models`, **never committed: the repo stays
+under 100 MB**.
 
 ## v21 — Style Bank & Creative Synthesis
 **Copying and repetition are forbidden.** References in `sdk/style_bank/` are style studies (principles, never
@@ -24,6 +32,7 @@ and `sdk/USER_TASTE_GUIDE.md`.
 | `sdk/mograph/aefx/` | **v16 AE-FX**: AE keyframes (speed/influence), 351 AE text animators (range/wiggly selectors, Persian-aware), 352 Premiere-style in/out/fx motion presets, deep_glow, path_blur, `"fx"` stack on any layer, measured catalogue + `suggest` — `python3 -m mograph.aefx selftest` · guide `sdk/AEFX_GUIDE.md` |
 | `sdk/mograph/motion/` | **v18 Motion Kit**: glossary resolver (Persian/English → keys), unified easing (cubic-bezier / AE speed-influence / spring / steps + graph editor), retime (slow/fast motion, speed ramp, freeze, reverse, optical-flow in-betweens, audio remap), Saber-style light (51 presets, blade/path/shape/text/alpha cores, glow, flicker, smoke/fluid/energy distortion, lightning), rubber-hose characters (animation principles, on twos) and Preston-Blair lip sync — `python3 -m mograph.motion selftest` · guide `sdk/MOTION_GUIDE.md` |
 | `sdk/mograph/pro/` | **v19 Pro Editor**: colour looks (10) + `.cube` LUTs + skin protect + grain/halation/letterbox · B-roll layer (cutaway / PiP / background replace / split screen / chroma key, 12 transitions, Ken Burns) · spec linter · parallel resumable render · captions SRT/VTT/ASS · EDL · chapters · thumbnail · reformat 1:1/4:5/16:9 · doctor (restore after reset in seconds) — `python3 -m mograph.pro selftest` · guide `sdk/PRO_EDITOR_GUIDE.md` |
+| `sdk/mograph/{models_hub,vad,v22}.py`, `sdk/mograph/mcp/`, `sdk/mograph/pro/{masks,rtime,enhance,stabilize,cutout}.py` | **v22** Concat-inspired kit — `python3 -m mograph.v22 selftest` · guide `sdk/V22_GUIDE.md` |
 | `sdk/mograph/aecomp/` | **v17 AE-Comp**: After-Effects shape-layer engine (trim, repeater, merge, zigzag, twist, round corners, pucker, offset, mattes, parenting, AE keyframes/loopOut/wiggle/controls) + 12 own shape elements + 4 box-free RTL lower thirds + 4 full-frame titles; `{"type": "aecomp", ...}` in v5–13 and v14 — `python3 -m mograph.aecomp selftest` · guide `sdk/AECOMP_GUIDE.md` |
 | `sdk/mograph/pbr3d.py` | **v14.6** photoreal 3D: scanned CC0 PBR models rendered by the bundled EffectCraft CLI (HDRI + real shadow) |
 | `sdk/mograph/real3d.py`, `sculpt3d.py`, `obj3d.py` | earlier procedural 3D engines (fallback) |

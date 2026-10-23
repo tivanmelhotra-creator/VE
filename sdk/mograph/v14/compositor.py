@@ -219,6 +219,17 @@ class Frame:
         return self.R.tracks.shoulder_width(self.src_t) * self.R.sw * self.M[0, 0]
 
 
+# =====================================================================================================  fast blur
+def wide_blur(img, sigma, thresh=16.0):
+    """Gaussian blur; for sigma > thresh (≥ 19 here) it runs at half resolution (sigma/2) and is upsampled — visually identical
+    for these very soft light / bloom fields (measured on a light field: max error ≤ 2/255, mean 0.09/255), ≈ 4× faster."""
+    if sigma <= thresh or min(img.shape[:2]) < 32:
+        return cv2.GaussianBlur(img, (0, 0), sigma)
+    h, w = img.shape[:2]
+    sm = cv2.resize(img, (max(1, w // 2), max(1, h // 2)), interpolation=cv2.INTER_AREA)
+    return cv2.resize(cv2.GaussianBlur(sm, (0, 0), sigma / 2), (w, h), interpolation=cv2.INTER_LINEAR)
+
+
 # =====================================================================================================  glass
 def surface_array(surf):
     surf.flush()
@@ -416,7 +427,17 @@ class Renderer:
         if src.get("retime") or float(src.get("speed", 1.0)) != 1.0:      # v18 motion kit: slow/fast/ramp/freeze/reverse
             from ..motion.retime import install_v14
             self.retimed = install_v14(self) is not None
-        self.tracks = Tracks(self.src)
+        self.tracks = Tracks(self.src, engine=src.get("matte_engine"))
+        self.stab = None
+        if src.get("stabilize"):                                  # v22 range-aware stabilisation (pro/stabilize.py)
+            from ..pro.stabilize import install as _stab
+            _stab(self)
+        self.enh = None
+        if src.get("enhance"):                                    # v22 restore the plate on punch-ins (pro/enhance.py)
+            from ..pro.enhance import FrameEnhancer
+            ec = src["enhance"] if isinstance(src["enhance"], dict) else {}
+            self.enh = (FrameEnhancer(self.src + ".v14/enhance", 1, float(ec.get("mix", 0.5))),
+                        float(ec.get("punch_in", 1.3)))
         cam = spec.get("camera", {})
         keys = [[self.tl.resolve(k[0])] + list(k[1:]) for k in cam.get("keys", [[0, 1, .5, .5]])]
         shakes = [[self.tl.resolve(s[0])] + list(s[1:]) for s in cam.get("shakes", [])]
@@ -479,6 +500,20 @@ class Renderer:
         self._pos, self._last = i, fr
         return fr, i
 
+    def _enhanced(self, fr, idx, M):
+        """restore only the visible source rectangle of a punch-in (cached per frame on disk)."""
+        Mi = cv2.invertAffineTransform(M.astype(np.float64))
+        cs = np.array([[0, 0, 1], [self.W, 0, 1], [0, self.H, 1], [self.W, self.H, 1]], np.float64) @ Mi.T
+        x0, y0 = [max(0, int(v) - 8) for v in cs.min(0)]
+        x1, y1 = min(self.sw, int(cs[:, 0].max()) + 8), min(self.sh, int(cs[:, 1].max()) + 8)
+        if x1 - x0 < 32 or y1 - y0 < 32:
+            return fr
+        out = fr.copy()
+        crop = fr[y0:y1, x0:x1]
+        out[y0:y1, x0:x1] = cv2.resize(self.enh[0].get(f"{idx:05d}_{x0}_{y0}_{x1}_{y1}", crop),
+                                       (x1 - x0, y1 - y0), interpolation=cv2.INTER_AREA)
+        return out
+
     def matrix(self, t):
         z, cx, cy, rot, dx, dy = self.cam.at(t)
         k0 = max(self.W / self.sw, self.H / self.sh)
@@ -491,6 +526,9 @@ class Renderer:
             Rm = cv2.getRotationMatrix2D((self.W / 2, self.H / 2), rot, 1.0)
             M = np.vstack([Rm, [0, 0, 1]]) @ np.vstack([M, [0, 0, 1]])
             M = M[:2]
+        if self.stab is not None:          # v22: shake removed INSIDE the camera matrix → plate, matte, anchors agree
+            i = int(round(self.tl.to_src(t) * self.sfps))
+            M = (np.vstack([M, [0, 0, 1]]) @ self.stab.matrix(i))[:2]
         return M, z
 
     def grade_at(self, t):
@@ -531,6 +569,8 @@ class Renderer:
                 mf = self.morph.frame(*win)
                 if mf is not None:
                     fr, mat = mf
+        if self.enh is not None and z >= self.enh[1]:     # v22: restored detail only where the punch-in magnifies
+            fr = self._enhanced(fr, idx, M)
         plate = cv2.warpAffine(fr, M, (W, H), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REFLECT)
         if self._gmatch is not None:
             from .palette import apply_grade_match
@@ -552,7 +592,7 @@ class Renderer:
         num = cv2.GaussianBlur(sm * inv, (0, 0), sig)
         den = cv2.GaussianBlur(inv, (0, 0), sig)[..., None] + 1e-4
         bg = num / den
-        far = cv2.GaussianBlur(sm * inv, (0, 0), sig * 4) / (cv2.GaussianBlur(inv, (0, 0), sig * 4)[..., None] + 1e-4)
+        far = wide_blur(sm * inv, sig * 4) / (wide_blur(inv, sig * 4)[..., None] + 1e-4)
         hole = np.clip((den - 0.02) * 6, 0, 1)
         bg = bg * hole + far * (1 - hole)
         lum = bg.mean(axis=2, keepdims=True)
@@ -597,7 +637,7 @@ class Renderer:
 
         envk = float(self.post.get("env_light", 0.9))
         if envk > 0:
-            pool_q = (cv2.GaussianBlur(Eall_q, (0, 0), 11) * 0.9 + cv2.GaussianBlur(Eall_q, (0, 0), 28) * 0.7) * envk
+            pool_q = (wide_blur(Eall_q, 11) * 0.9 + wide_blur(Eall_q, 28) * 0.7) * envk
             cl_q = bg_q.mean(axis=2, keepdims=True)
             env_add_q = np.clip(pool_q * (0.35 + 1.4 * cl_q) * 255.0, 0, 255).astype(np.uint8)
             bg_u8 = cv2.add(bg_u8, cv2.resize(env_add_q, (W, H), interpolation=cv2.INTER_LINEAR))
@@ -622,15 +662,14 @@ class Renderer:
         edge_q = np.clip(Aq - cv2.GaussianBlur(Aq, (0, 0), 3.5), 0, 1)[..., None] * 2.2
         wrap_q = (cv2.GaussianBlur(bg_q, (0, 0), 5.0) * float(self.post.get("wrap_bg", 0.55)) +
                   cv2.GaussianBlur(Eb_q, (0, 0), 4.5) * float(self.post.get("wrap_glow", 1.6))) * np.clip(edge_q, 0, 1)
-        spill_q = (cv2.GaussianBlur(Eall_q, (0, 0), 19.0) + cv2.GaussianBlur(Ef_q, (0, 0), 6.0) * 0.6) * float(self.post.get("spill", 1.25))
+        spill_q = (wide_blur(Eall_q, 19.0) + cv2.GaussianBlur(Ef_q, (0, 0), 6.0) * 0.6) * float(self.post.get("spill", 1.25))
         Pq = cv2.resize(P_u8, (wq, hq), interpolation=cv2.INTER_AREA).astype(np.float32) / 255.0
         Pl_q = Pq.mean(axis=2, keepdims=True)
         tot_light_q = np.clip((wrap_q * (1.0 - Pq) + spill_q * (0.25 + 0.95 * Pl_q) * (0.5 + 0.5 * Pq)) * 255.0, 0, 255).astype(np.uint8)
         P_lit = cv2.add(P_u8, cv2.resize(tot_light_q, (W, H), interpolation=cv2.INTER_LINEAR))
 
         # Fast uint16 alpha composite of speaker over background
-        a_u16 = (A * 256.0).astype(np.uint16)[..., None]
-        arr[:, :, :3] = ((P_lit.astype(np.uint16) * a_u16 + bg_u8.astype(np.uint16) * (256 - a_u16)) >> 8).astype(np.uint8)
+        arr[:, :, :3] = cv2.blendLinear(P_lit, np.ascontiguousarray(bg_u8), A, 1.0 - A)     # v22: SIMD (3× faster)
         surf.mark_dirty()
 
         # ---------------- FRONT pass
@@ -650,8 +689,8 @@ class Renderer:
                 fz = None
             BK.draw(F, out_u8, "front", fz)
         Eq = Eb_q * (1.0 - Aq[..., None] * 0.8) + Ef_q
-        bl_q = (cv2.GaussianBlur(Eq, (0, 0), 3.0) * 0.55 + cv2.GaussianBlur(Eq, (0, 0), 11.0) * 0.75 +
-                cv2.GaussianBlur(Eq, (0, 0), 30.0) * 0.45) * float(self.post.get("bloom", 1.0))
+        bl_q = (cv2.GaussianBlur(Eq, (0, 0), 3.0) * 0.55 + wide_blur(Eq, 11.0) * 0.75 +
+                wide_blur(Eq, 30.0) * 0.45) * float(self.post.get("bloom", 1.0))
         bl_u8 = cv2.resize(np.clip(bl_q * 255.0, 0, 255).astype(np.uint8), (W, H), interpolation=cv2.INTER_LINEAR)
         out_u8 = cv2.add(out_u8, bl_u8)
 

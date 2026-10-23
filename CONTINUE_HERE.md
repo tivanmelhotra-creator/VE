@@ -1,11 +1,29 @@
-# CONTINUE_HERE — VE v21 Style Bank & Creative Synthesis (resume point after any sandbox reset)
+# CONTINUE_HERE — VE v22 Concat-inspired kit (on top of v21 Style Bank) — resume point after any sandbox reset
 
 ## Restore in 1 command (replaces the old 3-step / 9-minute restore)
 ```bash
 cd /home/user/webapp/sdk && python3 -m mograph.pro doctor --fix   # deps, binaries, fonts, media copy, tracking cache
-                                                                 # from work/input/raw.mp4.v14pack (seconds), 71 tests
+                                                                 # from work/input/raw.mp4.v14pack (seconds), v22 models
+                                                                 # → ~/.cache/mograph_models (outside git), 81 tests
 ```
 Then read `/home/user/webapp/AGENT_INDEX.md` (request → file → key).
+
+## v22.1 — field-report fixes (see sdk/V22_GUIDE.md "v22.1")
+- Haar fallback anatomy from the matte silhouette · anchor-aware guard (chest titles no longer jump over the head) ·
+  subtitles auto-hide under any layer at y ≥ 72 % · matte median3 + wide blurs + blendLinear (≈ 670 → 480 ms/frame) ·
+  `auto-edit --cuts auto` keeps background music continuous (mograph/musicbed.py) · `pro lint` spatial collisions ·
+  `pro render --profile web|social` (≈ 52 % / 41 % of master size)
+- v22 selftest 15/15 → doctor 86 tests
+
+## v22 — Concat-inspired kit — see sdk/V22_GUIDE.md   (repo stays < 100 MB: models in ~/.cache/mograph_models)
+- `python3 -m mograph.v22 selftest` → 10/10 (masks, rtime, enhance, stabilize, cutout, vad, rvm, local_tts, mcp, hub)
+- MCP server `python3 -m mograph.mcp` (15 tools, warm Renderer) · RVM matte `source.matte_engine:"rvm"` (≈ 5× faster
+  prep) · offline Persian voice `voice.provider:"local"` · VAD snapping (`mograph.vad`) · `pro enhance` tiled
+  Real-ESRGAN (+ broll/source `enhance`) · `source.stabilize` range-aware · `pro cutout` (+ broll `cutout`) · SDF
+  masks broll `mask` + mode `split_diag` · rational time in `pro render`.
+- models: `python3 -m mograph.models_hub --list` (rvm, esrgan, u2netp, silero_vad, piper_fa; opt-in isnet, gyro)
+- next ideas: words.json generator (faster-whisper + VAD) as a CLI, enhance on b-roll VIDEO (frame cache), MCP
+  `ve_render` (background job + progress), stabilize QA metric in `v14 qa`
 
 ## v21 — Style Bank & Creative Synthesis (SUPREME LAW: no copying, no repetition)
 - `sdk/style_bank/` — 3 reference sheets (ref_01 pure glow typo + dual nodes · ref_02 state flip + split stage ·

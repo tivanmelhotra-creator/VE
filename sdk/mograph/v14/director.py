@@ -563,7 +563,7 @@ def _qa_fix(spec, base_dir, rounds=5, log=print):
 
 
 # =================================================================================================== main
-def auto_edit(words_path, video_path, out_path, theme="doran", qa=True, log=print, legacy=False):
+def auto_edit(words_path, video_path, out_path, theme="doran", qa=True, log=print, legacy=False, cuts="auto"):
     import cv2
     from .compositor import Timeline, load_words
     out_path = os.path.abspath(out_path)
@@ -576,7 +576,20 @@ def auto_edit(words_path, video_path, out_path, theme="doran", qa=True, log=prin
     cap.release()
     if n <= 0:
         raise SystemExit(f"[director] cannot read video: {video_path}")
-    segs = build_segments(words, n / fps)
+    music = None
+    if cuts == "auto":                       # v22: an existing music bed → breath cuts would make the melody jump
+        try:
+            from ..musicbed import detect
+            music = detect(video_path, words)
+            log(f"[director] music bed: {music}")
+        except Exception as e:  # noqa: BLE001
+            log(f"[director] music-bed check skipped ({e})")
+    keep_music = cuts == "off" or (cuts == "auto" and music and music.get("music"))
+    if keep_music:
+        segs = [[0.0, round(n / fps, 3)]]
+        log("[director] background music detected → NO breath cuts (continuous source); use --cuts force to cut")
+    else:
+        segs = build_segments(words, n / fps)
     tl = Timeline(segs, words)
     tw = tl.words
     seg_of = [sum(1 for c in tl.cuts if c <= w["t"] + 1e-6) for w in tw]
@@ -595,9 +608,10 @@ def auto_edit(words_path, video_path, out_path, theme="doran", qa=True, log=prin
                   "(pure glow typography backbone; comparison / warning / object beats synthesised from meaning). "
                   "A starting point, not a template — redesign freely; every time is a word anchor.",
         "meta": {"w": 1080, "h": 1920, "fps": 30, "theme": theme, "palette": "auto", "style_seed": seed,
+                 **({"music_bed": True} if keep_music else {}),
                  **({"legacy_showcase": True} if legacy else {})},
         "source": {"src": rel(video_path), "words": rel(words_path), "segments": segs,
-                   "morph_cuts": {"dur": 0.24, "max_motion": 60}},
+                   **({} if keep_music else {"morph_cuts": {"dur": 0.24, "max_motion": 60}})},
         "grade": {"bg": {"blur": 7, "dim": 0.42, "desat": 0.22, "tint": "#3A2414", "tint_amt": 0.24,
                          "vignette_bg": 0.35},
                   "fg": {"contrast": 1.07, "warm": 0.035, "sat": 1.04, "lift": 0.0},
@@ -610,7 +624,8 @@ def auto_edit(words_path, video_path, out_path, theme="doran", qa=True, log=prin
                  "fade": [0.0, 0.35], "glass": {"refract": 4.0, "chroma": 1.5, "caustic": 0.55, "fresnel": 0.35},
                  "decontaminate": 0.75,
                  "motion_blur": {"shutter": 180}},
-        "audio": {"voice_gain": 1.0, "music": {"style": "lofi", "bpm": 92, "key": "D", "scale": "minor", "gain": 0.16},
+        "audio": {"voice_gain": 1.0, **({} if keep_music else {"music": {"style": "lofi", "bpm": 92, "key": "D",
+                                                                       "scale": "minor", "gain": 0.16}}),
                   "sfx_gain": 0.55, "lufs": -14, "denoise": "auto", "multiband": True, "vocal_booth_reverb": 0.04},
     }
     remaining = []
@@ -630,10 +645,12 @@ def main(argv=None):
     ap.add_argument("-o", "--out", default="edit_auto.json")
     ap.add_argument("--theme", default="doran")
     ap.add_argument("--no-qa", action="store_true")
+    ap.add_argument("--cuts", choices=["auto", "force", "off"], default="auto",
+                    help="breath cuts: auto = off when the source already has background music (v22 musicbed)")
     ap.add_argument("--legacy-showcase", action="store_true",
                     help="v14.8 widget cycle (tracked_tag/disc/halo/frame_box…) — only on explicit request")
     a = ap.parse_args(argv)
-    _, rem = auto_edit(a.words, a.video, a.out, a.theme, qa=not a.no_qa, legacy=a.legacy_showcase)
+    _, rem = auto_edit(a.words, a.video, a.out, a.theme, qa=not a.no_qa, legacy=a.legacy_showcase, cuts=a.cuts)
     return 1 if rem else 0
 
 

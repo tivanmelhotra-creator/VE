@@ -6,6 +6,11 @@ Providers (REST only, no SDKs):
   gemini      Google AI Studio TTS (gemini-3.1-flash-tts-preview …, 30 voices, style prompt) → words aligned
               by whisper if installed, otherwise by syllable weight inside the trimmed clip
   draft       offline, free: speech-shaped placeholder audio with realistic durations (timing preview)
+  local       v22 OFFLINE REAL VOICE, free, no API key: Persian Piper/VITS int8 via sherpa-onnx (CPU, ~0.3× real
+              time, ~160 MB RAM).  Voices: "amir" (default, male) · "gyro" (opt-in download).  Model fetched once to
+              ~/.cache/mograph_models (models_hub "piper_fa"), never in git.  Word times = Silero-VAD speech
+              regions + letter weights (mograph.vad) → no word ever lands in a pause.
+              "voice": {"provider": "local", "voice": "amir", "speed": 1.0, "sid": 0}
 
 Spec:
   "voice": {"provider": "elevenlabs", "voice": "<voice_id>", "model": "eleven_v3", "lang": "fa",
@@ -166,7 +171,41 @@ def tts_draft(text, cfg, **_):
     return np.concatenate(pcm) if pcm else np.zeros(SR // 2, np.float32), words
 
 
-PROVIDERS = {"elevenlabs": tts_elevenlabs, "gemini": tts_gemini, "draft": tts_draft}
+_LOCAL = {}
+
+
+def _local_tts(voice):
+    key = voice or "amir"
+    if key not in _LOCAL:
+        import sherpa_onnx
+        from .models_hub import ensure
+        d = ensure("piper_fa_gyro" if key == "gyro" else "piper_fa")
+        onnx = next(f for f in os.listdir(d) if f.endswith(".onnx"))
+        cfg = sherpa_onnx.OfflineTtsConfig(model=sherpa_onnx.OfflineTtsModelConfig(
+            vits=sherpa_onnx.OfflineTtsVitsModelConfig(model=os.path.join(d, onnx), tokens=os.path.join(d, "tokens.txt"),
+                                                       data_dir=os.path.join(d, "espeak-ng-data")),
+            num_threads=2), max_num_sentences=1)
+        _LOCAL[key] = sherpa_onnx.OfflineTts(cfg)
+    return _LOCAL[key]
+
+
+def tts_local(text, cfg, **_):
+    """v22 offline Persian TTS (sherpa-onnx Piper) → (pcm @SR, words placed inside VAD speech regions)."""
+    try:
+        tts = _local_tts(cfg.get("voice"))
+    except Exception as e:  # noqa: BLE001
+        print(f"[voice:local] unavailable ({e}) → draft placeholder")
+        return tts_draft(text, cfg)
+    clean = _TAG.sub(" ", text).strip()
+    a = tts.generate(clean, sid=int(cfg.get("sid", 0)), speed=float(cfg.get("speed", 1.0)))
+    pcm = _resample(np.asarray(a.samples, np.float32), int(a.sample_rate))
+    from .vad import speech_regions, words_in_regions
+    regs = speech_regions(pcm, SR, min_silence=0.12)
+    words = words_in_regions([w for w in clean.split() if w], regs) or None
+    return pcm, words
+
+
+PROVIDERS = {"elevenlabs": tts_elevenlabs, "gemini": tts_gemini, "draft": tts_draft, "local": tts_local}
 
 
 # ---------------------------------------------------------------------------
@@ -270,6 +309,9 @@ def synth_line(line, cfg, provider, cache_dir, prev_text=None, next_text=None, p
             words = [{"w": w["w"], "t": max(0.0, w["t"] - off), "end": max(0.0, w["end"] - off)} for w in words]
         else:
             words = _whisper_words(pcm) or None
+            if words:                                     # v22: transcriber starts glued into pauses → VAD onsets
+                from .vad import snap_words, speech_regions
+                words = snap_words(words, speech_regions(pcm, SR))
         disp_tokens = parse_markup(display)[0].split()
         if words:
             words = snap_to_script(words, display)          # spoken tokens → display spelling (+emph)
@@ -350,7 +392,7 @@ def voice_spec(spec_path, provider=None, out_path=None, log=print, dedupe_filler
         cfg["dedupe_fillers"] = True
     provider = provider or cfg.get("provider", "draft")
     if provider not in PROVIDERS and provider != "file":
-        raise SystemExit(f"unknown voice provider '{provider}' (elevenlabs | gemini | file | draft)")
+        raise SystemExit(f"unknown voice provider '{provider}' (elevenlabs | gemini | local | file | draft)")
     subs = sorted(spec.get("subtitles") or [], key=lambda s: float(s["t"]))
     if not subs:
         raise SystemExit("spec has no subtitles to speak")
@@ -499,4 +541,6 @@ def list_voices(provider, project_dir=None):
         with urllib.request.urlopen(req, timeout=60) as r:
             vs = json.loads(r.read().decode())["voices"]
         return [f"{v['voice_id']}  {v['name']}  {v.get('labels', {})}" for v in vs]
+    if provider == "local":
+        return ["amir (offline Persian, default)", "gyro (offline Persian, opt-in download)"]
     return ["draft (offline placeholder)"]
