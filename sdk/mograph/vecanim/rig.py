@@ -106,6 +106,10 @@ class Character:
         self.silhouette = Fill([self.sil_P0], scene.bg, group='silhouette', part=name)
         self.actions = []
         self.props = []
+        self.secondary = None
+        if spec.get('secondary'):
+            from .secondary import Secondary, SecondaryRegion
+            self.secondary = Secondary(self, [SecondaryRegion(**r) for r in spec['secondary']])
 
     def art_outline(self, close=9):
         """Silhouette of the character's own art (strokes + fills, closed, holes filled), as a
@@ -172,6 +176,8 @@ class Character:
             S = self.mesh.carry(Vd, self.sil_emb) if self.sil_emb is not None else self.sil_P0
         else:
             Q, S = P.copy(), self.sil_P0
+        if self.secondary is not None:
+            Q = Q + self.secondary.offsets(t, Q)
         Q = Q + D
         out = []
         if len(S):
