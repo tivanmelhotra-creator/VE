@@ -70,3 +70,37 @@ def flame(box, start=2.0):
             c.set_points(Q); out[i] = c
         return out
     return fx
+
+
+class Camera:
+    """Keyframed 2D camera on scene coordinates: keys (t, cx, cy, zoom[, ease]).  zoom = output
+    px per scene px relative to 'fit width'.  Moves ease on physical springs; a tiny handheld
+    wiggle (AE wiggle) keeps it alive.  Returns 2x3 scene->output affine (cairo-applied, so lines
+    stay vector-sharp at any zoom)."""
+    def __init__(self, W, H, OW, OH, keys, handheld=0.6, seed=7):
+        self.W, self.H, self.OW, self.OH = W, H, OW, OH
+        self.tr = A.Track([(k[0], (k[1], k[2], k[3]), k[4] if len(k) > 4 else 'io') for k in keys])
+        self.wx = A.wiggle(0.35, handheld, seed=seed); self.wy = A.wiggle(0.3, handheld, seed=seed + 3)
+
+    def __call__(self, t):
+        cx, cy, z = self.tr(t)
+        s = z * self.OW / self.W
+        return np.array([[s, 0, self.OW / 2 - (cx + self.wx(t)) * s], [0, s, self.OH / 2 - (cy + self.wy(t)) * s]])
+
+
+def finish(a, t, grain=0.012, vignette=0.22, seed=0):
+    """Film finish on the float frame: vignette + soft animated grain (deterministic per frame)."""
+    H, W = a.shape
+    if vignette:
+        if not hasattr(finish, '_v') or finish._v.shape != a.shape:
+            y, x = np.mgrid[0:H, 0:W].astype(np.float32)
+            r = np.sqrt(((x - W / 2) / (W / 2)) ** 2 + ((y - H / 2) / (H / 2)) ** 2)
+            finish._v = (1 - vignette * np.clip(r - 0.35, 0, 1) ** 1.6).astype(np.float32)
+        a = a * finish._v
+    if grain:
+        rng = np.random.default_rng(int(t * 1000) + seed)
+        g = rng.standard_normal((H // 2, W // 2)).astype(np.float32)
+        import cv2
+        g = cv2.resize(g, (W, H), interpolation=cv2.INTER_LINEAR)
+        a = a + g * grain
+    return a
