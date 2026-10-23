@@ -66,22 +66,44 @@ class Stroke:
                     aw=np.round(self.aw, 2).tolist())
 
 
-def _sample_stroke(st, spacing=1.2):
-    """Dense centre-line points + interpolated width."""
+_TCACHE = {}
+
+
+def _tbasis(k):
+    B = _TCACHE.get(k)
+    if B is None:
+        t = np.arange(k) / k
+        s_ = 1 - t
+        B = np.stack([s_ ** 3, 3 * t * s_ * s_, 3 * t * t * s_, t ** 3], 1)   # (k,4)
+        _TCACHE[k] = B = (B, t)
+    return B
+
+
+def _sample_stroke(st, spacing=1.6):
+    """Dense centre-line points + interpolated width (vectorised; one sample count per
+    segment bucketed to powers of two so the Bernstein basis is cached)."""
     C = st.chain()
     if len(C) == 0:
         return None, None
     aw = st.aw
+    L = np.abs(np.diff(C, axis=1)).sum((1, 2))                 # cheap length bound
+    ks = np.maximum(2, 2 ** np.ceil(np.log2(np.maximum(L / spacing, 1)))).astype(int)
     pts, ws = [], []
+    na = len(aw)
     for i, c in enumerate(C):
-        L = np.linalg.norm(np.diff(c, axis=0), axis=1).sum()
-        k = max(2, int(L / spacing) + 1)
-        t = np.linspace(0, 1, k, endpoint=False)
-        pts.append(bez(c, t))
-        w0, w1 = aw[i % len(aw)], aw[(i + 1) % len(aw)]
+        Bm, t = _tbasis(int(ks[i]))
+        pts.append(Bm @ c)
+        w0, w1 = aw[i % na], aw[(i + 1) % na]
         ws.append(w0 + (w1 - w0) * t)
-    pts.append(C[-1][3][None]); ws.append([aw[len(C) % len(aw)]])
+    pts.append(C[-1][3][None]); ws.append([aw[len(C) % na]])
     return np.vstack(pts), np.concatenate(ws)
+
+
+def _poly(c, P):
+    """Append a polyline to the current cairo path in one call."""
+    c.move_to(float(P[0, 0]), float(P[0, 1]))
+    for x, y in P[1:].tolist():
+        c.line_to(x, y)
 
 
 class Scene:
@@ -202,8 +224,8 @@ class Scene:
         ws = ws * Scene.line_scale
         if not st.closed and st.taper > 0 and len(pts) > 3:
             # ink-pen taper: width grows from ~18 % at each end over min(30 % length, 4 widths)
-            d = np.r_[0, np.cumsum(np.linalg.norm(np.diff(pts, axis=0), axis=1))]
-            Ltot = d[-1]
+            dd = np.diff(pts, axis=0)
+            d = np.r_[0, np.cumsum(np.sqrt((dd * dd).sum(1)))]
             full = d[-1] if st.reveal >= 1 else d[-1] / max(st.reveal, 1e-3)
             Lt = max(1e-3, min(0.3 * full, 4.0 * float(np.median(ws))))
             e = np.minimum(d, (full - d) if st.reveal >= 1 else np.inf)
@@ -213,19 +235,17 @@ class Scene:
         # variable width: outline polygon from offset curves + round caps
         if len(pts) < 2:
             return
-        t = np.gradient(pts, axis=0)
-        n = np.linalg.norm(t, axis=1, keepdims=True); t = t / np.maximum(n, 1e-9)
+        t = np.empty_like(pts); t[1:-1] = pts[2:] - pts[:-2]; t[0] = pts[1] - pts[0]; t[-1] = pts[-1] - pts[-2]
+        n = np.sqrt((t * t).sum(1, keepdims=True)); t = t / np.maximum(n, 1e-9)
         nr = np.c_[-t[:, 1], t[:, 0]] * (ws[:, None] / 2)
         left, right = pts + nr, pts - nr
         c.new_path()
-        c.move_to(*left[0])
-        for p in left[1:]:
-            c.line_to(*p)
+        _poly(c, left)
         if not st.closed:
             a0 = np.arctan2(nr[-1, 1], nr[-1, 0])
             c.arc_negative(pts[-1, 0], pts[-1, 1], ws[-1] / 2, a0, a0 - np.pi)
-        for p in right[::-1]:
-            c.line_to(*p)
+        for x, y in right[::-1].tolist():
+            c.line_to(x, y)
         if not st.closed:
             a0 = np.arctan2(-nr[0, 1], -nr[0, 0])
             c.arc_negative(pts[0, 0], pts[0, 1], ws[0] / 2, a0, a0 - np.pi)
