@@ -12,17 +12,27 @@ no samples) -> keyframes can be snapped to its detected hits.
 import numpy as np, wave
 
 
-def _log_bands(n, sr, per_oct=24, fmin=40.0):
-    freqs = np.fft.rfftfreq(n, 1 / sr)
-    fmax = min(sr / 2, 16000)
-    edges = fmin * 2 ** (np.arange(0, int(np.log2(fmax / fmin) * per_oct) + 2) / per_oct)
-    bands = []
-    for a, b in zip(edges, edges[1:]):
-        idx = np.nonzero((freqs >= a) & (freqs < b))[0]
-        if len(idx) == 0:
-            idx = np.array([int(np.argmin(np.abs(freqs - np.sqrt(a * b))))])
-        bands.append(idx)
-    return bands
+def _log_bands(n, sr):
+    """Triangular bands, 24 per octave from 30 Hz, centres de-duplicated (offline.rs log_bands).
+    Returns a (B, n/2+1) weight matrix, each row summing to 1."""
+    bin_hz = sr / n
+    top = min(20000.0, sr * 0.45)
+    centres, f = [], 30.0
+    while f <= top:
+        k = int(round(f / bin_hz))
+        if not centres or k > centres[-1]:
+            centres.append(k)
+        f *= 2 ** (1 / 24)
+    Wm = []
+    for lo, mid, hi in zip(centres, centres[1:], centres[2:]):
+        row = np.zeros(n // 2 + 1)
+        for k in range(lo, hi + 1):
+            v = (k - lo) / max(mid - lo, 1) if k <= mid else (hi - k) / max(hi - mid, 1)
+            if v > 0:
+                row[k] = v
+        if row.sum() > 0:
+            Wm.append(row / row.sum())
+    return np.array(Wm)
 
 
 def _attack_start(x, s, n):
@@ -38,8 +48,9 @@ def _attack_start(x, s, n):
     return s + int(np.argmax(env > lo + 0.2 * (hi - lo)))
 
 
-def detect_transients(x, sr, sensitivity=0.5):
-    """x: mono float array.  Returns onset times (seconds), ascending."""
+def detect_transients(x, sr, sensitivity=0.5, min_gap=0.03):
+    """x: mono float array.  Returns onset times (seconds), ascending.
+    min_gap: SoundCraft uses 30 ms; for animation keys use ~0.15 s so room echoes / flams merge."""
     x = np.asarray(x, np.float32)
     n = int(2 ** np.ceil(np.log2(np.clip(sr * 0.012, 64, 8192))))
     hop = n // 4
@@ -51,12 +62,12 @@ def detect_transients(x, sr, sensitivity=0.5):
     spec = np.abs(np.fft.rfft(x[idx] * win, axis=1))
     energy = (spec ** 2).sum(1)
     gain = 1e4 / (n / 4)
-    cur = np.stack([np.log10(1 + gain * spec[:, b].sum(1)) for b in _log_bands(n, sr)], 1)
+    cur = np.log10(1 + gain * spec @ _log_bands(n, sr).T)
     prev = np.vstack([cur[:1], cur[:-1]])
     nb = np.maximum(np.maximum(prev, np.roll(prev, 1, 1)), np.roll(prev, -1, 1))   # vibrato suppression
     flux = np.maximum(cur - nb, 0).sum(1); flux[0] = 0
     fo = lambda s: max(1, int(s * sr) // hop)
-    near, before, after, gap = fo(0.03), fo(0.1), fo(0.07), fo(0.03)
+    near, before, after, gap = fo(0.03), fo(0.1), fo(0.07), fo(min_gap)
     delta = 2.5 * 2 ** ((0.5 - np.clip(sensitivity, 0, 1)) * 4)
     out, last = [], None
     for m in range(frames):
