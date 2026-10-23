@@ -395,15 +395,35 @@ def id_depth(depth, ids, xs, pid, r=2):
     return best
 
 
-def visibility_id(P, cam, depth, ids, Dmax, ss, pid, tol, r=2):
-    """Point of part `pid` is visible when its own part owns a nearby pixel at (about) the same depth.
-    → other layers in front (shirt over trousers, jacket over shirt) hide it even when only 1 mm apart."""
+def other_depth(depth, ids, xs, pid, r=1):
+    """min depth among pixels of OTHER parts (not pid, not empty) in a (2r+1)² neighbourhood."""
+    H, W = depth.shape
+    x0 = np.clip(xs[:, 0].astype(int), 0, W - 1)
+    y0 = np.clip(xs[:, 1].astype(int), 0, H - 1)
+    best = np.full(len(xs), np.inf, np.float32)
+    for dy in range(-r, r + 1):
+        yy = np.clip(y0 + dy, 0, H - 1)
+        for dx in range(-r, r + 1):
+            xx = np.clip(x0 + dx, 0, W - 1)
+            d = depth[yy, xx]
+            i = ids[yy, xx]
+            m = (i != pid) & (i != 0)
+            best = np.where(m & (d < best), d, best)
+    return best
+
+
+def visibility_id(P, cam, depth, ids, Dmax, ss, pid, tol, r=1, Dmin=None, layer_tol=0.035):
+    """(1) generic depth test with grazing-angle tolerance (self-occlusion: arm over torso);
+    (2) STRICT test vs OTHER parts: a layer in front by > layer_tol (3.5 mm) hides the point
+    → shirt over trousers, jacket over shirt, hair over collar are exact even 1 cm apart."""
     xy, z = cam.project(P)
     xs = xy * ss
     H, W = depth.shape
     inside = (xs[:, 0] >= 0) & (xs[:, 0] < W) & (xs[:, 1] >= 0) & (xs[:, 1] < H)
-    own = id_depth(depth, ids, xs, pid, r)
-    vis = inside & np.isfinite(own) & (z <= own + tol + 2.0 * pixel_world(cam, z, ss) * r)
+    pw = pixel_world(cam, z, ss)
+    D0 = Dmin if Dmin is not None else depth
+    vis = inside & (z <= _sample(D0, xs) + tol + 7.5 * pw)
+    vis &= z <= other_depth(depth, ids, xs, pid, r) + layer_tol + 1.5 * pw
     jump = np.clip(_sample(Dmax, xs) - z, 0, 1e4)
     return xy, z, vis, jump
 
@@ -627,7 +647,7 @@ def render_lines(parts: list[Part], cam: Camera, style: Style, extra: list[Strok
         P, keys, seg, mjv = contour_segments(part, eye, odir)
         if not len(P):
             continue
-        xy, z, vis, jump = visibility_id(P, cam, depth, ids, Dmax, ss, part.pid, vis_tol)
+        xy, z, vis, jump = visibility_id(P, cam, depth, ids, Dmax, ss, part.pid, vis_tol, Dmin=Dmin)
         mj = float(np.mean(part.min_jump)) if mjv is None else mjv
         mj0 = float(np.min(part.min_jump))
         importance = np.clip((jump - mj0) / max(1e-6, style.jump_outer - mj0), 0, 1)
@@ -650,7 +670,7 @@ def render_lines(parts: list[Part], cam: Camera, style: Style, extra: list[Strok
         if part.boundary:
             Pb, segb = boundary_polyline_segments(part)
             if len(Pb):
-                xy, z, vis, jump = visibility_id(Pb, cam, depth, ids, Dmax, ss, part.pid, vis_tol * 0.6)
+                xy, z, vis, jump = visibility_id(Pb, cam, depth, ids, Dmax, ss, part.pid, vis_tol, Dmin=Dmin)
                 for ch in chain(segb, len(Pb)):
                     for a, b in split_runs(vis[ch]):
                         ids_ = ch[a:b + 1]
@@ -664,7 +684,7 @@ def render_lines(parts: list[Part], cam: Camera, style: Style, extra: list[Strok
         P, keys, seg = iso_segments(part, fv, level)
         if not len(P):
             continue
-        xy, z, vis, jump = visibility_id(P, cam, depth, ids, Dmax, ss, part.pid, vis_tol * 0.6)
+        xy, z, vis, jump = visibility_id(P, cam, depth, ids, Dmax, ss, part.pid, vis_tol, Dmin=Dmin)
         for ch in chain(seg, len(P)):
             for a, b in split_runs(vis[ch]):
                 ids_ = ch[a:b + 1]
@@ -677,7 +697,7 @@ def render_lines(parts: list[Part], cam: Camera, style: Style, extra: list[Strok
         if len(st.pts) < 2:
             continue
         if st.pid:
-            xy, z, vis, jump = visibility_id(st.pts, cam, depth, ids, Dmax, ss, st.pid, vis_tol * 1.5)
+            xy, z, vis, jump = visibility_id(st.pts, cam, depth, ids, Dmax, ss, st.pid, vis_tol, Dmin=Dmin)
         else:
             xy, z, vis, jump = visibility(st.pts, cam, Dmin, Dmax, ss, vis_tol * 2.5)
         if not st.check_vis:
