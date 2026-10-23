@@ -1,3 +1,16 @@
+# CONTINUE_HERE — v25 HUMAN LINE ART (branch feat/v25-human-lineart) on top of v22
+
+## Restore after a sandbox reset (the sandbox resets to the GitHub v22 copy!)
+1. restore the latest ProjectBackup tar (it contains branch feat/v25-human-lineart + all commits)
+2. `bash sdk/tools/restore_human.sh`   (~40 s: moderngl, pycairo, libEGL, MakeHuman CC0 assets → ~/.cache)
+3. read `sdk/V25_HUMAN_GUIDE.md`;  QA: `cd sdk && python3 -m mograph.human sheet --out /tmp/sheet.png`
+
+## v25 status
+- mograph/human: assets · body · poses · regions · garments · lineart · folds · character · clip · layer · CLI
+- v14 layer `human_lineart` registered in pro/bridge.py
+- next: stylised face kit, one-line mode, more motions (sit-down transition, turn), hand simplification
+
+---
 # CONTINUE_HERE — VE v22 Concat-inspired kit (on top of v21 Style Bank) — resume point after any sandbox reset
 
 ## Restore in 1 command (replaces the old 3-step / 9-minute restore)
