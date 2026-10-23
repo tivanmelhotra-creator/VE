@@ -116,7 +116,7 @@ def render_range(job):
         rig.items_at(f / FPS)
     enc = subprocess.Popen(['ffmpeg', '-loglevel', 'error', '-y', '-f', 'rawvideo', '-pix_fmt', 'gray',
                             '-s', f'{OW}x{OH}', '-r', str(FPS), '-i', '-', '-c:v', 'libx264', '-pix_fmt', 'yuv420p',
-                            '-crf', '17', '-preset', 'slow', '-tune', 'animation', path], stdin=subprocess.PIPE)
+                            '-crf', '17', '-preset', 'veryfast', '-tune', 'animation', '-threads', '1', '-x264-params', 'rc-lookahead=10', path], stdin=subprocess.PIPE)
     for f in range(f0, f1):
         enc.stdin.write(frame(f / FPS).tobytes())
     enc.stdin.close(); enc.wait()
