@@ -1,0 +1,18 @@
+{
+  "_doc": "Two friends: the right one tilts, smiles and rests a hand on the left one's shoulder (side auto: near shoulder when in front); she turns and smiles; one-line title.",
+  "duration": 10, "fps": 30, "size": [1920, 1080],
+  "music": {"type": "music_box", "bpm": 84, "start": 0.6}, "snap": 0.3,
+  "draw_on": {"until": 2.8, "spread": 2.2}, "camera": "auto", "flame": "auto",
+  "title": {"lines": ["Best friends"], "sizes": [64], "at": 7.0},
+  "actions": [
+    {"t": 0.0, "who": "left",  "g": "breathe", "period": 3.4, "amount": 1.2, "snap": false},
+    {"t": 0.3, "who": "right", "g": "breathe", "period": 3.7, "amount": 1.2, "snap": false},
+    {"t": 2.2, "who": "all",   "g": "idle_blinks", "seed": 4, "until": "end", "snap": false},
+    {"t": 2.8, "who": "right", "g": "tilt_head", "dur": 1.3, "angle": -3.5},
+    {"t": 3.0, "who": "right", "g": "smile", "dur": 0.9},
+    {"t": 3.8, "who": "right", "g": "hand_on_shoulder", "target": "left", "dur": 1.6},
+    {"t": 5.0, "who": "left",  "g": "turn_head", "dur": 1.3, "from_": -5, "angle": 1.5},
+    {"t": 5.6, "who": "left",  "g": "smile", "dur": 1.0},
+    {"t": 6.6, "who": "right", "g": "nod", "dur": 0.8, "angle": 1.5}
+  ]
+}
