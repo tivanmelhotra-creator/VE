@@ -86,13 +86,14 @@ class _Built:
 
 class Character:
     def __init__(self, body: dict | None = None, outfit: dict | None = None, face: str = "minimal",
-                 style: Style | None = None, stoop: float = 0.0, line_scale: float = 1.0):
+                 style: Style | None = None, stoop: float = 0.0, line_scale: float = 1.0, folds: bool = True):
         self.body = Body(**(body or {}))
         self.outfit = outfit or {}
         self.face = face
         self.style = style or Style()
         self.stoop = stoop
         self.line_scale = line_scale
+        self.folds = folds
         self.R = regions(self.body)
         self.garments = build_outfit(self.body, self.outfit)
         # skin clip: >0 where some garment covers the body (contours there are dropped)
@@ -102,6 +103,8 @@ class Character:
                 clip = np.maximum(clip, g.cover[:BODY_N])
         self.skin_clip = np.r_[clip, np.full(len(self.body.rest) - BODY_N, 1.0)]
         self._lm_idx = self._face_landmarks()
+        hv = self.R.head[:BODY_N] > 0.6
+        self._head_hw = float(np.abs(self.body.rest[:BODY_N][hv, 0]).max()) if hv.any() else 0.8
 
     # --------------------------------------------------------------------------------------------- pose
     def pose(self, pose="stand", **kw) -> dict:
@@ -179,6 +182,13 @@ class Character:
         out.append(Stroke3D(onskin(m), 0.45, "mouth", 0.5))
         return out
 
+    def fold_strokes(self, G, parts):
+        from .folds import fold_strokes
+        try:
+            return fold_strokes(self, G, parts)
+        except Exception:                          # folds are decoration: never break a render
+            return []
+
     # --------------------------------------------------------------------------------------------- parts
     def parts(self, G, X):
         b = self.body
@@ -190,6 +200,10 @@ class Character:
             # inner face contours (nose wings, lips, eye sockets) are dropped; the face SILHOUETTE (profile against
             # the background or the far shoulder) still has a big depth jump, so it stays.
             mj = mj + R.face * 2.2 + R.head * 0.25
+            # ears: keep only the outer C (inner helix / antihelix folds are noise at line-art scale)
+            ear = R.head * smoothstep(0.55, 0.8, np.abs(self.body.rest[:, 0]) / max(1e-6, self._head_hw)) * \
+                smoothstep(0.35, -0.1, self.body.rest[:, 2] - R.lm["head_c"][2])
+            mj = mj + ear * 1.2
         # covered skin is NOT an occluder (it sits inside the clothes; where it pokes through a shell it would
         # punch holes in garment lines). A thin margin keeps the skin right at hems/cuffs/collars.
         occ = ~(self.skin_clip[R.tris] > 0.06).all(1)
@@ -214,7 +228,7 @@ class Character:
         p, G, X = self.posed(pose, **kw)
         cam = cam or self.camera_for(X, yaw, W, H)
         parts = self.parts(G, X)
-        extra = self.face_strokes(G, X)
+        extra = self.face_strokes(G, X) + (self.fold_strokes(G, parts) if self.folds else [])
         fig_px = self._fig_px(cam, X)
         st = self.style
         lf = render_lines(parts, cam, st, extra=extra, ss=ss, fig_px=fig_px * self.line_scale, seed=seed)

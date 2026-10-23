@@ -68,7 +68,7 @@ def _strokes_at(L, lt, W, H):
         life = max(0.1, float(L.get("_life", 3.0)))
         cam.yaw = float(L.get("yaw", 30)) + (float(L["yaw_end"]) - float(L.get("yaw", 30))) * smoother(lt / life)
     parts = ch.parts(G, X)
-    lf = render_lines(parts, cam, ch.style, extra=ch.face_strokes(G, X), ss=1.25, fig_px=L["_human_fig"],
+    lf = render_lines(parts, cam, ch.style, extra=ch.face_strokes(G, X) + (ch.fold_strokes(G, parts) if ch.folds else []), ss=1.25, fig_px=L["_human_fig"],
                       seed=int(L.get("seed", 7)))
     if len(cache) > 400:
         cache.clear()

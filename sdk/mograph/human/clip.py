@@ -122,7 +122,7 @@ def render_frames(ch: Character, motion, seconds=3.0, fps=24, yaw=30.0, W=720, H
             cam.target = (c[0], base_target[1], c[2])
         parts = ch.parts(G, X)
         from .lineart import render_lines
-        lf = render_lines(parts, cam, ch.style, extra=ch.face_strokes(G, X), ss=ss, fig_px=fig_px, seed=seed)
+        lf = render_lines(parts, cam, ch.style, extra=ch.face_strokes(G, X) + (ch.fold_strokes(G, parts) if ch.folds else []), ss=ss, fig_px=fig_px, seed=seed)
         rgba = draw_strokes(lf.strokes, W, H, Style(**{**ch.style.__dict__, "bg": None}))
         if svg_dir:
             with open(os.path.join(svg_dir, f"f{i:05d}.svg"), "w") as fh:
