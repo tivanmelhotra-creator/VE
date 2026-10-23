@@ -298,7 +298,7 @@ def head_frame(body):
     front_z = float(P[:, 2].max())
     eye = X[group_vertices("joint-l-eye")].mean(0)
     hf = dict(hw=hw, ear_top=ear_top, ear_bot=ear_bot, ear_z0=ear_z0, ear_z1=ear_z1, top=top, front_z=front_z,
-              eye_y=float(eye[1]), cz=float(P[:, 2].mean()))
+              eye_y=float(eye[1]), cz=0.5 * float(P[:, 2].min() + P[:, 2].max()) - 0.1)
     body._headf = hf
     return hf
 
@@ -310,16 +310,16 @@ def field_hair(body, style="short"):
     X = body.rest
     hf = head_frame(body)
     th = np.degrees(np.arctan2(np.abs(X[:, 0]), X[:, 2] - hf["cz"]))      # 0 = front, 180 = back
-    fore = hf["eye_y"] + 0.62 * (hf["top"] - hf["eye_y"]) * 0.62        # forehead hairline
+    fore = hf["eye_y"] + 0.5 * (hf["top"] - hf["eye_y"])                # forehead hairline
     et, eb = hf["ear_top"], hf["ear_bot"]
     nape = eb - 0.35
     lift = {"buzz": 0.08, "side": -0.05, "short": 0.0}.get(style, 0.0)
-    knots = [(0, fore + lift), (35, fore + 0.02 + lift), (62, et - 0.25), (72, et + 0.06), (90, et + 0.12),
-             (108, et + 0.04), (125, eb + 0.1), (150, nape + 0.12), (180, nape)]
+    knots = [(0, fore + lift), (30, fore + lift), (48, fore - 0.12), (58, et + 0.02), (70, et + 0.1),
+             (88, et + 0.14), (105, et + 0.06), (122, eb + 0.05), (150, nape + 0.1), (180, nape)]
     a, h = zip(*knots)
     hy = np.interp(th, a, h)
     # sideburn: small drop in front of the ear
-    sb = np.exp(-((th - 64) / 6.0) ** 2) * (0.0 if style == "buzz" else 0.35)
+    sb = np.exp(-((th - 60) / 4.5) ** 2) * (0.0 if style == "buzz" else 0.3)
     hy = hy - sb
     region = np.clip(R.head + R.neck, 0, 1)
     f = hy - R.y
