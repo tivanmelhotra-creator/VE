@@ -46,3 +46,22 @@ panel (nose/shoulders plausible) but gives inconsistent results on the girl → 
 - Lottie size: path keys every 3 frames; key reduction (fit per-point curves) would cut it ~5×
 
 Restore after a sandbox reset: `bash sdk/tools/restore_vecanim.sh`
+
+## v28 — professional pass (example: `examples/vecanim/birthday_v3.py`, 12 s)
+- `secondary.py` — follow-through on hair / bun / collar: damped springs driven by the puppet's
+  motion + optional wind wiggle, regions declared in the rig JSON (`"secondary": [...]`)
+- `anim.py` — physical spring easings with the formula of Remotion's `spring()` (closed form):
+  `spring`, `spring_soft`, `spring_firm`, `settle_time()`, `anticipate()`
+- gestures now use anticipation + spring settles; `idle_blinks` (natural rhythm, double blinks)
+- `scene.py` — ink-pen taper on open strokes, `Scene.line_scale`; vectorised sampling (≈1.8× faster)
+- `props.py` — keyframed spring `Camera` with handheld wiggle; `finish()` (vignette + grain)
+- parallel render: workers re-rig the scene, pre-roll 1.5 s for spring state, encode chunks, concat
+- review (Gemini 3.1 Pro as a 2D director): v2 4/10 → v3 **8.5/10**; then fixed its 3 notes
+  (soft staggered title, livelier flame, hand relaxes after landing)
+- render: 360 frames 1080p in ~60 s on 2 cores (≈ 330 ms/frame/core)
+
+### Remotion
+Read for ideas (spring maths, frame-exact deterministic rendering, parallel chunk rendering, concat).
+Not embedded: it is React + headless Chrome (heavy for this 1 GB sandbox) and its licence is
+free only for individuals / companies ≤ 3 people.  A good later bridge: export each shot as
+Lottie (`lottie.py`) and composite / title it in a Remotion project (`@remotion/lottie`).
