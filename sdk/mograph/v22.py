@@ -97,6 +97,51 @@ def t_mcp():
     return selftest()
 
 
+def t_musicbed():
+    from .musicbed import selftest
+    return selftest()
+
+
+def t_guard():
+    from .v14.stage import guard_mode
+    ok = (guard_mode({"type": "kinetic_title", "anchor": "chest"}) == "down" and
+          guard_mode({"type": "kinetic_title", "anchor": "shoulder_r"}) == "down" and
+          guard_mode({"type": "kinetic_title", "anchor": "head_top"}) == "up" and
+          guard_mode({"type": "kinetic_title", "anchor": "chest", "guard": "up"}) == "up" and
+          guard_mode({"type": "disc", "anchor": "head_top"}) == "up" and
+          guard_mode({"type": "object_3d", "anchor": "chest"}) == "side")
+    return ok, "guard direction follows the anchor (chest/shoulder → down, head → up, explicit key wins)"
+
+
+def t_median3():
+    import cv2  # noqa: F401
+    from .v14.track import median3
+    r = np.random.default_rng(0)
+    a, b, c = [r.integers(0, 256, (64, 48), dtype=np.uint8) for _ in range(3)]
+    ok = np.array_equal(median3(a, b, c), np.median(np.stack([a, b, c]), 0).astype(np.uint8))
+    return ok, "closed-form a+b+c−min−max median of 3 matte frames is exact"
+
+
+def t_lower_hide():
+    from .v14.subs import _in_lower_third as f
+    ok = (f({"type": "kinetic_title", "y": 1500}, 1920) and f({"type": "kinetic_title", "y": 0.8}, 1920)
+          and not f({"type": "kinetic_title", "y": 700}, 1920) and f({"type": "broll", "mode": "pip", "y": 1400}, 1920)
+          and not f({"type": "broll", "mode": "full"}, 1920) and not f({"type": "kinetic_title", "anchor": "head_top"}, 1920))
+    return ok, "subtitles auto-hide under any screen layer at y ≥ 72 % / low PiP (cutaways keep subtitles)"
+
+
+def t_silhouette():
+    import cv2
+    from .v14.track import SIL_HEAD, _silhouette_geometry
+    a = np.zeros((640, 360), np.float32)
+    cv2.ellipse(a, (180, 200), (int(0.25 * 360 * SIL_HEAD / 2), 95), 0, 0, 360, 1.0, -1)     # head+hair, 0.25 W ears
+    cv2.rectangle(a, (180 - 150, 330), (180 + 150, 640), 1.0, -1)                             # shoulders/body
+    g = _silhouette_geometry(a, 200, 180)
+    ok = g is not None and abs(g[0] - 0.25) < 0.02 and 0.49 < g[2] < 0.54
+    return ok, f"matte silhouette → head {g[0]:.3f} W (true 0.25), shoulder line y {g[2]:.3f} (true 0.516)" if g else \
+        "silhouette not found"
+
+
 def t_hub():
     from .models_hub import CACHE, MODELS
     root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -107,7 +152,8 @@ def t_hub():
 
 TESTS = [("masks", t_masks), ("rtime", t_rtime), ("enhance", t_enhance), ("stabilize", t_stabilize),
          ("cutout", t_cutout), ("vad", t_vad), ("rvm", t_rvm), ("local_tts", t_local_tts), ("mcp", t_mcp),
-         ("hub", t_hub)]
+         ("hub", t_hub), ("musicbed", t_musicbed), ("guard", t_guard), ("median3", t_median3),
+         ("lower_hide", t_lower_hide), ("silhouette", t_silhouette)]
 
 
 def main():
