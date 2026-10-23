@@ -140,7 +140,7 @@ def gl_buffers(cam: Camera, parts, ss: float = 1.0):
     prog["V"].write(cam.view().T.astype("f4").tobytes())
     prog["P"].write(cam.proj().T.astype("f4").tobytes())
     for p in parts:
-        if not p.occluder:
+        if not p.occluder or not len(p.tris):
             continue
         X = p.verts[p.tris].reshape(-1, 3).astype("f4")
         ids = np.full((len(X), 1), float(p.pid), "f4")
@@ -179,6 +179,18 @@ class MeshTopo:
         ee = np.sort(np.vstack([tris[:, [0, 1]], tris[:, [1, 2]], tris[:, [2, 0]]]), 1)
         u, c = np.unique(ee, axis=0, return_counts=True)
         self.boundary = u[c == 1]
+        if len(self.boundary):
+            # boundary vertices are smoothed along the boundary curve only (hems stay clean, no ripples)
+            bv = np.unique(self.boundary)
+            b = self.boundary
+            Ab = sp.coo_matrix((np.ones(len(b) * 2), (np.r_[b[:, 0], b[:, 1]], np.r_[b[:, 1], b[:, 0]])),
+                               shape=(nverts, nverts)).tocsr()
+            db = np.asarray(Ab.sum(1)).ravel()
+            isb = np.zeros(nverts, bool)
+            isb[bv] = True
+            keep = sp.diags((~isb).astype(float))
+            db[db == 0] = 1
+            self.L = (keep @ self.L + sp.diags(isb.astype(float) / db) @ Ab).tocsr()
 
     def smooth(self, X, iters=0, lam=0.5, mu=-0.53, weight=None):
         """Taubin λ|μ smoothing (no shrink). weight (N,) in 0..1 scales the per-vertex step."""
@@ -211,7 +223,7 @@ class Part:
     smooth_w: np.ndarray | None = None   # per-vertex smoothing weight (0 keeps detail, 1 full)
     contour: bool = True                 # extract occluding contours
     occluder: bool = True
-    min_jump: float = 0.35               # dm — inner contours with less depth jump are dropped
+    min_jump: float | np.ndarray = 0.35  # dm — inner contours with less depth jump are dropped (scalar or per-vertex)
     weight: float = 1.0                  # stroke weight multiplier
     clip: np.ndarray | None = None       # per-vertex scalar; contour points with clip > 0 are discarded
     boundary: bool = False               # draw open-mesh boundary edges (hems) as lines
@@ -263,8 +275,9 @@ def contour_segments(part: Part, eye: np.ndarray, ortho_dir=None):
     w = np.clip(w, 0, 1)[:, None]
     P = X[keys[:, 0]] * (1 - w) + X[keys[:, 1]] * w                       # on the REAL (unsmoothed) surface
     clipv = None
-    if part.clip is not None:
-        clipv = part.clip[keys[:, 0]] * (1 - w[:, 0]) + part.clip[keys[:, 1]] * w[:, 0]
+    mj = np.asarray(part.min_jump, np.float64)
+    if mj.ndim:
+        clipv = mj[keys[:, 0]] * (1 - w[:, 0]) + mj[keys[:, 1]] * w[:, 0]   # per-point min_jump
     inv = inv.reshape(-1)
     seg = inv.reshape(-1, 2) if len(inv) % 2 == 0 else None
     if seg is None:   # should not happen (exactly 2 crossings per triangle)
@@ -364,6 +377,35 @@ def pixel_world(cam, z, ss=1.0):
     if cam.ortho:
         return np.full_like(z, cam.ortho_h / (cam.H * ss))
     return z * 2 * math.tan(math.radians(cam.fov) / 2) / (cam.H * ss)
+
+
+def id_depth(depth, ids, xs, pid, r=2):
+    """min depth among pixels of part `pid` in a (2r+1)² neighbourhood of each point (inf if none)."""
+    H, W = depth.shape
+    x0 = np.clip(xs[:, 0].astype(int), 0, W - 1)
+    y0 = np.clip(xs[:, 1].astype(int), 0, H - 1)
+    best = np.full(len(xs), np.inf, np.float32)
+    for dy in range(-r, r + 1):
+        yy = np.clip(y0 + dy, 0, H - 1)
+        for dx in range(-r, r + 1):
+            xx = np.clip(x0 + dx, 0, W - 1)
+            d = depth[yy, xx]
+            m = ids[yy, xx] == pid
+            best = np.where(m & (d < best), d, best)
+    return best
+
+
+def visibility_id(P, cam, depth, ids, Dmax, ss, pid, tol, r=2):
+    """Point of part `pid` is visible when its own part owns a nearby pixel at (about) the same depth.
+    → other layers in front (shirt over trousers, jacket over shirt) hide it even when only 1 mm apart."""
+    xy, z = cam.project(P)
+    xs = xy * ss
+    H, W = depth.shape
+    inside = (xs[:, 0] >= 0) & (xs[:, 0] < W) & (xs[:, 1] >= 0) & (xs[:, 1] < H)
+    own = id_depth(depth, ids, xs, pid, r)
+    vis = inside & np.isfinite(own) & (z <= own + tol + 2.0 * pixel_world(cam, z, ss) * r)
+    jump = np.clip(_sample(Dmax, xs) - z, 0, 1e4)
+    return xy, z, vis, jump
 
 
 def visibility(P, cam, Dmin, Dmax, ss, tol):
@@ -567,6 +609,10 @@ def render_lines(parts: list[Part], cam: Camera, style: Style, extra: list[Strok
     iso: list of (part, field_v, level, weight, kind) iso-line requests (hems, hairline…)."""
     depth, ids = gl_buffers(cam, parts, ss)
     Dmin, Dmax = depth_maps(depth, 1, max(2, int(round(3 * ss))))
+    if any(p.pid > 1 for p in parts):
+        # a contour point whose neighbour is ANOTHER part (body edge against a sleeve) is not a background jump:
+        # use the depth of the neighbourhood regardless of id → handled by Dmax already (max over 5x5)
+        pass
     scale = (fig_px or cam.H) / 1000.0
     eye = cam.eye()
     odir = None
@@ -578,12 +624,14 @@ def render_lines(parts: list[Part], cam: Camera, style: Style, extra: list[Strok
     for part in parts:
         if not part.contour:
             continue
-        P, keys, seg, clipv = contour_segments(part, eye, odir)
+        P, keys, seg, mjv = contour_segments(part, eye, odir)
         if not len(P):
             continue
-        xy, z, vis, jump = visibility(P, cam, Dmin, Dmax, ss, vis_tol)
-        importance = np.clip((jump - part.min_jump) / max(1e-6, style.jump_outer - part.min_jump), 0, 1)
-        keep = vis & (jump >= part.min_jump)
+        xy, z, vis, jump = visibility_id(P, cam, depth, ids, Dmax, ss, part.pid, vis_tol)
+        mj = float(np.mean(part.min_jump)) if mjv is None else mjv
+        mj0 = float(np.min(part.min_jump))
+        importance = np.clip((jump - mj0) / max(1e-6, style.jump_outer - mj0), 0, 1)
+        keep = vis & (jump >= mj)
         for ch in chain(seg, len(P)):
             for a, b in split_runs(keep[ch]):
                 ids_ = ch[a:b + 1]
@@ -602,7 +650,7 @@ def render_lines(parts: list[Part], cam: Camera, style: Style, extra: list[Strok
         if part.boundary:
             Pb, segb = boundary_polyline_segments(part)
             if len(Pb):
-                xy, z, vis, jump = visibility(Pb, cam, Dmin, Dmax, ss, vis_tol * 1.6)
+                xy, z, vis, jump = visibility_id(Pb, cam, depth, ids, Dmax, ss, part.pid, vis_tol * 0.6)
                 for ch in chain(segb, len(Pb)):
                     for a, b in split_runs(vis[ch]):
                         ids_ = ch[a:b + 1]
@@ -616,7 +664,7 @@ def render_lines(parts: list[Part], cam: Camera, style: Style, extra: list[Strok
         P, keys, seg = iso_segments(part, fv, level)
         if not len(P):
             continue
-        xy, z, vis, jump = visibility(P, cam, Dmin, Dmax, ss, vis_tol * 1.6)
+        xy, z, vis, jump = visibility_id(P, cam, depth, ids, Dmax, ss, part.pid, vis_tol * 0.6)
         for ch in chain(seg, len(P)):
             for a, b in split_runs(vis[ch]):
                 ids_ = ch[a:b + 1]
@@ -628,7 +676,10 @@ def render_lines(parts: list[Part], cam: Camera, style: Style, extra: list[Strok
     for st in extra:
         if len(st.pts) < 2:
             continue
-        xy, z, vis, jump = visibility(st.pts, cam, Dmin, Dmax, ss, vis_tol * 2.5)
+        if st.pid:
+            xy, z, vis, jump = visibility_id(st.pts, cam, depth, ids, Dmax, ss, st.pid, vis_tol * 1.5)
+        else:
+            xy, z, vis, jump = visibility(st.pts, cam, Dmin, Dmax, ss, vis_tol * 2.5)
         if not st.check_vis:
             vis = np.ones(len(xy), bool)
         for a, b in split_runs(vis):

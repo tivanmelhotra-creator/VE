@@ -212,7 +212,7 @@ def field_top(body, hem_y, sleeve, collar="crew", vdepth=0.0, open_w=0.0):
     # never cover the head or the legs
     out = np.maximum(out, (R.head - 0.35) * 3)
     leg = np.maximum(R.legness["L"], R.legness["R"])
-    out = np.maximum(out, (leg - 0.6) * 3 * (y < L["crotch"] + 0.3))
+    out = np.where(y < L["crotch"] + 0.3, np.maximum(out, (leg - 0.6) * 3), out)
     if open_w > 0:
         # open front (jacket/coat): a wedge |x| < w(y) on the front, widening toward the neck (lapels)
         t = np.clip((y - (hem_y)) / max(0.1, (cy.max() - hem_y)), 0, 1)
@@ -363,6 +363,9 @@ def build_outfit(body: Body, spec: dict | None) -> list[Garment]:
     dress = spec.get("dress")
     top = spec.get("top", "tshirt" if not dress else None)
     bottom = spec.get("bottom", "trousers" if not dress else None)
+    tuck = bool(spec.get("tuck"))
+    b_thick = BOTTOMS.get(bottom, {}).get("thick", 0.1) if bottom and bottom != "none" else 0.0
+    t_spec = TOPS.get(top, {}) if top else {}
     # ---------------------------------------------------------------- bottom
     if bottom and bottom != "none":
         if bottom in BOTTOMS:
@@ -370,7 +373,8 @@ def build_outfit(body: Body, spec: dict | None) -> list[Garment]:
             length = spec.get("length", b["length"]) * (R.leg_len - 0.25)
             wy = waist - 0.15 if bottom != "jeans" else waist - 0.45
             f = field_bottom(body, wy, length)
-            g = make_shell(body, f, b["thick"], bottom, smooth=4, loose=b["loose"])
+            th = b["thick"] + (t_spec.get("thick", 0.07) + 0.03 if tuck else 0.0)
+            g = make_shell(body, f, th, bottom, smooth=4, loose=b["loose"])
             g.folds = ["knee_back", "crotch"]
             if b.get("fly"):
                 g.details.append(("x", 0.0, "fly", 0.0, 0.45, "seam"))
@@ -385,7 +389,8 @@ def build_outfit(body: Body, spec: dict | None) -> list[Garment]:
     # ---------------------------------------------------------------- top
     if top and top != "none":
         if top == "dress_top":
-            t = dict(hem=-0.15, sleeve=spec.get("sleeve", 0.3), thick=0.06, loose=5, collar="scoop")
+            tuck = True
+            t = dict(hem=0.15, sleeve=spec.get("sleeve", 0.3), thick=0.06, loose=5, collar="scoop")
         else:
             t = dict(TOPS.get(top, TOPS["tshirt"]))
         if "sleeve" in spec:
@@ -395,7 +400,12 @@ def build_outfit(body: Body, spec: dict | None) -> list[Garment]:
         sleeve = t["sleeve"] * (R.arm_len - 0.05)
         open_w = t.get("open", 0.0) if spec.get("open", True) else 0.0
         f = field_top(body, hem_y, sleeve, t.get("collar", "crew"), t.get("vdepth", 0.0), open_w)
-        thick = np.full(len(body.rest), t["thick"])
+        # layer above the bottom (or the skirt / dress) unless tucked
+        under = 0.0 if tuck else (b_thick + 0.04 if b_thick else 0.0)
+        if dress or (bottom in ("skirt", "pencil_skirt")):
+            under = 0.0 if tuck else 0.12
+        hipw = smoothstep(waist + 0.6, waist - 0.2, regions(body).y)
+        thick = t["thick"] + under * hipw
         g = make_shell(body, f, thick, top, smooth=4, loose=t["loose"])
         g.folds = ["elbow_in", "armpit", "waist_side"]
         if t.get("placket"):
@@ -414,7 +424,8 @@ def build_outfit(body: Body, spec: dict | None) -> list[Garment]:
         collar = {"boots": R.leg_len - 1.6, "sneakers": R.leg_len - 0.45, "heels": R.leg_len - 0.05}.get(
             shoes, R.leg_len - 0.3)
         f = field_shoe(body, collar)
-        g = make_shell(body, f, 0.13 if shoes != "heels" else 0.05, shoes, kind="shoe", smooth=6, loose=8)
+        th = {"heels": 0.06, "boots": 0.16, "sneakers": 0.17}.get(shoes, 0.13)
+        g = make_shell(body, f, th, shoes, kind="shoe", smooth=10, loose=40)
         g.details.append(("y", 0.16, None, 0, 0.55, "sole")) if shoes in ("sneakers", "boots") else None
         out.append(g)
     # ---------------------------------------------------------------- hair
@@ -468,7 +479,7 @@ def build_hair(body, style) -> list[Garment]:
     th, c = head_angles(body)
     base = "buzz" if style == "buzz" else ("side" if style == "side" else "short")
     f = field_hair(body, base)
-    vol = {"buzz": 0.08, "short": 0.22, "side": 0.26, "bob": 0.3, "long": 0.28, "bun": 0.2, "ponytail": 0.18}[style]
+    vol = {"buzz": 0.1, "short": 0.34, "side": 0.38, "bob": 0.3, "long": 0.28, "bun": 0.2, "ponytail": 0.18}[style]
     # more volume on the crown, less at the hairline
     hy = R.y - L["eye"]
     thick = vol * (0.45 + 0.55 * smoothstep(0.0, 0.9, hy))

@@ -185,11 +185,12 @@ class Character:
         R = self.R
         sm = np.clip(1 - 0.85 * self.R.hand - 0.3 * self.R.foot, 0.1, 1.0)
         skin_clip = self.skin_clip.copy()
-        if self.face in ("none", "minimal"):
-            # drop inner face contours (nose, lips, eye sockets): clip the face region; the silhouette of the
-            # head is still drawn because the outer contour jump test keeps it… unless clipped → keep border
-            skin_clip = np.maximum(skin_clip, (R.face - 0.5) * 2)
-        body_part = Part("body", X, R.tris, R.topo, pid=1, smooth_iters=5, smooth_w=sm, min_jump=0.32,
+        mj = np.full(len(X), 0.32)
+        if self.face in ("none", "minimal", "simple"):
+            # inner face contours (nose wings, lips, eye sockets) are dropped; the face SILHOUETTE (profile against
+            # the background or the far shoulder) still has a big depth jump, so it stays.
+            mj = mj + R.face * 2.2 + R.head * 0.25
+        body_part = Part("body", X, R.tris, R.topo, pid=1, smooth_iters=5, smooth_w=sm, min_jump=mj,
                          clip=skin_clip)
         parts = [body_part]
         for k, g in enumerate(self.garments):
