@@ -11,6 +11,8 @@ Checks
   * names: grade.look · retime ops · broll mode / transitions · saber preset
   * every time resolves (word anchors exist), out > t, layer starts before the end
   * two FRONT hero layers on screen together for > 0.8 s (pro rule: one idea at a time)
+  * v22 static SPATIAL collisions: real placement (anchors + offset + follow + guard) of every pair on screen together,
+    sampled every 0.25 s without rendering a pixel → "spatial collision A × B t0–t1 (IoU)"
   * lower-third layers (disc / glass / tag) while subtitles are visible in the same zone
 """
 from __future__ import annotations
@@ -192,6 +194,7 @@ def lint(spec_path):
         if ov > 0.8:                                       # short hand-offs (exit while the next enters) are normal
             Wn.append(f"two FRONT hero layers overlap {ov:.2f}s: {a.get('id', a['type'])} & {b.get('id', b['type'])} "
                       f"at {b['_t0']:.2f}s (one idea at a time)")
+    Wn.extend(spatial_overlaps(R))                         # v22: static spatial collision check (no pixels)
     if R.subs:
         hid = R.subs["_hide"]
         for L in R.layers:
@@ -202,6 +205,68 @@ def lint(spec_path):
                     Wn.append(f"{L.get('id', L['type'])}: lower-third layer {t0:.2f}-{t1:.2f}s while subtitles are "
                               f"visible (add [{t0:.2f}, {t1:.2f}] to subtitles.hide)")
     return E, Wn
+
+
+SPATIAL = {"kinetic_title", "disc", "glass_shape", "frame_box", "object_3d", "counter_badge", "shatter_text"}
+
+
+def spatial_overlaps(R, step=0.25, min_dur=0.3, min_iou=0.18):
+    """v22 STATIC SPATIAL CHECK: for every pair of placed layers that are on screen together, sample their real
+    placement (layers.pos → anchors, offset, follow, layout guard) and bounding radius (layers.element_radius) every
+    `step` s — no frame is rendered (≈ ms per sample).  Warn when two discs overlap by IoU ≥ min_iou for ≥ min_dur s.
+    Members of one `group` (a designed composition) are exempt."""
+    from ..v14 import layers as LY
+    from ..v14.compositor import Frame
+    Ls = [L for L in R.layers if L["type"] in SPATIAL]
+    out, seen = [], set()
+    if len(Ls) < 2:
+        return out
+    import math as _m
+    t, cache = 0.0, {}
+    while t < R.duration:
+        live = [L for L in Ls if L["_t0"] + 0.15 <= t <= L["_t1"] - 0.15]
+        if len(live) >= 2:
+            F = Frame(R, t)
+            F.M, F.zoom = R.matrix(t)
+            hw = F.head_px()
+            geo = []
+            for L in live:
+                try:
+                    x, y, k = LY.pos(L, F)
+                    r = float(LY.element_radius(L, F, hw)) * float(k or 1.0)
+                except Exception:  # noqa: BLE001
+                    continue
+                if r > 4:
+                    geo.append((L, x, y, r))
+            for i in range(len(geo)):
+                for j in range(i + 1, len(geo)):
+                    a, b = geo[i], geo[j]
+                    if a[0].get("group") and a[0].get("group") == b[0].get("group"):
+                        continue
+                    d = _m.hypot(a[1] - b[1], a[2] - b[2])
+                    r1, r2 = a[3], b[3]
+                    if d >= r1 + r2:
+                        continue
+                    if d <= abs(r1 - r2):
+                        inter = _m.pi * min(r1, r2) ** 2
+                    else:
+                        c1 = _m.acos(max(-1, min(1, (d * d + r1 * r1 - r2 * r2) / (2 * d * r1))))
+                        c2 = _m.acos(max(-1, min(1, (d * d + r2 * r2 - r1 * r1) / (2 * d * r2))))
+                        inter = r1 * r1 * c1 + r2 * r2 * c2 - 0.5 * _m.sqrt(max(0.0, (-d + r1 + r2) * (d + r1 - r2) *
+                                                                                   (d - r1 + r2) * (d + r1 + r2)))
+                    iou = inter / (_m.pi * r1 * r1 + _m.pi * r2 * r2 - inter)
+                    if iou >= min_iou:
+                        key = (id(a[0]), id(b[0]))
+                        c = cache.setdefault(key, [t, t, 0.0, a[0], b[0]])
+                        c[1], c[2] = t, max(c[2], iou)
+        t += step
+    for (ka, kb), (t0, t1, iou, A, B) in cache.items():
+        if t1 - t0 + step >= min_dur and (ka, kb) not in seen:
+            seen.add((ka, kb))
+            out.append(f"spatial collision {A.get('id', A['type'])} × {B.get('id', B['type'])} "
+                       f"{t0:.2f}–{t1 + step:.2f}s (overlap IoU {iou:.2f}) — move one (offset/anchor) or give both "
+                       f"the same \"group\" if it is one designed composition")
+    return out
 
 
 def run(spec_path):
