@@ -107,3 +107,53 @@ def snap(t, onsets, window=0.25):
     o = np.asarray(onsets)
     i = int(np.argmin(np.abs(o - t)))
     return float(o[i]) if abs(o[i] - t) <= window else t
+
+
+# --------------------------------------------------------------------------- Remotion spring
+def spring_value(t, damping=10.0, mass=1.0, stiffness=100.0, v0=0.0):
+    """Closed-form damped spring 0 -> 1 after `t` seconds, as Remotion's spring()
+    (packages/core/src/spring/spring-utils.ts `advance`; Remotion License: free for individuals and
+    companies up to 3 people — only the published formula is reused here; same
+    under/critically-damped formulas, evaluated analytically instead of frame-stepping)."""
+    t = max(0.0, float(t))
+    c, m, k = damping, mass, stiffness
+    zeta = c / (2 * np.sqrt(k * m)); w0 = np.sqrt(k / m)
+    x0, v = 1.0, -v0
+    if zeta < 1:
+        w1 = w0 * np.sqrt(1 - zeta ** 2)
+        env = np.exp(-zeta * w0 * t)
+        return 1 - env * (np.sin(w1 * t) * ((v + zeta * w0 * x0) / w1) + x0 * np.cos(w1 * t))
+    env = np.exp(-w0 * t)
+    return 1 - env * (x0 + (v + w0 * x0) * t)
+
+
+def settle_time(damping=10.0, mass=1.0, stiffness=100.0, threshold=0.005):
+    """Like Remotion measureSpring(): seconds until the spring stays within threshold."""
+    ts = np.arange(0, 20, 1 / 240)
+    v = np.array([spring_value(t, damping, mass, stiffness) for t in ts])
+    out = np.nonzero(np.abs(v - 1) > threshold)[0]
+    return float(ts[out[-1] + 1]) if len(out) else 0.0
+
+
+def spring_ease(damping=12.0, mass=1.0, stiffness=110.0):
+    """An EASE function on u in [0,1] spanning the spring's settle time (exactly 1 at u = 1)."""
+    T = settle_time(damping, mass, stiffness)
+
+    def e(u):
+        u = float(np.clip(u, 0, 1))
+        v = spring_value(u * T, damping, mass, stiffness)
+        return v + (1 - v) * max(0.0, (u - 0.9) / 0.1) ** 2
+    return e
+
+
+EASE['spring'] = spring_ease(12, 1, 110)          # lively, ~1 overshoot
+EASE['spring_soft'] = spring_ease(20, 1, 120)     # settles with a small overshoot
+EASE['spring_firm'] = spring_ease(26, 1, 170)     # almost critically damped
+
+
+def anticipate(t0, dur, amount, ease='spring_soft', lead=0.28):
+    """Keys for a move to `amount` with anticipation: a small counter-move (-12 %) in the
+    first `lead` of the time, then the main action on a spring (12 principles: anticipation +
+    follow-through)."""
+    a = lead * dur
+    return Track([(t0, 0.0), (t0 + a, -0.12 * amount, 'io'), (t0 + dur, amount, ease)])
