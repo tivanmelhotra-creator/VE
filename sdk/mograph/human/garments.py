@@ -192,7 +192,7 @@ def field_top(body, hem_y, sleeve, collar="crew", vdepth=0.0, open_w=0.0):
     X = body.rest
     y = R.y
     L = R.lm
-    front = smoothstep(-0.2, 0.8, X[:, 2] - L["head_c"][2])
+    front = smoothstep(-0.05, 0.45, torso_front(body))
     neck_y = L["neck"] - 0.25
     if collar == "high":
         neck_y = L["neck"] + 0.55
@@ -225,10 +225,29 @@ def field_top(body, hem_y, sleeve, collar="crew", vdepth=0.0, open_w=0.0):
         # open front (jacket/coat): a wedge |x| < w(y) on the front, widening toward the neck (lapels)
         t = np.clip((y - (hem_y)) / max(0.1, (cy.max() - hem_y)), 0, 1)
         w = open_w * (0.35 + 0.65 * t ** 1.6)
-        wedge = (w - np.abs(X[:, 0])) * smoothstep(0.1, 0.5, front) * (y > hem_y - 0.2)
+        # front = ahead of the local torso centre (per height), not the head
+        tf = torso_front(body)
+        wedge = np.where(tf > 0.15, (w - np.abs(X[:, 0])), -1.0) * (y > hem_y - 0.2)
         wedge = np.where(R.armness["L"] + R.armness["R"] > 0.3, -1.0, wedge)
         out = np.maximum(out, wedge * 2.5)
     return out
+
+
+def torso_front(body):
+    """signed distance (dm) ahead of the torso's mid-depth at the same height (+ = front half)."""
+    if getattr(body, "_tfront", None) is None:
+        X = body.rest
+        R = regions(body)
+        core = (np.maximum(R.armness["L"], R.armness["R"]) < 0.2) & (np.arange(len(X)) < BODY_N)
+        ys = np.linspace(X[:BODY_N, 1].min(), X[:BODY_N, 1].max(), 120)
+        mid = np.zeros_like(ys)
+        for i, yy in enumerate(ys):
+            m = core & (np.abs(X[:, 1] - yy) < 0.15) & (np.abs(X[:, 0]) < 1.0)
+            mid[i] = 0.5 * (X[m, 2].min() + X[m, 2].max()) if m.sum() > 3 else np.nan
+        good = ~np.isnan(mid)
+        mid = np.interp(ys, ys[good], mid[good])
+        body._tfront = X[:, 2] - np.interp(X[:, 1], ys, mid)
+    return body._tfront
 
 
 def field_bottom(body, waist_y, length, crotch_drop=0.0):
@@ -432,7 +451,9 @@ def build_outfit(body: Body, spec: dict | None) -> list[Garment]:
         if open_w > 0:
             # shirt underneath shows through the open front
             f2 = field_top(body, waist - 0.6 * hip_band, 0.0, "high", 0.0, 0.0)
-            g2 = make_shell(body, np.maximum(f2, np.abs(body.rest[:, 0]) - open_w - 0.6), 0.07, "undershirt",
+            tf = torso_front(body)
+            g2 = make_shell(body, np.maximum(np.maximum(f2, np.abs(body.rest[:, 0]) - open_w - 0.6), 0.05 - tf),
+                            0.07, "undershirt",
                             smooth=4, loose=5)
             g2.weight = 0.9
             out.append(g2)
