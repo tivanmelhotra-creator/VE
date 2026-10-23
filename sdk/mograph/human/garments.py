@@ -127,7 +127,7 @@ def _smooth_normals(body):
 
 
 def make_shell(body: Body, f, thick, name, kind="cloth", smooth=6, loose=None, weight=1.0, min_jump=0.25,
-               cover_margin=0.02, attrs_extra=None) -> Garment:
+               cover_margin=0.02, attrs_extra=None, hull=0) -> Garment:
     """thick: scalar or per-body-vertex array (dm). loose: extra smoothing iterations of the rest shell."""
     from .lineart import MeshTopo
     R = regions(body)
@@ -140,6 +140,13 @@ def make_shell(body: Body, f, thick, name, kind="cloth", smooth=6, loose=None, w
     thv = interp_attr(th, src, t)
     V = V + nrm * thv[:, None]
     topo = MeshTopo(T, len(V))
+    if hull:
+        # plain Laplacian (shrinking) smoothing → bumps (toes, knuckles) merge into one volume; the re-inflate
+        # step below pushes the hull back outside the skin
+        Y = V.astype(np.float64)
+        for _ in range(int(hull)):
+            Y = Y + 0.6 * (topo.L @ Y - Y)
+        V = Y.astype(np.float32)
     if loose:
         V = topo.smooth(V.astype(np.float64), int(loose)).astype(np.float32)
         # re-inflate where smoothing pulled the cloth inside the skin
@@ -421,13 +428,8 @@ def build_outfit(body: Body, spec: dict | None) -> list[Garment]:
     # ---------------------------------------------------------------- shoes
     shoes = spec.get("shoes", "shoes")
     if shoes and shoes != "none":
-        collar = {"boots": R.leg_len - 1.6, "sneakers": R.leg_len - 0.45, "heels": R.leg_len - 0.05}.get(
-            shoes, R.leg_len - 0.3)
-        f = field_shoe(body, collar)
-        th = {"heels": 0.06, "boots": 0.16, "sneakers": 0.17}.get(shoes, 0.13)
-        g = make_shell(body, f, th, shoes, kind="shoe", smooth=10, loose=40)
-        g.details.append(("y", 0.16, None, 0, 0.55, "sole")) if shoes in ("sneakers", "boots") else None
-        out.append(g)
+        for sd in ("L", "R"):
+            out.append(build_shoe(body, sd, shoes))
     # ---------------------------------------------------------------- hair
     hair = spec.get("hair", "short" if body.params.get("gender", 0.5) >= 0.5 else "long")
     if hair and hair not in ("none", "bald"):
@@ -533,3 +535,105 @@ def build_hair(body, style) -> list[Garment]:
         Wn = headW[None] * (1 - k) + sp[None] * k
         out.append(mesh_garment(body, P, T, Wn, "hair_ponytail", "hair", smooth=0, min_jump=0.1))
     return out
+
+
+# ------------------------------------------------------------------------------------------ shoes (lofted last)
+SHOE_STYLE = {
+    #            toe_len  width  toe_h  heel_h  collar_h  sole   toe_round
+    "shoes":    (1.10,   1.05,  0.95,  0.05,   0.62,     0.07,  0.55),
+    "sneakers": (1.12,   1.12,  1.05,  0.10,   0.70,     0.14,  0.75),
+    "boots":    (1.10,   1.08,  1.0,   0.12,   2.10,     0.12,  0.7),
+    "heels":    (1.12,   0.92,  0.75,  0.75,   0.55,     0.04,  0.25),
+    "flats":    (1.05,   0.98,  0.82,  0.0,    0.45,     0.04,  0.45),
+}
+
+
+def build_shoe(body, side, style="shoes"):
+    """A clean closed shoe mesh lofted along the foot axis (heel → toe), sized from the foot's own skin vertices,
+    weighted to foot/toe bones. Hides every toe and gives a readable shoe silhouette + sole line."""
+    from .lineart import MeshTopo
+    R = regions(body)
+    X = body.rest
+    sg = 1 if side == "L" else -1
+    fm = (R.foot > 0.45) & (np.sign(X[:, 0]) == sg)
+    fm[BODY_N:] = False
+    P = X[fm]
+    heel_z, toe_z = P[:, 2].min(), P[:, 2].max()
+    ank = body.head(f"foot.{side}")
+    st = SHOE_STYLE.get(style, SHOE_STYLE["shoes"])
+    toe_len, wmul, toe_h, heel_h, collar_h, sole, round_ = st
+    L = (toe_z - heel_z)
+    toe_z2 = heel_z + L * toe_len
+    nu, nv = 34, 28
+    rings = []
+    zs = np.linspace(heel_z - 0.06, toe_z2, nu)
+    for i, z in enumerate(zs):
+        u = (z - zs[0]) / (zs[-1] - zs[0])
+        band = P[np.abs(P[:, 2] - z) < max(0.12, L / nu * 1.5)]
+        if len(band) < 4:
+            band = P[np.argsort(np.abs(P[:, 2] - z))[:12]]
+        cx = band[:, 0].mean()
+        hw = (band[:, 0].max() - band[:, 0].min()) / 2 * wmul + 0.06
+        top = band[:, 1].max() + 0.07
+        # profile height: tall at the ankle (collar), sloping to the toe box
+        h_ankle = collar_h + 0.35
+        h = np.interp(u, [0, 0.12, 0.35, 0.62, 0.85, 1.0],
+                      [h_ankle * 0.85, h_ankle, h_ankle * 0.8, toe_h * 0.62, toe_h * 0.48, toe_h * 0.2])
+        h = max(h, top if u > 0.3 else h)
+        # toe cap rounding (plan view) and heel rounding
+        if u > 0.75:
+            k = (u - 0.75) / 0.25
+            hw *= math.sqrt(max(0.0, 1 - k ** (1.0 + 2 * round_))) * 0.92 + 0.08
+        if u < 0.08:
+            hw *= 0.75 + 0.25 * (u / 0.08)
+        lift = heel_h * np.interp(u, [0, 0.45, 0.7, 1], [1, 0.8, 0.0, 0.0])
+        base = -0.02 + lift
+        ring = []
+        for j in range(nv):
+            t = 2 * math.pi * j / nv
+            c, s = math.cos(t), math.sin(t)
+            # smooth superellipse cross-section (C1 everywhere → clean contours): round upper, flatter sole
+            hh = (h - base) / 2
+            e_y = 2 / 2.6 if s > 0 else 2 / 5.0
+            y = base + hh + hh * np.sign(s) * abs(s) ** e_y
+            x = cx + hw * np.sign(c) * abs(c) ** (2 / 3.0)
+            ring.append((x, y, z))
+        rings.append(ring)
+    V = np.asarray(rings, np.float64).reshape(-1, 3)
+    T = []
+    for i in range(nu - 1):
+        for j in range(nv):
+            a = i * nv + j
+            b = i * nv + (j + 1) % nv
+            T += [(a, b + nv, b), (a, a + nv, b + nv)]
+    # caps: heel (start) closed, toe (end) closed; collar opening = cut the top of the first 18 % later
+    c0 = len(V); V = np.vstack([V, V[:nv].mean(0)])
+    c1 = len(V); V = np.vstack([V, V[(nu - 1) * nv:].mean(0)])
+    for j in range(nv):
+        T.append((c0, (j + 1) % nv, j))
+        T.append((c1, (nu - 1) * nv + j, (nu - 1) * nv + (j + 1) % nv))
+    T = np.asarray(T, np.int32)
+    # cut the collar opening: remove upper triangles above the ankle line near the heel
+    cen = V[T].mean(1)
+    u_c = (cen[:, 2] - zs[0]) / (zs[-1] - zs[0])
+    open_ = (u_c < 0.33) & (cen[:, 1] > collar_h * 0.92) if style != "boots" else (cen[:, 1] > collar_h * 0.98)
+    T = T[~open_]
+    # weights: foot bone, toes for the front third
+    nb = len(bones())
+    wf = _bone_w(nb, {f"foot.{side}": 1.0})
+    wt = _bone_w(nb, {f"toe1-1.{side}": 0.2, f"toe2-1.{side}": 0.2, f"toe3-1.{side}": 0.2,
+                      f"toe4-1.{side}": 0.2, f"toe5-1.{side}": 0.2})
+    wl = _bone_w(nb, {f"lowerleg02.{side}": 1.0})
+    u = np.clip((V[:, 2] - zs[0]) / (zs[-1] - zs[0]), 0, 1)
+    kt = smoothstep(0.7, 0.95, u)[:, None] * 0.35
+    kl = smoothstep(collar_h * 0.7, collar_h * 1.4, V[:, 1])[:, None] if style == "boots" else 0 * kt
+    W = wf[None] * (1 - kt - kl) + wt[None] * kt + wl[None] * kl
+    g = mesh_garment(body, V.astype(np.float32), T, W, f"{style}.{side}", "shoe", smooth=3, min_jump=0.2)
+    g.hem = True
+    g.details.append(("y", sole + 0.0, None, 0, 0.5, "sole"))
+    # body coverage (skin below the collar is hidden)
+    cover = np.where(fm | ((np.sign(X[:, 0]) == sg) & (X[:, 1] < collar_h * 0.95) & (R.foot + R.legness[side] > 0.5)),
+                     1.0, -1.0)
+    cover[BODY_N:] = -1
+    g.cover = cover
+    return g

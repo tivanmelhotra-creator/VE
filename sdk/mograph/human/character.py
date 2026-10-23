@@ -190,8 +190,11 @@ class Character:
             # inner face contours (nose wings, lips, eye sockets) are dropped; the face SILHOUETTE (profile against
             # the background or the far shoulder) still has a big depth jump, so it stays.
             mj = mj + R.face * 2.2 + R.head * 0.25
+        # covered skin is NOT an occluder (it sits inside the clothes; where it pokes through a shell it would
+        # punch holes in garment lines). A thin margin keeps the skin right at hems/cuffs/collars.
+        occ = ~(self.skin_clip[R.tris] > 0.06).all(1)
         body_part = Part("body", X, R.tris, R.topo, pid=1, smooth_iters=5, smooth_w=sm, min_jump=mj,
-                         clip=skin_clip)
+                         clip=skin_clip, occ_tris=occ)
         parts = [body_part]
         for k, g in enumerate(self.garments):
             V = b.skin(G, g.rest, g.W)

@@ -142,7 +142,10 @@ def gl_buffers(cam: Camera, parts, ss: float = 1.0):
     for p in parts:
         if not p.occluder or not len(p.tris):
             continue
-        X = p.verts[p.tris].reshape(-1, 3).astype("f4")
+        tr = p.tris if p.occ_tris is None else p.tris[p.occ_tris]
+        if not len(tr):
+            continue
+        X = p.verts[tr].reshape(-1, 3).astype("f4")
         ids = np.full((len(X), 1), float(p.pid), "f4")
         data = np.hstack([X, ids]).astype("f4")
         vbo = ctx.buffer(data.tobytes())
@@ -227,6 +230,7 @@ class Part:
     weight: float = 1.0                  # stroke weight multiplier
     clip: np.ndarray | None = None       # per-vertex scalar; contour points with clip > 0 are discarded
     boundary: bool = False               # draw open-mesh boundary edges (hems) as lines
+    occ_tris: np.ndarray | None = None   # bool per triangle: rendered into the depth/id buffer (None = all)
     kind: str = "body"                   # body | cloth | hair (affects the default style)
 
 
