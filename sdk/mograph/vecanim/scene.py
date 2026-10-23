@@ -13,6 +13,7 @@ class Fill:
     def __init__(self, paths, tone, group='fill', part=None):
         self.paths = [np.asarray(p, float) for p in paths]
         self.tone, self.group, self.part = float(tone), group, part
+        self.opacity, self.clip = 1.0, None
 
     def points(self):
         return np.vstack(self.paths)
@@ -23,7 +24,9 @@ class Fill:
             self.paths[i] = P[o:o + len(p)]; o += len(p)
 
     def copy(self):
-        return Fill([p.copy() for p in self.paths], self.tone, self.group, self.part)
+        f = Fill([p.copy() for p in self.paths], self.tone, self.group, self.part)
+        f.opacity, f.clip = self.opacity, self.clip
+        return f
 
     def to_json(self):
         return dict(kind='fill', tone=round(self.tone, 4), group=self.group, part=self.part,
@@ -40,6 +43,7 @@ class Stroke:
         self.aw = np.asarray(aw if aw is not None else np.full(na, width), float)
         self.color, self.group, self.part = float(color), group, part
         self.reveal = 1.0          # draw-on (0..1 of length)
+        self.opacity, self.clip = 1.0, None
 
     def points(self):
         return self.P
@@ -49,7 +53,7 @@ class Stroke:
 
     def copy(self):
         s = Stroke(self.P.copy(), self.closed, self.width, self.aw.copy(), self.color, self.group, self.part)
-        s.reveal = self.reveal
+        s.reveal, s.opacity, s.clip = self.reveal, self.opacity, self.clip
         return s
 
     def chain(self):
@@ -127,6 +131,32 @@ class Scene:
             c.scale(scale, scale)
         c.set_line_cap(cairo.LINE_CAP_ROUND); c.set_line_join(cairo.LINE_JOIN_ROUND)
         for it in (items if items is not None else self.items):
+            if it.opacity <= 0.003:
+                continue
+            if it.clip is not None or it.opacity < 0.999:
+                c.save()
+                if it.clip is not None:
+                    c.new_path(); c.move_to(*it.clip[0])
+                    for q in it.clip[1:]:
+                        c.line_to(*q)
+                    c.close_path(); c.clip()
+                if it.opacity < 0.999:
+                    c.push_group()
+            self._item(c, it, variable_width)
+            if it.clip is not None or it.opacity < 0.999:
+                if it.opacity < 0.999:
+                    c.pop_group_to_source(); c.paint_with_alpha(it.opacity)
+                c.restore()
+        surf.flush()
+        a = np.frombuffer(surf.get_data(), np.uint8).reshape(oh * ss, surf.get_stride() // 4, 4)[:, :ow * ss, 1]
+        a = a.astype(np.float32) / 255
+        if ss > 1:
+            a = cv2.resize(a, (ow, oh), interpolation=cv2.INTER_AREA)
+        return a
+
+    @classmethod
+    def _item(cls, c, it, variable_width):
+        if True:
             if it.kind == 'fill':
                 c.new_path()
                 for p in it.paths:
@@ -140,13 +170,7 @@ class Scene:
                 c.set_fill_rule(cairo.FILL_RULE_EVEN_ODD)
                 c.set_source_rgb(it.tone, it.tone, it.tone); c.fill()
             else:
-                self._stroke(c, it, variable_width)
-        surf.flush()
-        a = np.frombuffer(surf.get_data(), np.uint8).reshape(oh * ss, surf.get_stride() // 4, 4)[:, :ow * ss, 1]
-        a = a.astype(np.float32) / 255
-        if ss > 1:
-            a = cv2.resize(a, (ow, oh), interpolation=cv2.INTER_AREA)
-        return a
+                cls._stroke(c, it, variable_width)
 
     @staticmethod
     def _stroke(c, st, variable_width):
