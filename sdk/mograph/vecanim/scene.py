@@ -44,6 +44,7 @@ class Stroke:
         self.color, self.group, self.part = float(color), group, part
         self.reveal = 1.0          # draw-on (0..1 of length)
         self.opacity, self.clip = 1.0, None
+        self.taper = 1.0           # 0 = blunt, 1 = ink-pen taper at both open ends
 
     def points(self):
         return self.P
@@ -53,7 +54,7 @@ class Stroke:
 
     def copy(self):
         s = Stroke(self.P.copy(), self.closed, self.width, self.aw.copy(), self.color, self.group, self.part)
-        s.reveal, s.opacity, s.clip = self.reveal, self.opacity, self.clip
+        s.reveal, s.opacity, s.clip, s.taper = self.reveal, self.opacity, self.clip, self.taper
         return s
 
     def chain(self):
@@ -84,6 +85,8 @@ def _sample_stroke(st, spacing=1.2):
 
 
 class Scene:
+    line_scale = 1.0          # global ink weight (render-time)
+
     def __init__(self, W, H, bg, items):
         self.W, self.H, self.bg, self.items = int(W), int(H), float(bg), list(items)
 
@@ -196,6 +199,17 @@ class Scene:
             pts, ws = _sample_stroke(st)
             if pts is None:
                 return
+        ws = ws * Scene.line_scale
+        if not st.closed and st.taper > 0 and len(pts) > 3:
+            # ink-pen taper: width grows from ~18 % at each end over min(30 % length, 4 widths)
+            d = np.r_[0, np.cumsum(np.linalg.norm(np.diff(pts, axis=0), axis=1))]
+            Ltot = d[-1]
+            full = d[-1] if st.reveal >= 1 else d[-1] / max(st.reveal, 1e-3)
+            Lt = max(1e-3, min(0.3 * full, 4.0 * float(np.median(ws))))
+            e = np.minimum(d, (full - d) if st.reveal >= 1 else np.inf)
+            u = np.clip(e / Lt, 0, 1)
+            prof = 0.18 + 0.82 * np.sin(u * np.pi / 2) ** 0.8
+            ws = ws * (1 - st.taper + st.taper * prof)
         # variable width: outline polygon from offset curves + round caps
         if len(pts) < 2:
             return
