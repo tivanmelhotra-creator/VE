@@ -214,12 +214,13 @@ def _xf(items, M):
     return out
 
 
-def hand_on_shoulder(ch, t, dur=None, target=None, side='far', size=1.6, angle=0.40, drop=40.0, slide=10.0):
+def hand_on_shoulder(ch, t, dur=None, target=None, side='far', size=1.6, angle=0.40, drop=55.0, slide=14.0):
     """The character lifts his shoulder; his hand lands on `target`'s shoulder from behind.
     Target landmarks: shoulder_<side> (knuckle anchor) and shoulder_<side>_line (contour)."""
     dur = dur or 1.1
     lift = lift_shoulder(ch, t - 0.4, dur * 0.9, side=ch.spec.get('reach_side', 'r'))
     k_tr = A.Track([(t, 0.0), (t + dur, 1.0, 'back')])
+    fade = A.Track([(t, 0.0), (t + dur * 0.55, 1.0, 'smooth')])
     anchor = target.L['shoulder_' + side]
     line = target.L['shoulder_' + side + '_line']
     fills, inks = hand_asset()
@@ -237,7 +238,7 @@ def hand_on_shoulder(ch, t, dur=None, target=None, side='far', size=1.6, angle=0
         clip = [(x, y - lift_px) for x, y in line] + [(line[-1][0], line[-1][1] + 150), (line[0][0], line[0][1] + 150)]
         for it in items:
             it.clip = clip
-            it.opacity = min(1.0, k * 4)
+            it.opacity = float(fade(tt))
         st.overlay.append((target.z + 0.5, items))
     return Gesture(f)
 
