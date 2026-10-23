@@ -219,7 +219,7 @@ def _xf(items, M):
     return out
 
 
-def hand_on_shoulder(ch, t, dur=None, target=None, side='far', size=1.6, angle=0.40, drop=55.0, slide=14.0):
+def hand_on_shoulder(ch, t, dur=None, target=None, side='auto', size=1.6, angle=0.40, drop=55.0, slide=14.0):
     """The character lifts his shoulder; his hand lands on `target`'s shoulder from behind.
     Target landmarks: shoulder_<side> (knuckle anchor) and shoulder_<side>_line (contour)."""
     dur = dur or 1.1
@@ -229,6 +229,8 @@ def hand_on_shoulder(ch, t, dur=None, target=None, side='far', size=1.6, angle=0
     if 'shoulder_' + side not in target.L:          # auto rigs name shoulders l / r
         away = 'r' if target.L['neck'][0] >= ch.L['neck'][0] else 'l'
         near = 'l' if away == 'r' else 'r'
+        if side == 'auto':                          # behind her -> arm round her back (far);
+            side = 'far' if ch.z < target.z else 'near'   # in front -> hand on the near shoulder
         side = away if side == 'far' else near if side == 'near' else side
     anchor = np.asarray(target.L['shoulder_' + side], float)
     line = target.L['shoulder_' + side + '_line']
@@ -256,7 +258,7 @@ def hand_on_shoulder(ch, t, dur=None, target=None, side='far', size=1.6, angle=0
         for it in items:
             it.clip = clip
             it.opacity = float(fade(tt))
-        st.overlay.append((target.z + 0.5, items))
+        st.overlay.append((max(target.z, ch.z) + 0.5, items))
     return Gesture(f)
 
 
