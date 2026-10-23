@@ -75,6 +75,8 @@ def main(argv=None):
         s.add_argument("--width", type=float, default=3.2)
     sh = sub.add_parser("sheet")
     sh.add_argument("--out", default="human_sheet.png")
+    sc = sub.add_parser("showcase")
+    sc.add_argument("--out", default="human_showcase.png")
     a = ap.parse_args(argv)
     if a.cmd == "setup":
         from .assets import setup_env
@@ -126,6 +128,24 @@ def main(argv=None):
         while len(tiles) % 8:
             tiles.append(np.full_like(tiles[0], 255))
         rows = [np.hstack(tiles[i:i + 8]) for i in range(0, len(tiles), 8)]
+        cv2.imwrite(a.out, cv2.cvtColor(np.vstack(rows), cv2.COLOR_RGB2BGR))
+        print(a.out)
+        return 0
+    if a.cmd == "showcase":
+        import cv2
+        import numpy as np
+        from .character import Character, preset
+        jobs = [("casual_man", "walk", 70, {"phase": 0.1}), ("office_woman", "stand_contra", 20, {}),
+                ("business_man", "present", 25, {}), ("heavy_man", "stand", 30, {}), ("old_woman", "stand", 35, {}),
+                ("girl", "wave", 15, {}), ("boy", "run", 75, {"phase": 0.2}), ("dress_woman", "sit", 45, {}),
+                ("athlete", "hands_on_hips", 10, {}), ("teen", "phone", 30, {}),
+                ("coat_woman", "walk", 60, {"phase": 0.6}), ("old_man", "think", 30, {})]
+        tiles = []
+        for n, pose, yaw, kw in jobs:
+            im = Character(**preset(n)).render(pose=pose, yaw=yaw, W=360, H=620, bg=(1, 1, 1), **kw)[..., :3].copy()
+            cv2.putText(im, f"{n} / {pose}", (6, 18), 0, 0.45, (0, 0, 200), 1)
+            tiles.append(im)
+        rows = [np.hstack(tiles[i:i + 6]) for i in range(0, len(tiles), 6)]
         cv2.imwrite(a.out, cv2.cvtColor(np.vstack(rows), cv2.COLOR_RGB2BGR))
         print(a.out)
         return 0
