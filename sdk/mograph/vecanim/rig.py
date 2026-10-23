@@ -220,7 +220,7 @@ class Rig:
         items = []
         bg_fills = [i for i in self.static if i.kind == 'fill']
         bg_strokes = [i for i in self.static if i.kind == 'stroke']
-        st_items = bg_fills + bg_strokes
+        st_items = [i.copy() for i in bg_fills + bg_strokes]      # per-frame copies (draw-on mutates)
         for f in self.fx:
             st_items = f(t, st_items)
         items += st_items

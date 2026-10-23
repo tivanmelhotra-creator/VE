@@ -214,7 +214,7 @@ def _xf(items, M):
     return out
 
 
-def hand_on_shoulder(ch, t, dur=None, target=None, side='far', size=1.35, angle=0.40, drop=40.0, slide=10.0):
+def hand_on_shoulder(ch, t, dur=None, target=None, side='far', size=1.6, angle=0.40, drop=40.0, slide=10.0):
     """The character lifts his shoulder; his hand lands on `target`'s shoulder from behind.
     Target landmarks: shoulder_<side> (knuckle anchor) and shoulder_<side>_line (contour)."""
     dur = dur or 1.1

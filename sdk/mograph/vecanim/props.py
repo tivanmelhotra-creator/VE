@@ -5,10 +5,10 @@ from .scene import Fill
 from . import anim as A
 
 
-def text_fill(txt, size, x, y, font='Dancing Script', tone=1.0):
+def text_fill(txt, size, x, y, font='Dancing Script', tone=1.0):  # noqa
     """Text as one compound Fill (cairo glyph outlines -> flat cubic control points)."""
     S = cairo.ImageSurface(cairo.FORMAT_A8, 4, 4); c = cairo.Context(S)
-    c.select_font_face(font); c.set_font_size(size); c.move_to(x, y); c.text_path()
+    c.select_font_face(font); c.set_font_size(size); c.move_to(x, y); c.text_path(txt)
     paths, cur, start = [], [], None
     for kind, pts in c.copy_path():
         if kind == cairo.PATH_MOVE_TO:
