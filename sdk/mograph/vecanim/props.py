@@ -56,8 +56,8 @@ def flame(box, start=2.0):
     def fx(t, items):
         if t < start:
             return items
-        fl = 1 + 0.07 * np.sin(t * 23) + 0.05 * np.sin(t * 37 + 1)
-        sw = 1.2 * np.sin(t * 11)
+        fl = 1 + 0.13 * np.sin(t * 17) + 0.07 * np.sin(t * 31 + 1) + 0.04 * np.sin(t * 53 + 2)
+        sw = 2.2 * np.sin(t * 7.3) + 0.8 * np.sin(t * 19)
         out = list(items)
         for i, it in enumerate(items):
             P = it.points()

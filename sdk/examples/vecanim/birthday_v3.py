@@ -80,13 +80,19 @@ def items_at(t):
     its = rig.items_at(t)
     if t < 3.2:
         props.apply_draw_on(its[:NB], starts, t)
-    u = A.EASE['smooth']((t - T_TITLE) / 1.4) if t > T_TITLE else 0.0
-    if u > 0:
-        wx = TX0 + (TX1 - TX0) * u
-        for f in TITLE:
-            g = f.copy(); g.opacity = 0.93
-            g.clip = [(TX0 - 10, 200), (wx, 200), (wx + 25, 450), (TX0 - 10, 450)]
-            its.append(g)
+    # title: line 1 then line 2, each a soft write-on (clip sweep) + opacity + 6 px rise
+    for li, f in enumerate(TITLE):
+        t0 = T_TITLE + 0.55 * li
+        u = A.EASE['io']((t - t0) / 1.6) if t > t0 else 0.0
+        if u <= 0:
+            continue
+        g = f.copy()
+        g.opacity = 0.93 * min(1.0, u * 1.8)
+        rise = 6 * (1 - A.EASE['spring_soft'](min(1.0, u * 1.2)))
+        g.set_points(g.points() + [0, rise])
+        wx = TX0 + (TX1 - TX0 + 60) * u
+        g.clip = [(TX0 - 10, 200), (wx, 200), (wx + 60, 450), (TX0 - 10, 450)]
+        its.append(g)
     return its
 
 

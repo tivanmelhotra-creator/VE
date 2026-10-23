@@ -237,7 +237,13 @@ def hand_on_shoulder(ch, t, dur=None, target=None, side='far', size=1.6, angle=0
         if k <= 1e-3:
             return
         dx, dy = (1 - k) * slide, (1 - k) * -drop
-        M = np.array([[c, -s, anchor[0] + dx], [s, c, anchor[1] + dy]])
+        # settle: after landing the hand relaxes (slight roll + squash toward the shoulder)
+        e = max(0.0, tt - (t + dur * 0.8))
+        relax = (1 - np.exp(-e * 2.5)) if e > 0 else 0.0
+        ang2 = angle + 0.05 * relax + 0.012 * np.sin(e * 5) * np.exp(-e * 1.5)
+        sy = 1 - 0.05 * relax
+        cc, ss = np.cos(ang2) * size, np.sin(ang2) * size
+        M = np.array([[cc, -ss * sy, anchor[0] + dx], [ss, cc * sy, anchor[1] + dy + 1.5 * relax]])
         items = _xf(fills, M) + _xf(inks, M)
         lift_px = 4 * min(1.0, k * 1.3)
         clip = [(x, y - lift_px) for x, y in line] + [(line[-1][0], line[-1][1] + 150), (line[0][0], line[0][1] + 150)]
