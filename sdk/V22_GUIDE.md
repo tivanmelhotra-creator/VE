@@ -79,3 +79,22 @@ gives comparison frames (USER_TASTE law 3) without a flat box.  Coverage drift b
 - Voice cloning (Chatterbox / Pocket-TTS): model + runtime > 1 GB RAM → not viable in this sandbox.
 - SlimSAM click-to-select: needs an interactive UI; the MCP `ve_cutout` covers the agent use case.
 - Whisper inside the engine: `faster-whisper` stays optional; VAD snapping is already wired for when it is installed.
+
+---
+# v22.1 — fixes from the 77-second field report (`Untitled-2.md`), each verified against the real code
+
+| report item | verdict | what changed | measured |
+|---|---|---|---|
+| §1.1 Haar fallback anatomy (no MediaPipe) | **real** | `track._prep_pose_offline_fallback`: Haar box = position only; head width, shoulder width and shoulder line come from the person-matte **silhouette** (calibrated vs MediaPipe: hair/hijab ≈ 1.81 × ear width, body ≈ 1.49 × shoulder width, shoulder line where the silhouette ≥ 1.85 × head); the report's clamps are kept as the no-matte fallback | head 256→247 px, shoulder 607→583, chest y 1423→1395 (MediaPipe → fallback, 2–4 %) |
+| §1.2 guard throws chest/shoulder titles over the head | **real** | `stage.guard_mode`: default direction follows the anchor (chest/belly/neck/shoulders/hands → down, head → up); an explicit `"guard"` still wins | chest title: y 1285 → 527 (old, over the head) → 1329 (now, just below the chin) |
+| §1.3 `fade_out` returns 1 at the end | **not in this repo** (`v14/elements/base.py` doesn't exist) | verified by rendering 6 layer types around their `out`: none brightens on exit | probe: every exit decays monotonically to 0 |
+| §1.4 subtitles over `lower_third` | partly done in v21 (aecomp lower thirds + chest heroes) | `subs._in_lower_third`: ANY screen-placed layer at y ≥ 72 % and low PiP cards also auto-hide subtitles; `"subs_hide": true/false` overrides; full cutaways keep subtitles (normal editing) | selftest `lower_hide` |
+| §2 matte median (3 imread + np.median) | **real** | raw-frame cache + exact closed-form `median3 = a+b+c−min−max` | 115 → 16 ms per frame |
+| §2 compositor wide blurs / NumPy blend | **real** | `wide_blur`: σ ≥ 19 runs at half res (≤ 2/255 error); speaker composite via `cv2.blendLinear` | 671 → 498 ms/frame; output vs old mean 0.02/255 |
+| §2 glyph path building | (profiled) | `_poly` vectorised (`.tolist()` instead of 2·n numpy scalar reads) | ~2× path building, −3…5 % frame |
+| §2 subtitle RGBA cache | **measured: not worth it** | prototype gave 0 % hit rate on this clip (the jelly pop and the capsule spring keep the text moving almost the whole phrase); reverted to keep the code simple | — |
+| §2 `three_stage.py` Chromium daemon | **not in this repo** (no such file) | — | — |
+| §3.1 music-bed detector before breath cuts | **done** | `mograph/musicbed.py` (persistent peaks in the 20th-percentile spectrum + gap tonality); `auto-edit --cuts auto|force|off` → background music detected = continuous source, no lofi bed added | dry / room noise / mains hum → 0.0; held chord 0.6; piano bed 0.89 → no cuts |
+| §3.2 bundle a small ASR model | **tested, rejected** | Whisper-base int8 via sherpa-onnx (154 MB) output on the Persian clip was unusable ("از از از …"); Whisper-small (640 MB) doesn't fit 1 GB RAM. Keep the external transcript + `mograph.vad` snapping | — |
+| §3.3 static overlap check in lint | **done** | `pro lint` samples the real placement (`layers.pos` + `element_radius`, guard included) every 0.25 s without rendering → "spatial collision A × B t0–t1 (IoU)"; same `"group"` = exempt | 0.4 s for a spec, catches a chest×chest collision IoU 0.73 |
+| §3.4 render size | **done** | `pro render --profile master|web|social` (+ `--x264-preset`), encoded once in the chunks | 3 s test: master 5.4 MB · web 2.8 MB (52 %) · social 2.2 MB (41 %), SSIM vs master 0.99 |

@@ -1,7 +1,7 @@
 # VE — mograph: automatic video editor & motion-graphics SDK (v22)
 
 > **Agents: read [`AGENT_INDEX.md`](AGENT_INDEX.md) first** (one page: request → file → key). After any reset:
-> `cd sdk && python3 -m mograph.pro doctor --fix` → `ALL GOOD ✓` (81 selftests).
+> `cd sdk && python3 -m mograph.pro doctor --fix` → `ALL GOOD ✓` (86 selftests).
 
 An agent-driven engine for editing **Persian talking-head footage** and making **vector motion graphics**,
 designed to run inside a small sandbox (2 vCPU, ~1 GB RAM, no GPU).

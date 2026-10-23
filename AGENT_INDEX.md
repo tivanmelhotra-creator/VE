@@ -14,7 +14,7 @@ cd /home/user/webapp/sdk && python3 -m mograph.pro doctor --fix      # deps · b
 python3 -m mograph.motion resolve "<the user's sentence in Persian/English>"   # words → engine keys
 python3 -m mograph.pro style-bank --list                # v21: principles of every reference (study, never copy)
 ```
-`doctor` must end with `ALL GOOD ✓` (v14 9/9 · aefx 9/9 · aecomp 13/13 · motion 10/10 · pro 12/12 · three3d 8/8 · three_anim 7/7 · style_bank 3/3 · v22 10/10 = 81 tests).
+`doctor` must end with `ALL GOOD ✓` (v14 9/9 · aefx 9/9 · aecomp 13/13 · motion 10/10 · pro 12/12 · three3d 8/8 · three_anim 7/7 · style_bank 3/3 · v22 15/15 = 86 tests).
 Agents with MCP: `python3 -m mograph.mcp` (stdio) gives the same loop as tools with a warm renderer — `sdk/V22_GUIDE.md` §1.
 The tracking cache (normally 9 min of MODNet/MediaPipe) is restored in seconds from `work/input/raw.mp4.v14pack/`.
 
@@ -70,6 +70,8 @@ The tracking cache (normally 9 min of MODNet/MediaPipe) is restored in seconds f
 | **ماسک شکل (دایره/قلب/ستاره/مورب)** | broll `"mask":{"shape":"heart"}` · `"mode":"split_diag"` | | V22_GUIDE §8 |
 | **گویندگی فارسی آفلاین (بدون API)** | `"voice":{"provider":"local","voice":"amir"}` | `python -m mograph voice spec.json` | V22_GUIDE §3 |
 | **اصلاح زمان کلمات (زیرنویس زودتر از گفتار)** | `python3 -m mograph.vad raw.mp4 --words words.json` | | V22_GUIDE §4 |
+| **خروجی سبک برای وب/اینستاگرام** | `pro render edit.json --profile web` / `--profile social` | | V22_GUIDE v22.1 |
+| **ویدیو موزیک پس‌زمینه دارد (کات نزن)** | `v14 auto-edit … --cuts auto` (خودکار) / `--cuts off` | `python3 -m mograph.musicbed raw.mp4 words.json` | V22_GUIDE v22.1 |
 | صدا: نویزگیری / موزیک / SFX / لاودنس | `"audio":{"denoise","music","sfx_gain","lufs"}` | `v14 render` | V14_GUIDE §6 |
 
 ## 3. Times (every "t" / "out" / "at")
@@ -79,7 +81,7 @@ seconds (moves correctly through retime) · `"s:3.2"` raw on-screen seconds · `
 ## 4. The loop (never skip)
 ```bash
 cd projects/<p> && export PYTHONPATH=../../sdk
-python3 -m mograph.pro lint edit.json            # types / typos / files / anchors / hero overlaps
+python3 -m mograph.pro lint edit.json            # types / typos / files / anchors / hero overlaps / v22.1 spatial collisions
 python3 -m mograph.v14 qa edit.json              # on-screen: face cover, edges, subtitles, collisions, originality
 python3 -m mograph.pro originality edit.json     # v21: copy / clone / rotation audit → must be ✓
 python3 -m mograph.v14 sheet edit.json           # LOOK at it (12 frames)
