@@ -505,6 +505,20 @@ class Stroke2D:
     closed: bool = False
 
 
+def sharp_turns(xy, deg=75.0, span=2):
+    """True at polyline vertices where the direction turns more than `deg` (measured over ±span points)."""
+    n = len(xy)
+    out = np.zeros(n, bool)
+    if n < 2 * span + 1:
+        return out
+    a = xy[span:-span] - xy[:-2 * span]
+    b = xy[2 * span:] - xy[span:-span]
+    la, lb = np.linalg.norm(a, axis=1), np.linalg.norm(b, axis=1)
+    c = np.einsum("ij,ij->i", a, b) / (la * lb + 1e-9)
+    out[span:-span] = (c < math.cos(math.radians(deg))) & (la > 0.5) & (lb > 0.5)
+    return out
+
+
 def split_runs(mask):
     """indices runs where mask is True → list of (a, b) inclusive."""
     runs = []
@@ -657,7 +671,8 @@ def render_lines(parts: list[Part], cam: Camera, style: Style, extra: list[Strok
         importance = np.clip((jump - mj0) / max(1e-6, style.jump_outer - mj0), 0, 1)
         keep = vis & (jump >= mj)
         for ch in chain(seg, len(P)):
-            for a, b in split_runs(keep[ch]):
+            k2 = keep[ch] & ~sharp_turns(xy[ch])
+            for a, b in split_runs(k2):
                 ids_ = ch[a:b + 1]
                 if len(ids_) < 3:
                     continue

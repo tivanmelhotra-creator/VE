@@ -564,67 +564,85 @@ def build_shoe(body, side, style="shoes"):
     toe_len, wmul, toe_h, heel_h, collar_h, sole, round_ = st
     L = (toe_z - heel_z)
     toe_z2 = heel_z + L * toe_len
-    nu, nv = 34, 28
-    rings = []
-    zs = np.linspace(heel_z - 0.06, toe_z2, nu)
-    for i, z in enumerate(zs):
-        u = (z - zs[0]) / (zs[-1] - zs[0])
+    nu, nv = 40, 32
+    zs0, zs1 = heel_z - 0.08, toe_z2
+    prof = []
+    for i in range(nu):
+        u = i / (nu - 1)
+        z = zs0 + (zs1 - zs0) * u
         band = P[np.abs(P[:, 2] - z) < max(0.12, L / nu * 1.5)]
         if len(band) < 4:
             band = P[np.argsort(np.abs(P[:, 2] - z))[:12]]
         cx = band[:, 0].mean()
-        hw = (band[:, 0].max() - band[:, 0].min()) / 2 * wmul + 0.06
-        top = band[:, 1].max() + 0.07
-        # profile height: tall at the ankle (collar), sloping to the toe box
-        h_ankle = collar_h + 0.35
-        h = np.interp(u, [0, 0.12, 0.35, 0.62, 0.85, 1.0],
-                      [h_ankle * 0.85, h_ankle, h_ankle * 0.8, toe_h * 0.62, toe_h * 0.48, toe_h * 0.2])
-        h = max(h, top if u > 0.3 else h)
-        # toe cap rounding (plan view) and heel rounding
-        if u > 0.75:
-            k = (u - 0.75) / 0.25
-            hw *= math.sqrt(max(0.0, 1 - k ** (1.0 + 2 * round_))) * 0.92 + 0.08
-        if u < 0.08:
-            hw *= 0.75 + 0.25 * (u / 0.08)
-        lift = heel_h * np.interp(u, [0, 0.45, 0.7, 1], [1, 0.8, 0.0, 0.0])
-        base = -0.02 + lift
-        ring = []
+        hw = (band[:, 0].max() - band[:, 0].min()) / 2 * wmul + 0.07
+        h_ankle = collar_h + 0.45
+        h = float(np.interp(u, [0, 0.15, 0.4, 0.62, 0.85, 1.0],
+                            [h_ankle * 0.9, h_ankle, h_ankle * 0.82, toe_h * 0.7, toe_h * 0.58, toe_h * 0.5]))
+        if u > 0.3:
+            h = max(h, band[:, 1].max() + 0.09)
+        lift = heel_h * float(np.interp(u, [0, 0.45, 0.7, 1], [1, 0.8, 0.0, 0.0]))
+        prof.append([z, cx, hw, lift - 0.02, h])
+    prof = np.asarray(prof)
+    # smooth the profile along the foot (no lumps from individual toes)
+    for _ in range(4):
+        prof[1:-1, 1:] = 0.25 * prof[:-2, 1:] + 0.5 * prof[1:-1, 1:] + 0.25 * prof[2:, 1:]
+    # dome the ends: rings shrink toward a tip point (rounded toe cap / heel counter)
+    rings = []
+    ncap = 7
+    def ring_at(z, cx, hw, base, h, k=1.0):
+        hh = (h - base) / 2
+        yc = base + hh
+        out = []
         for j in range(nv):
             t = 2 * math.pi * j / nv
-            c, s = math.cos(t), math.sin(t)
-            # smooth superellipse cross-section (C1 everywhere → clean contours): round upper, flatter sole
-            hh = (h - base) / 2
-            e_y = 2 / 2.6 if s > 0 else 2 / 5.0
-            y = base + hh + hh * np.sign(s) * abs(s) ** e_y
-            x = cx + hw * np.sign(c) * abs(c) ** (2 / 3.0)
-            ring.append((x, y, z))
-        rings.append(ring)
+            c, s_ = math.cos(t), math.sin(t)
+            ey = 2 / 2.6 if s_ > 0 else 2 / 5.0
+            out.append((cx + k * hw * np.sign(c) * abs(c) ** (2 / 3.0),
+                        yc + k * hh * np.sign(s_) * abs(s_) ** ey + (1 - k) * (-0.25 * hh), z))
+        return out
+    p0 = prof[0]
+    for m in range(ncap, 0, -1):                       # heel dome
+        ang = (m / (ncap + 1)) * (math.pi / 2)
+        k = math.cos(ang)
+        rings.append(ring_at(p0[0] - 0.22 * math.sin(ang), p0[1], p0[2], p0[3], p0[4], max(k, 0.05)))
+    for row in prof:
+        rings.append(ring_at(*row))
+    p1 = prof[-1]
+    toe_r = 0.35 + 0.45 * round_
+    for m in range(1, ncap + 1):                       # toe dome
+        ang = (m / (ncap + 1)) * (math.pi / 2)
+        k = math.cos(ang)
+        rings.append(ring_at(p1[0] + toe_r * math.sin(ang), p1[1], p1[2], p1[3], p1[4], max(k, 0.05)))
+    nu2 = len(rings)
     V = np.asarray(rings, np.float64).reshape(-1, 3)
     T = []
-    for i in range(nu - 1):
+    for i in range(nu2 - 1):
         for j in range(nv):
-            a = i * nv + j
-            b = i * nv + (j + 1) % nv
-            T += [(a, b + nv, b), (a, a + nv, b + nv)]
-    # caps: heel (start) closed, toe (end) closed; collar opening = cut the top of the first 18 % later
+            a_ = i * nv + j
+            b_ = i * nv + (j + 1) % nv
+            T += [(a_, b_, b_ + nv), (a_, b_ + nv, a_ + nv)]
     c0 = len(V); V = np.vstack([V, V[:nv].mean(0)])
-    c1 = len(V); V = np.vstack([V, V[(nu - 1) * nv:].mean(0)])
+    c1 = len(V); V = np.vstack([V, V[(nu2 - 1) * nv:].mean(0)])
     for j in range(nv):
         T.append((c0, (j + 1) % nv, j))
-        T.append((c1, (nu - 1) * nv + j, (nu - 1) * nv + (j + 1) % nv))
+        T.append((c1, (nu2 - 1) * nv + j, (nu2 - 1) * nv + (j + 1) % nv))
     T = np.asarray(T, np.int32)
-    # cut the collar opening: remove upper triangles above the ankle line near the heel
-    cen = V[T].mean(1)
-    u_c = (cen[:, 2] - zs[0]) / (zs[-1] - zs[0])
-    open_ = (u_c < 0.33) & (cen[:, 1] > collar_h * 0.92) if style != "boots" else (cen[:, 1] > collar_h * 0.98)
-    T = T[~open_]
+    zs = np.array([zs0, zs1])
+    # collar opening by an exact iso-cut: inside where y < collar line (the line dips toward the instep)
+    uu = (V[:, 2] - zs0) / (zs1 - zs0)
+    line = collar_h + 0.02 - 0.25 * smoothstep(0.15, 0.45, uu) * (style != "boots")
+    line = np.where(uu > 0.42, 9.0, line)            # never cut the vamp / toe box
+    fcut = V[:, 1] - line
+    Wd = np.zeros((len(V), 1), np.float32)
+    V, T, _w, _src, _t, _cut = cut_mesh(V.astype(np.float32), T, fcut, Wd)
+    V = V.astype(np.float64)
     # weights: foot bone, toes for the front third
     nb = len(bones())
     wf = _bone_w(nb, {f"foot.{side}": 1.0})
     wt = _bone_w(nb, {f"toe1-1.{side}": 0.2, f"toe2-1.{side}": 0.2, f"toe3-1.{side}": 0.2,
                       f"toe4-1.{side}": 0.2, f"toe5-1.{side}": 0.2})
     wl = _bone_w(nb, {f"lowerleg02.{side}": 1.0})
-    u = np.clip((V[:, 2] - zs[0]) / (zs[-1] - zs[0]), 0, 1)
+    u = np.clip((V[:, 2] - zs0) / (zs1 - zs0), 0, 1)
     kt = smoothstep(0.7, 0.95, u)[:, None] * 0.35
     kl = smoothstep(collar_h * 0.7, collar_h * 1.4, V[:, 1])[:, None] if style == "boots" else 0 * kt
     W = wf[None] * (1 - kt - kl) + wt[None] * kt + wl[None] * kl
