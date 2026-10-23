@@ -105,6 +105,18 @@ class Character:
         self._lm_idx = self._face_landmarks()
         hv = self.R.head[:BODY_N] > 0.6
         self._head_hw = float(np.abs(self.body.rest[:BODY_N][hv, 0]).max()) if hv.any() else 0.8
+        # per-vertex contour smoothing weight: hands keep detail; ears + face are smoothed hard (a line-art head
+        # is a clean egg + jaw; ears read as one C curve)
+        Xr = self.body.rest
+        # ear = lateral head region around the eye height (the shaped mesh may be offset; use the head's own
+        # lateral extreme band, measured in this body)
+        hv_ = (self.R.head > 0.6) & (np.arange(len(Xr)) < BODY_N)
+        ear_y = float(np.median(Xr[hv_ & (np.abs(Xr[:, 0]) > 0.82 * self._head_hw), 1])) if hv_.any() else 0
+        ear = self.R.head * smoothstep(0.62, 0.8, np.abs(Xr[:, 0]) / max(1e-6, self._head_hw)) * \
+            smoothstep(0.75, 0.35, np.abs(Xr[:, 1] - ear_y))
+        self._ear = ear
+        base = np.clip(1 - 0.85 * self.R.hand - 0.3 * self.R.foot, 0.1, 1.0)
+        self._smooth_w = base
 
     # --------------------------------------------------------------------------------------------- pose
     def pose(self, pose="stand", **kw) -> dict:
@@ -194,6 +206,8 @@ class Character:
         b = self.body
         R = self.R
         sm = np.clip(1 - 0.85 * self.R.hand - 0.3 * self.R.foot, 0.1, 1.0)
+        if self.face != "detailed":
+            sm = self._smooth_w
         skin_clip = self.skin_clip.copy()
         mj = np.full(len(X), 0.32)
         if self.face in ("none", "minimal", "simple"):
@@ -207,6 +221,16 @@ class Character:
         # covered skin is NOT an occluder (it sits inside the clothes; where it pokes through a shell it would
         # punch holes in garment lines). A thin margin keeps the skin right at hems/cuffs/collars.
         occ = ~(self.skin_clip[R.tris] > 0.06).all(1)
+        if self.face != "detailed":
+            # ears: pre-smooth the POSED ear vertices toward their neighbours (flattens helix folds) for the
+            # contour pass only — done by giving those vertices a much larger smoothing budget below
+            X = X.copy()
+            e = self._ear
+            if e.max() > 0:
+                Y = X.astype(np.float64)
+                for _ in range(12):
+                    Y = Y + (e[:, None] * 0.7) * (R.topo.L @ Y - Y)
+                X = Y.astype(np.float32)
         body_part = Part("body", X, R.tris, R.topo, pid=1, smooth_iters=5, smooth_w=sm, min_jump=mj,
                          clip=skin_clip, occ_tris=occ)
         parts = [body_part]

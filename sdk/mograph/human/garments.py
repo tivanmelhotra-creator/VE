@@ -281,22 +281,46 @@ def head_angles(body):
     return np.abs(th), c
 
 
-def field_hair(body, style="short"):
+def head_frame(body):
+    """measured head landmarks in this body (rest): ear band, crown, hairline heights, head half width."""
+    if getattr(body, "_headf", None) is not None:
+        return body._headf
     R = regions(body)
-    L = R.lm
-    th, c = head_angles(body)
-    eye, brow, nk = L["eye"], L["brow"], L["neck"]
-    if style == "buzz":
-        knots = [(0, brow + 0.55), (40, brow + 0.5), (70, eye + 0.4), (82, eye + 0.05), (92, eye + 0.5),
-                 (125, eye + 0.45), (150, nk + 0.75), (180, nk + 0.7)]
-    elif style == "side":
-        knots = [(0, brow + 0.35), (40, brow + 0.38), (70, eye + 0.32), (82, eye - 0.25), (92, eye + 0.42),
-                 (125, eye + 0.4), (150, nk + 0.5), (180, nk + 0.4)]
-    else:
-        knots = [(0, brow + 0.42), (40, brow + 0.42), (70, eye + 0.33), (82, eye - 0.28), (92, eye + 0.42),
-                 (125, eye + 0.4), (150, nk + 0.55), (180, nk + 0.45)]
+    X = body.rest
+    hv = (R.head > 0.6) & (np.arange(len(X)) < BODY_N)
+    P = X[hv]
+    hw = float(np.abs(P[:, 0]).max())
+    lat = np.abs(P[:, 0]) > 0.86 * hw
+    ear_top = float(P[lat, 1].max())
+    ear_bot = float(P[lat, 1].min())
+    ear_z0, ear_z1 = float(P[lat, 2].min()), float(P[lat, 2].max())
+    top = float(P[:, 1].max())
+    front_z = float(P[:, 2].max())
+    eye = X[group_vertices("joint-l-eye")].mean(0)
+    hf = dict(hw=hw, ear_top=ear_top, ear_bot=ear_bot, ear_z0=ear_z0, ear_z1=ear_z1, top=top, front_z=front_z,
+              eye_y=float(eye[1]), cz=float(P[:, 2].mean()))
+    body._headf = hf
+    return hf
+
+
+def field_hair(body, style="short"):
+    """hair cap: inside where y > hairline(θ). θ = angle around the vertical head axis (0 front, 180 back).
+    The line passes ABOVE the ear (the ear stays clean skin) and drops to the nape at the back."""
+    R = regions(body)
+    X = body.rest
+    hf = head_frame(body)
+    th = np.degrees(np.arctan2(np.abs(X[:, 0]), X[:, 2] - hf["cz"]))      # 0 = front, 180 = back
+    fore = hf["eye_y"] + 0.62 * (hf["top"] - hf["eye_y"]) * 0.62        # forehead hairline
+    et, eb = hf["ear_top"], hf["ear_bot"]
+    nape = eb - 0.35
+    lift = {"buzz": 0.08, "side": -0.05, "short": 0.0}.get(style, 0.0)
+    knots = [(0, fore + lift), (35, fore + 0.02 + lift), (62, et - 0.25), (72, et + 0.06), (90, et + 0.12),
+             (108, et + 0.04), (125, eb + 0.1), (150, nape + 0.12), (180, nape)]
     a, h = zip(*knots)
     hy = np.interp(th, a, h)
+    # sideburn: small drop in front of the ear
+    sb = np.exp(-((th - 64) / 6.0) ** 2) * (0.0 if style == "buzz" else 0.35)
+    hy = hy - sb
     region = np.clip(R.head + R.neck, 0, 1)
     f = hy - R.y
     f = np.where(region > 0.3, f, 1.0)
