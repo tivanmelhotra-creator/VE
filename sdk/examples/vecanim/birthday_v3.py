@@ -22,6 +22,7 @@ args = [a for a in sys.argv[1:] if not a.startswith('--')]
 OUT = args[0] if args else '/tmp/vecanim_v3'
 JOBS = int(sys.argv[sys.argv.index('--jobs') + 1]) if '--jobs' in sys.argv else (os.cpu_count() or 2)
 os.makedirs(OUT, exist_ok=True)
+WORK = os.environ.get('VEC_WORK', '/home/user/vec_work'); os.makedirs(WORK, exist_ok=True)
 FPS, T, OW, OH = 30, 12.0, 1920, 1080
 
 sp = os.path.join(OUT, 'scene.json')
@@ -113,9 +114,12 @@ def render_range(job):
     pre = max(0, f0 - int(1.5 * FPS))
     for f in range(pre, f0):
         rig.items_at(f / FPS)
-    with open(path, 'wb') as fh:
-        for f in range(f0, f1):
-            fh.write(frame(f / FPS).tobytes())
+    enc = subprocess.Popen(['ffmpeg', '-loglevel', 'error', '-y', '-f', 'rawvideo', '-pix_fmt', 'gray',
+                            '-s', f'{OW}x{OH}', '-r', str(FPS), '-i', '-', '-c:v', 'libx264', '-pix_fmt', 'yuv420p',
+                            '-crf', '17', '-preset', 'slow', '-tune', 'animation', path], stdin=subprocess.PIPE)
+    for f in range(f0, f1):
+        enc.stdin.write(frame(f / FPS).tobytes())
+    enc.stdin.close(); enc.wait()
     return path
 
 
@@ -130,25 +134,18 @@ if __name__ == '__main__':
     from multiprocessing import Pool
     n = int(T * FPS)
     cuts = np.linspace(0, n, JOBS + 1).astype(int)
-    jobs = [(int(a), int(b), os.path.join(OUT, f'chunk{i}.raw')) for i, (a, b) in enumerate(zip(cuts, cuts[1:]))]
+    jobs = [(int(a), int(b), os.path.join(WORK, f'chunk{i}.mp4')) for i, (a, b) in enumerate(zip(cuts, cuts[1:]))]
     t0 = time.time()
     with Pool(JOBS) as pool:
         parts = pool.map(render_range, jobs)
     rt = time.time() - t0
     out = os.path.join(OUT, 'birthday_v3.mp4')
-    cat = subprocess.Popen(['ffmpeg', '-loglevel', 'error', '-y', '-f', 'rawvideo', '-pix_fmt', 'gray', '-s', f'{OW}x{OH}',
-                            '-r', str(FPS), '-i', '-', '-i', wav, '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-crf', '17',
-                            '-preset', 'slow', '-tune', 'animation', '-c:a', 'aac', '-b:a', '192k', '-shortest', out],
-                           stdin=subprocess.PIPE)
-    for pth in parts:
-        with open(pth, 'rb') as fh:
-            while True:
-                b = fh.read(OW * OH * 30)
-                if not b:
-                    break
-                cat.stdin.write(b)
-        os.remove(pth)
-    cat.stdin.close(); cat.wait()
+    lst = os.path.join(WORK, 'list.txt')
+    open(lst, 'w').write(''.join(f"file '{p}'\n" for p in parts))
+    subprocess.run(['ffmpeg', '-loglevel', 'error', '-y', '-f', 'concat', '-safe', '0', '-i', lst, '-i', wav,
+                    '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k', '-shortest', out], check=True)
+    for p in parts:
+        os.remove(p)
     info = dict(frames=n, jobs=JOBS, render_s=round(rt, 1), ms_per_frame=round(rt / n * 1000 * JOBS, 1))
     json.dump(info, open(os.path.join(OUT, 'timing.json'), 'w'))
     print('ok', out, info)
