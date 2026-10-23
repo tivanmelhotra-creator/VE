@@ -407,7 +407,9 @@ def build_outfit(body: Body, spec: dict | None) -> list[Garment]:
         hem_y = waist - hem_frac * hip_band
         sleeve = t["sleeve"] * (R.arm_len - 0.05)
         open_w = t.get("open", 0.0) if spec.get("open", True) else 0.0
-        f = field_top(body, hem_y, sleeve, t.get("collar", "crew"), t.get("vdepth", 0.0), open_w)
+        long_coat = hem_y < crotch + 0.2
+        top_hem = (crotch + 0.35) if long_coat else hem_y          # long coats: upper shell ends at the hip
+        f = field_top(body, top_hem, sleeve, t.get("collar", "crew"), t.get("vdepth", 0.0), open_w)
         # layer above the bottom (or the skirt / dress) unless tucked
         under = 0.0 if tuck else (b_thick + 0.04 if b_thick else 0.0)
         if dress or (bottom in ("skirt", "pencil_skirt")):
@@ -419,6 +421,14 @@ def build_outfit(body: Body, spec: dict | None) -> list[Garment]:
         if t.get("placket"):
             g.details.append(("x", 0.0, "front", 0.4, 0.4, "seam"))
         out.append(g)
+        if long_coat:
+            # the upper shell's hem line is hidden (it continues as the coat skirt)
+            g.boundary_keep = g.attrs["y"] > top_hem + 0.06
+            frac = (L["hip"] - hem_y) / max(0.5, (L["hip"] - L["ankle"]))
+            cs = _skirt(body, crotch + 0.55, frac, flare=True, name=f"{top}_skirt", thick=t["thick"] + 0.14,
+                        open_front=open_w > 0)
+            cs.boundary_keep = cs.rest[:, 1] < crotch + 0.45
+            out.append(cs)
         if open_w > 0:
             # shirt underneath shows through the open front
             f2 = field_top(body, waist - 0.6 * hip_band, 0.0, "high", 0.0, 0.0)
@@ -438,7 +448,7 @@ def build_outfit(body: Body, spec: dict | None) -> list[Garment]:
     return out
 
 
-def _skirt(body, top_y, frac, flare=True, name="skirt"):
+def _skirt(body, top_y, frac, flare=True, name="skirt", thick=0.0, open_front=False):
     """A-line skirt: helper-skirt tube from the base mesh, cut to length, flared, weights blended to the pelvis."""
     from .lineart import MeshTopo
     R = regions(body)
@@ -450,9 +460,19 @@ def _skirt(body, top_y, frac, flare=True, name="skirt"):
     f = np.full(len(X), 1.0)
     f[idx] = np.maximum(hem_y - X[idx, 1], X[idx, 1] - top_y)
     # skirt helper may not reach the waist: extend with the body torso band
+    if open_front:
+        # slit at the front (coat opening), widening toward the hem
+        k = np.clip((top_y - X[idx, 1]) / 3.0, 0, 1)
+        slit = (0.15 + 0.35 * k) - np.abs(X[idx, 0])
+        f[idx] = np.maximum(f[idx], np.where(X[idx, 2] > X[idx, 2].mean() + 0.2, slit * 4, -1))
     V, Tt, Wg, src, t, _ = cut_mesh(X, T, f, body.W)
     y = V[:, 1]
     c = np.array([0.0, 0.0, X[idx, 2].mean()])
+    if thick:
+        r = V[:, [0, 2]] - c[[0, 2]]
+        r /= np.linalg.norm(r, axis=1, keepdims=True) + 1e-9
+        V[:, 0] += r[:, 0] * thick
+        V[:, 2] += r[:, 1] * thick
     if flare:
         k = np.clip((R.lm["hip"] - y) / max(0.3, R.lm["hip"] - hem_y), 0, 1)
         r = V[:, [0, 2]] - c[[0, 2]]
