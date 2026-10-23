@@ -217,6 +217,8 @@ class Rig:
     @staticmethod
     def load(path, scene):
         spec = json.load(open(path))
+        for it in scene.items:          # a scene can be rigged again (workers, re-runs)
+            it.part = None
         chars = {}
         for z, (nm, cs) in enumerate(sorted(spec['characters'].items(), key=lambda kv: -kv[1].get('z', 0))):
             chars[nm] = Character(nm, scene, cs, z=cs.get('z', z))
