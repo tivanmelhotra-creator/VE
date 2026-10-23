@@ -298,8 +298,11 @@ def trace_strokes(mask, G, polarity, style, min_len=5.0, max_width=7.0, color=1.
     items = []
     for r in runs:
         px = r['px']
-        closed = r['ends'][0][0] == 'loop' or (len(px) > 8 and abs(px[0] - px[-1]).max() <= 1
-                                                and r['ends'][0] == r['ends'][1] and r['ends'][0][0] == 'j')
+        gap = float(np.abs(px[0].astype(float) - px[-1]).max())
+        closed = (r['ends'][0][0] == 'loop' and gap <= max(3.0, 0.6 * widest)) or \
+            (len(px) > 8 and gap <= 1 and r['ends'][0] == r['ends'][1] and r['ends'][0][0] == 'j')
+        if r['ends'][0][0] == 'loop' and not closed:     # a "loop" whose ends never meet (joined
+            r = dict(r, ends=[('o',), ('o',)])            # through a junction): keep it open
         if _len(px) < min_len:
             continue
         p = px[:, ::-1].astype(float) + 0.0          # x,y at pixel centres (pixel index = centre)

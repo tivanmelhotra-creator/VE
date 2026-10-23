@@ -144,7 +144,8 @@ def detect_flame(scene, rig):
 
 def title_anchor(scene, rig, lines, sizes, font='Dancing Script'):
     """Emptiest region big enough for the title (prefers upper half, away from faces)."""
-    ink = _ink_mask(scene).astype(np.float32)
+    ink = _ink_mask(scene)
+    ink = cv2.dilate(ink, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (61, 61))).astype(np.float32)   # breathing room
     fills = [props.text_fill(t, s, 0, 0, font) for t, s in zip(lines, sizes)]
     ws = [np.ptp(f.points()[:, 0]) for f in fills]
     tw, th = max(ws) + 40, sum(sizes) * 1.25 + 30

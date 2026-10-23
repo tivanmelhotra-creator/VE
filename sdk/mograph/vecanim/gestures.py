@@ -225,7 +225,7 @@ def hand_on_shoulder(ch, t, dur=None, target=None, side='auto', size=1.6, angle=
     dur = dur or 1.1
     lift = lift_shoulder(ch, t - 0.4, dur * 0.9, side=ch.spec.get('reach_side', 'r'))
     k_tr = A.Track([(t, 0.0), (t + dur, 1.0, 'spring_soft')])
-    fade = A.Track([(t, 0.0), (t + dur * 0.55, 1.0, 'smooth')])
+    fade = A.Track([(t, 0.0), (t + dur * 0.4, 0.0), (t + dur * 0.75, 1.0, 'smooth')])   # appears as it lands
     if 'shoulder_' + side not in target.L:          # auto rigs name shoulders l / r
         away = 'r' if target.L['neck'][0] >= ch.L['neck'][0] else 'l'
         near = 'l' if away == 'r' else 'r'
@@ -233,6 +233,13 @@ def hand_on_shoulder(ch, t, dur=None, target=None, side='auto', size=1.6, angle=
             side = 'far' if ch.z < target.z else 'near'   # in front -> hand on the near shoulder
         side = away if side == 'far' else near if side == 'near' else side
     anchor = np.asarray(target.L['shoulder_' + side], float)
+    near_side = side != ('r' if target.L['neck'][0] >= ch.L['neck'][0] else 'l') if side in ('l', 'r') else False
+    if near_side:                                    # in front: rest on the top of the shoulder,
+        nk = np.asarray(target.L['neck'], float)     # a little in from its edge
+        anchor = anchor + 0.3 * (nk - anchor) * [1, 0]
+        ln = np.asarray(target.L['shoulder_' + side + '_line'], float); ln = ln[np.argsort(ln[:, 0])]
+        anchor[1] = float(np.interp(anchor[0], ln[:, 0], ln[:, 1]))
+    mx = -1.0 if ch.L['neck'][0] > target.L['neck'][0] else 1.0   # reaching from the right: mirror
     line = target.L['shoulder_' + side + '_line']
     if 'face_w' in target.spec:                       # hand scaled to the target's head
         size = size * target.spec['face_w'] / 116.0
@@ -244,14 +251,15 @@ def hand_on_shoulder(ch, t, dur=None, target=None, side='auto', size=1.6, angle=
         k = float(k_tr(tt))
         if k <= 1e-3:
             return
-        dx, dy = (1 - k) * slide, (1 - k) * -drop
+        dx, dy = (1 - k) * slide * mx, (1 - k) * -drop
         # settle: after landing the hand relaxes (slight roll + squash toward the shoulder)
         e = max(0.0, tt - (t + dur * 0.8))
         relax = (1 - np.exp(-e * 2.5)) if e > 0 else 0.0
         ang2 = angle + 0.05 * relax + 0.012 * np.sin(e * 5) * np.exp(-e * 1.5)
         sy = 1 - 0.05 * relax
+        ang2 = ang2 * mx
         cc, ss = np.cos(ang2) * size, np.sin(ang2) * size
-        M = np.array([[cc, -ss * sy, anchor[0] + dx], [ss, cc * sy, anchor[1] + dy + 1.5 * relax]])
+        M = np.array([[cc * mx, -ss * sy, anchor[0] + dx], [ss * mx, cc * sy, anchor[1] + dy + 1.5 * relax]])
         items = _xf(fills, M) + _xf(inks, M)
         lift_px = 4 * min(1.0, k * 1.3)
         clip = [(x, y - lift_px) for x, y in line] + [(line[-1][0], line[-1][1] + 150), (line[0][0], line[0][1] + 150)]
