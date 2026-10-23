@@ -263,7 +263,7 @@ def auto_rig(scene, panel, min_face_area=None, debug=None):
             polygon=[[int(a), int(b)] for a, b in poly],
             landmarks={n: (np.round(np.asarray(v, float), 1).tolist() if not (isinstance(v, list) and v and isinstance(v[0], list)) else v)
                        for n, v in lm.items()},
-            eye_size=[round(x, 1) for x in feat['eye_size']], smile_dir=[round(0.15 * fc, 2), -1], facing=fc, pins=pins,
+            face_w=round(float(fw), 1), eye_size=[round(x, 1) for x in feat['eye_size']], smile_dir=[round(0.15 * fc, 2), -1], facing=fc, pins=pins,
             pin_groups=dict(head=[p for p in pins if p.startswith('h')], chest=['b0', 'b1', 'b2'],
                             **{f"shoulder_{'r' if fc > 0 else 'l'}": ['s0', 's1', 's2']}),
             secondary=[

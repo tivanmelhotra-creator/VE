@@ -226,8 +226,14 @@ def hand_on_shoulder(ch, t, dur=None, target=None, side='far', size=1.6, angle=0
     lift = lift_shoulder(ch, t - 0.4, dur * 0.9, side=ch.spec.get('reach_side', 'r'))
     k_tr = A.Track([(t, 0.0), (t + dur, 1.0, 'spring_soft')])
     fade = A.Track([(t, 0.0), (t + dur * 0.55, 1.0, 'smooth')])
-    anchor = target.L['shoulder_' + side]
+    if 'shoulder_' + side not in target.L:          # auto rigs name shoulders l / r
+        away = 'r' if target.L['neck'][0] >= ch.L['neck'][0] else 'l'
+        near = 'l' if away == 'r' else 'r'
+        side = away if side == 'far' else near if side == 'near' else side
+    anchor = np.asarray(target.L['shoulder_' + side], float)
     line = target.L['shoulder_' + side + '_line']
+    if 'face_w' in target.spec:                       # hand scaled to the target's head
+        size = size * target.spec['face_w'] / 116.0
     fills, inks = hand_asset()
     c, s = np.cos(angle) * size, np.sin(angle) * size
 
