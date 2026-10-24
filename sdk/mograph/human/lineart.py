@@ -482,6 +482,11 @@ def simplify(p, eps=0.35):
     """Ramer–Douglas–Peucker (px)."""
     if len(p) < 3:
         return p
+    if np.hypot(*(p[0] - p[-1])) < 1e-6 and len(p) > 3:
+        # closed loop: RDP's chord is degenerate → split at the farthest point and simplify both halves
+        k = int(np.argmax(np.hypot(*(p - p[0]).T)))
+        a, b = simplify(p[:k + 1], eps), simplify(p[k:], eps)
+        return np.vstack([a, b[1:]])
     keep = np.zeros(len(p), bool)
     keep[0] = keep[-1] = True
     stack = [(0, len(p) - 1)]
