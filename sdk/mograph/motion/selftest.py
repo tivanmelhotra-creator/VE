@@ -252,9 +252,16 @@ def t_layered_render():
         cv2.imwrite(os.path.join(d, n + ".png"), im)
     occ = LL.occlusion_line(fg, LL.props_alpha(fg))
     sr = 16000
+    # speech-like test signal: syllables of different loudness and timbre (dark "o" vs bright "e") with gaps
     t = np.arange(int(sr * 1.2)) / sr
-    env = (np.sin(2 * np.pi * 3 * t) > 0).astype(np.float32)
-    wav = (0.4 * env * np.sin(2 * np.pi * 220 * t)).astype(np.float32)
+    wav = np.zeros_like(t, dtype=np.float32)
+    rng = np.random.default_rng(3)
+    syll = [(0.05, 0.25, 0.45, 260.0), (0.33, 0.50, 0.12, 2400.0), (0.58, 0.80, 0.30, 1400.0),
+            (0.88, 1.10, 0.45, 300.0)]
+    for a, b, amp, f in syll:
+        m = (t >= a) & (t < b)
+        tone = np.sin(2 * np.pi * f * t[m]) + 0.3 * rng.standard_normal(m.sum())
+        wav[m] = (amp * tone * np.hanning(m.sum())).astype(np.float32)
     ap = os.path.join(d, "a.wav")
     subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "f32le", "-ar", str(sr), "-ac", "1", "-i", "-", ap],
                    input=wav.tobytes(), check=True)
