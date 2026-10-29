@@ -105,6 +105,7 @@ class RigParams:
     face: tuple[int, int, int] = (252, 252, 252)
     palette: dict = field(default_factory=lambda: dict(DEFAULT_PALETTE))
     base_eyes: str = "neutral"
+    hidden_eye: int = 0                        # −1 / +1 = that eye is behind the head (profile), 0 = both drawn
     fit_err: float = 0.0
     view: str = "front"
 
@@ -323,7 +324,7 @@ def face_ops(P: RigParams, geom: dict | None = None, eyes: str | dict | None = N
     order = (-1, 1) if P.yaw >= 0 else (1, -1)          # far eye first (painter's order)
     for s in order:
         _, z = project(P, np.array([[s * P.ex, P.ey], [s * (P.ex + 0.6 * P.er), P.ey]]), clamp=False)
-        if z.max() < 0.12:                               # eye has turned behind the head (profile)
+        if s == P.hidden_eye or z.max() < 0.12:                               # eye has turned behind the head (profile)
             continue
         ops += _eye_ops(P, s, e, blink)
     ops += _mouth_ops(P, g, m, talking)
@@ -540,6 +541,7 @@ def fit_rig(img: np.ndarray, info: dict, palette: dict | None = None, prev: RigP
         lo, hi = ((-1.5, -0.35) if side < 0 else (0.35, 1.5))
         best = least_squares(res1, [side * 1.1, -0.06], bounds=([lo, -0.65], [hi, 0.45]))
         P.yaw, P.ey = float(best.x[0]), float(best.x[1])
+        P.hidden_eye = -1 if x_eye > 0 else 1
         P.er = float(np.clip(er0, 0.06, 0.4)) + 0.5 * P.stroke / R
         pw = width([P.yaw, 0, 0], x_eye, P.ey, P.er)
         P.eye_aspect = float(np.clip(pw / max(E["w"], 1e-3), 0.6, 1.8)) if E["w"] > 2 else 1.0
