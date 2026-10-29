@@ -297,7 +297,7 @@ def _mouth_ops(P: RigParams, g: dict, m: dict, talking: bool) -> list:
     tg = float(g.get("tongue", 0.0))
     if tg > 0.05 and not m.get("tongue_out"):
         tcy = P.my + c * -0.35 + 0.58 * h * 0.9 - float(g.get("tongue_up", 0.0)) * 0.5 * h
-        ops.append(("fill", _ellipse(P.mx, tcy, 0.5 * a, 0.42 * h + 0.01, 40), "tongue"))
+        ops.append(("fill", _ellipse(P.mx, tcy + 0.12 * h, 0.42 * a, 0.36 * h, 40), "tongue"))
     ops.append(("unclip",))
     if m.get("tongue_out"):
         tt = np.linspace(0, np.pi, 25)
@@ -322,6 +322,9 @@ def face_ops(P: RigParams, geom: dict | None = None, eyes: str | dict | None = N
     ops: list = []
     order = (-1, 1) if P.yaw >= 0 else (1, -1)          # far eye first (painter's order)
     for s in order:
+        _, z = project(P, np.array([[s * P.ex, P.ey], [s * (P.ex + 0.6 * P.er), P.ey]]), clamp=False)
+        if z.max() < 0.12:                               # eye has turned behind the head (profile)
+            continue
         ops += _eye_ops(P, s, e, blink)
     ops += _mouth_ops(P, g, m, talking)
     return ops
@@ -357,7 +360,9 @@ def render_ops(P: RigParams, ops: list, box: tuple[int, int, int, int]) -> np.nd
     for op in ops:
         k = op[0]
         if k == "fill":
-            pts, _ = project(P, op[1], clamp=True)
+            pts, z = project(P, op[1], clamp=True)
+            if z.max() < 0.02:
+                continue
             path(pts)
             ctx.set_source_rgb(*_rgb(colors[op[2]]))
             ctx.fill()
@@ -596,7 +601,11 @@ def prepare_face(img: np.ndarray, info: dict) -> tuple[np.ndarray, np.ndarray]:
             keep[comp] = 1
     keep_band = cv2.dilate(keep, kernel(2 * stroke + 3)) > 0
     inner = cv2.erode(head, kernel(max(3, 0.6 * stroke))) > 0
-    erase = inner & (lbl != face_id) & ~keep_band
+    feat = ((lbl != face_id) & inner).astype(np.uint8)
+    feat = cv2.dilate(feat, kernel(3)) > 0                          # anti-aliased fringes of eyes / mouth
+    fc = np.asarray(info["face_color"], np.float32)
+    darker = np.abs(img.astype(np.float32) - fc[None, None, :]).max(2) > 14   # faint grey ghosts
+    erase = inner & (feat | darker) & ~keep_band
     a = cv2.GaussianBlur(erase.astype(np.float32), (0, 0), 0.8)[:, :, None]
     face = np.empty_like(img)
     face[:] = info["face_color"]
