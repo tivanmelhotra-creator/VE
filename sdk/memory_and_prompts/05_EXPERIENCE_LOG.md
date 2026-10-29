@@ -132,3 +132,14 @@
   transitions, caption files, EDL, reformat, parallel render, spec linter, 1-command restore → all in mograph/pro.
 - Lesson: background processes started in a Bash call can die when the call returns → use `setsid nohup …`.
 - Lesson: the sandbox reset twice in this session → commit after EVERY file, never batch.
+
+
+## 2026-10-29 — v29.1 Anatomical 2D Layered Lip-Sync (`motion/layered_lipsync.py`)
+- Trigger: In 3-layer dual-track 2D lip-sync (`lipsync_3layer_dual_track.mp4`), naive head-bounding-box warping (`B > 185` convex hull) merged the white shirt collar at the bottom of the 16-viseme grid cells with the white head circle, shifting the mouth coordinate system upward by ~55 px so the pasted mouth landed between the two eyes while the base pose's static closed mouth line remained un-erased on the chin.
+- Root cause: Using whole-cell white bounding boxes without separating the closed skull contour from the neck/collar and without using the two circular eyes as an invariant anatomical ruler.
+- Fix: Added `sdk/mograph/motion/layered_lipsync.py` (and CLI `python3 -m mograph.motion layered-lipsync detect|render`):
+  1. `detect_face_anatomy`: isolates the closed white skull interior via 4-connected components + external contour fill, detects the two circular Eye Contours in the upper/middle head band (`0.18 <= rel_y <= 0.74`) to establish `eyes_mid`, `eyes_bottom_y`, and `inter_ocular` distance, and locates the exact `mouth_box` / `mouth_center` strictly below `eyes_bottom_y + 2` and inside the eroded inner head mask.
+  2. `erase_base_mouth`: automatically erases the static base mouth line using median forehead skin color while protecting the eyes and any overlapping raised hand/fingers.
+  3. `extract_viseme_grid_sprites` & `place_viseme_on_pose`: extracts pure mouth sprites from an R×C viseme sheet, scales by `pose_inter_ocular / cell_inter_ocular`, anchors directly on the pose's anatomical `mouth_center`, and validates every frame with `qa_mouth_placement` (`eye_overlap == 0`, `below_eyes == True`, `above_chin == True`).
+- Verified: `python3 -m mograph.motion selftest` `11/11 pass`, 16-viseme sheet `anatomical_16viseme_pose2_verify.jpg`, 4-frame strip `fixed_video_4frames_strip.jpg`, and full render `lipsync_3layer_dual_track_fixed.mp4` (`qa_clean: true, qa_failures: 0`).
+- Lesson / rule for next agents: Never warp 2D facial features by outer head+neck bounding boxes; always anchor on the detected eye-pair ruler (`eyes_mid`, `inter_ocular`, `eyes_bottom_y`) and erase the base mouth before compositing viseme sprites.

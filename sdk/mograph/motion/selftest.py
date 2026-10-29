@@ -145,7 +145,46 @@ def t_robust():
         f"seed stable across processes {seeds}, negative t / named colour / speed 0 ok, weak-word filter {weak}"
 
 
-TESTS = [t_glossary, t_easing, t_retime, t_flow, t_saber, t_saber_time, t_lipsync, t_character, t_bridges, t_robust]
+
+
+def t_layered_lipsync():
+    import cv2
+    from . import layered_lipsync as LL
+    # 1. Front/3-4 synthetic head with lower shirt
+    canvas = np.full((260, 240, 3), (115, 178, 225), dtype=np.uint8)
+    cv2.ellipse(canvas, (120, 235), (85, 45), 0, 0, 360, (250, 250, 250), -1)
+    cv2.ellipse(canvas, (120, 235), (85, 45), 0, 0, 360, (20, 20, 20), 4)
+    cv2.circle(canvas, (120, 115), 75, (250, 250, 250), -1)
+    cv2.circle(canvas, (120, 115), 75, (20, 20, 20), 4)
+    for ex in (92, 148):
+        cv2.circle(canvas, (ex, 105), 18, (252, 252, 252), -1)
+        cv2.circle(canvas, (ex, 105), 18, (20, 20, 20), 3)
+        cv2.circle(canvas, (ex - 3, 110), 6, (20, 20, 20), -1)
+    cv2.line(canvas, (104, 152), (136, 152), (20, 20, 20), 3)
+    info = LL.detect_face_anatomy(canvas)
+    erased = LL.erase_base_mouth(canvas, info)
+    qa = LL.qa_mouth_placement(info, 102, 145, 36, 18)
+    mouth_erased_clean = int(np.min(erased[149:156, 104:136])) > 220
+
+    # 2. Side Profile head (single visible eye on left!)
+    prof = np.full((260, 240, 3), (115, 178, 225), dtype=np.uint8)
+    cv2.circle(prof, (120, 115), 75, (250, 250, 250), -1)
+    cv2.circle(prof, (120, 115), 75, (20, 20, 20), 4)
+    cv2.ellipse(prof, (72, 105), (14, 18), 0, 0, 360, (252, 252, 252), -1)
+    cv2.ellipse(prof, (72, 105), (14, 18), 0, 0, 360, (20, 20, 20), 3)
+    cv2.line(prof, (58, 150), (78, 150), (20, 20, 20), 3)
+    pinfo = LL.detect_face_anatomy(prof)
+
+    # 3. Full-HD Line-Art Enhancer test (grey line becomes deep ink black)
+    faded = canvas.copy()
+    faded[faded < 50] = 75
+    hd = LL.enhance_lineart_hd(faded)
+    ink_darkened = int(np.min(hd)) <= 18
+    ok = qa["ok"] and mouth_erased_clean and pinfo["view_mode"] == "profile_left" and ink_darkened
+    return ok, f"front+profile_left+hd_ink ok (mode={pinfo['view_mode']}, min_ink={int(np.min(hd))})"
+
+
+TESTS = [t_glossary, t_easing, t_retime, t_flow, t_saber, t_saber_time, t_lipsync, t_character, t_bridges, t_robust, t_layered_lipsync]
 
 
 def main():
