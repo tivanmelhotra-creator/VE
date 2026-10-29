@@ -18,8 +18,12 @@ python3 -m mograph.motion <command>      — v18 MOTION KIT (glossary · easing 
   lipsync track <words.json> [--audio a.wav] [-o visemes.json] [--fps 30]
   lipsync g2v <word …>                       grapheme → viseme list (Persian / English)
   lipsync chart [-o chart.png]               the Preston Blair mouth chart as drawn by the engine
-  layered-lipsync detect <img.jpg> [-o dbg.jpg]   anatomical 2D face/eye/mouth landmark detector
-  layered-lipsync render --bg B --poses P --visemes V --fg F --audio A [-o out.mp4]
+  layered-lipsync detect <img> [-o dbg.jpg]          head / eye-pair / mouth landmarks (front · 3/4 · profile)
+  layered-lipsync sheet <pose> [--visemes grid]      all 10 mouths on a pose — LOOK before rendering
+  layered-lipsync render --bg B --poses P --audio A [--fg F] [--words w.json] [--visemes grid] [-o out.mp4]
+  layered-lipsync video <in.mp4> [--words w.json]    lip-sync a character that moves (per-frame tracking)
+  layered-lipsync enhance-hd <img|mp4> [-o out]      Full-HD ink-black / studio-white remaster
+  layered-lipsync contact <mp4> [-o sheet.jpg]       contact sheet for visual QC
 """
 from __future__ import annotations
 
@@ -284,50 +288,9 @@ def _lipsync(rest):
 
 
 def _layered_lipsync(rest):
-    import cv2
-    from . import layered_lipsync as LL
-    sub = rest[0] if rest else "detect"
-    ap = argparse.ArgumentParser()
-    ap.add_argument("target", nargs="?")
-    ap.add_argument("--bg", default=None)
-    ap.add_argument("--poses", default=None)
-    ap.add_argument("--visemes", default=None)
-    ap.add_argument("--fg", default=None)
-    ap.add_argument("--audio", default=None)
-    ap.add_argument("--ref", default=None)
-    ap.add_argument("-o", default=None)
-    a = ap.parse_args(rest[1:])
-    if sub == "detect":
-        im = cv2.imread(a.target)
-        vis, info = LL.debug_anatomy_image(im)
-        out = a.o or "anatomy_debug.jpg"
-        cv2.imwrite(out, vis)
-        print(json.dumps({
-            "out": out,
-            "head_box": info["head_box"],
-            "eyes_mid": info["eyes_mid"],
-            "eyes_bottom_y": info["eyes_bottom_y"],
-            "inter_ocular": info["inter_ocular"],
-            "mouth_box": info["mouth_box"],
-            "mouth_center": info["mouth_center"],
-        }))
-        return 0
-    if sub in ("enhance-hd", "enhance_hd"):
-        if a.target.lower().endswith(".mp4"):
-            out = a.o or "enhanced_hd.mp4"
-            print(json.dumps(LL.enhance_video_hd(a.target, out)))
-        else:
-            im = cv2.imread(a.target)
-            out = a.o or "enhanced_hd.png"
-            cv2.imwrite(out, LL.enhance_lineart_hd(im, target_wh=(1080, 1920)))
-            print(json.dumps({"out": out}))
-        return 0
-    if sub == "render":
-        out = a.o or "layered_lipsync.mp4"
-        rep = LL.render_layered_lipsync(a.bg, a.poses, a.visemes, a.fg, a.audio, out, ref_char_path=a.ref, hd_remaster=True)
-        print(json.dumps(rep))
-        return 0
-    return 1
+    """layered-lipsync {detect|sheet|render|video|enhance-hd|contact} — implemented in layered_lipsync/cli.py."""
+    from .layered_lipsync import cli
+    return cli.main(rest)
 
 
 if __name__ == "__main__":
