@@ -86,15 +86,25 @@ def audio_viseme_track(audio: str, fps: float = 24.0, sr: int = 16000, min_hold:
             i = j
         else:
             i += 1
-    # minimum hold: runs shorter than min_hold frames merge into the previous shape (no 1-frame flicker)
+    # minimum hold (no 1-frame flicker). Closures (rest / MBP) are what the eye checks, so a short closure is
+    # STRETCHED to min_hold frames (stealing from the following open shape); a short open shape merges into the
+    # previous one. (Merging closures away left the mouth hanging open through fast syllables.)
+    closures = ("rest", "MBP")
     i = 0
     while i < n:
         j = i
         while j < n and vs[j] == vs[i]:
             j += 1
-        if (j - i) < min_hold and i > 0:
-            for k in range(i, j):
-                vs[k] = vs[i - 1]
+        if (j - i) < min_hold:
+            if vs[i] in closures:
+                for k in range(j, min(n, i + min_hold)):
+                    if vs[k] in closures:
+                        break
+                    vs[k] = vs[i]
+                j = min(n, max(j, i + min_hold))
+            elif i > 0:
+                for k in range(i, j):
+                    vs[k] = vs[i - 1]
         i = j
     keys = []
     for f, v in enumerate(vs):
