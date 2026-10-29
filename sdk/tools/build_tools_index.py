@@ -68,6 +68,11 @@ def main():
              "mograph.v14.", out, skip=("__init__.py",))
     _section("legacy engine v5–v13 — pure vector / infographic videos", os.path.join(ROOT, "mograph"), "mograph.",
              out, skip=("__init__.py",))
+    _section("motion kit (v18+) — easing · retime · saber · character · lip sync", os.path.join(ROOT, "mograph", "motion"),
+             "mograph.motion.", out, skip=("__init__.py", "__main__.py"))
+    _section("layered lip-sync (v29.3) — 2D cartoon plates → lip-synced Full-HD MP4",
+             os.path.join(ROOT, "mograph", "motion", "layered_lipsync"), "mograph.motion.layered_lipsync.", out,
+             skip=("__init__.py",))
     _section("tools/ — shell & maintenance scripts", os.path.join(ROOT, "tools"), "", out)
     out.append("\n## shell scripts\n")
     for fn in sorted(os.listdir(os.path.join(ROOT, "tools"))):
