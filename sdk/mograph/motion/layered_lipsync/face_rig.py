@@ -106,6 +106,7 @@ class RigParams:
     palette: dict = field(default_factory=lambda: dict(DEFAULT_PALETTE))
     base_eyes: str = "neutral"
     hidden_eye: int = 0                        # −1 / +1 = that eye is behind the head (profile), 0 = both drawn
+    cheat_deg: float = 62.0                    # animator's cheat: features never foreshorten beyond this yaw
     fit_err: float = 0.0
     view: str = "front"
 
@@ -141,7 +142,9 @@ def lift(pts: np.ndarray) -> np.ndarray:
 
 def project(P: RigParams, pts: np.ndarray, clamp: bool = True) -> tuple[np.ndarray, np.ndarray]:
     """→ (screen xy (N, 2) px, depth z (N,)); clamp=True pushes hidden points onto the silhouette."""
-    Q = lift(pts) @ rotation(P.yaw, P.pitch, P.roll).T
+    lim = math.radians(P.cheat_deg)
+    yaw = max(-lim, min(lim, P.yaw))
+    Q = lift(pts) @ rotation(yaw, P.pitch, P.roll).T
     xy = Q[:, :2].copy()
     z = Q[:, 2]
     if clamp:
@@ -324,7 +327,8 @@ def face_ops(P: RigParams, geom: dict | None = None, eyes: str | dict | None = N
     order = (-1, 1) if P.yaw >= 0 else (1, -1)          # far eye first (painter's order)
     for s in order:
         _, z = project(P, np.array([[s * P.ex, P.ey], [s * (P.ex + 0.6 * P.er), P.ey]]), clamp=False)
-        if s == P.hidden_eye or z.max() < 0.12:                               # eye has turned behind the head (profile)
+        auto_hidden = (1 if P.yaw > 0 else -1) if abs(P.yaw) > math.radians(55) else 0
+        if s == (P.hidden_eye or auto_hidden) or z.max() < 0.12:                               # eye has turned behind the head (profile)
             continue
         ops += _eye_ops(P, s, e, blink)
     ops += _mouth_ops(P, g, m, talking)
