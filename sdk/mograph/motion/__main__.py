@@ -1,7 +1,7 @@
 """
 python3 -m mograph.motion <command>      — v18 MOTION KIT (glossary · easing · retime · saber · character · lip sync)
 
-  selftest                                   numeric regression tests (< 10 s) — must say 10/10
+  selftest                                   numeric regression tests (< 20 s) — must say 12/12
   resolve  "<user words>"                    Persian/English request → canonical concepts + params (JSON)
   glossary [--sync]                          print the glossary (--sync: glossary.yaml → glossary.json)
   ease list                                  every easing name (+ measured character)
@@ -18,6 +18,12 @@ python3 -m mograph.motion <command>      — v18 MOTION KIT (glossary · easing 
   lipsync track <words.json> [--audio a.wav] [-o visemes.json] [--fps 30]
   lipsync g2v <word …>                       grapheme → viseme list (Persian / English)
   lipsync chart [-o chart.png]               the Preston Blair mouth chart as drawn by the engine
+  layered-lipsync detect <img> [-o dbg.jpg]          head / eye-pair / mouth landmarks (front · 3/4 · profile)
+  layered-lipsync sheet <pose> [--visemes grid]      all 10 mouths on a pose — LOOK before rendering
+  layered-lipsync render --bg B --poses P --audio A [--fg F] [--words w.json] [--visemes grid] [-o out.mp4]
+  layered-lipsync video <in.mp4> [--words w.json]    lip-sync a character that moves (per-frame tracking)
+  layered-lipsync enhance-hd <img|mp4> [-o out]      Full-HD ink-black / studio-white remaster
+  layered-lipsync contact <mp4> [-o sheet.jpg]       contact sheet for visual QC
 """
 from __future__ import annotations
 
@@ -109,6 +115,8 @@ def main(argv=None):
         return _character(rest)
     if cmd == "lipsync":
         return _lipsync(rest)
+    if cmd in ("layered-lipsync", "layered_lipsync"):
+        return _layered_lipsync(rest)
     print(__doc__)
     return 1
 
@@ -275,6 +283,14 @@ def _lipsync(rest):
             print(s)
         return 0
     return 1
+
+
+
+
+def _layered_lipsync(rest):
+    """layered-lipsync {detect|sheet|render|video|enhance-hd|contact} — implemented in layered_lipsync/cli.py."""
+    from .layered_lipsync import cli
+    return cli.main(rest)
 
 
 if __name__ == "__main__":

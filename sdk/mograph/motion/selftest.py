@@ -145,7 +145,141 @@ def t_robust():
         f"seed stable across processes {seeds}, negative t / named colour / speed 0 ok, weak-word filter {weak}"
 
 
-TESTS = [t_glossary, t_easing, t_retime, t_flow, t_saber, t_saber_time, t_lipsync, t_character, t_bridges, t_robust]
+
+
+def _toon(W=240, H=300, view="front", mouth="line", eyes="sclera", torso=True, tilt=0.0):
+    """synthetic flat cartoon: beige paper, white head with ink outline, optional torso (bigger white blob)."""
+    import cv2
+    im = np.full((H, W, 3), (115, 178, 225), np.uint8)
+    cx, cy, r = W // 2, int(H * 0.36), int(W * 0.30)
+    if torso:
+        cv2.ellipse(im, (cx, int(H * 0.92)), (int(W * 0.42), int(H * 0.26)), 0, 0, 360, (250, 250, 250), -1)
+        cv2.ellipse(im, (cx, int(H * 0.92)), (int(W * 0.42), int(H * 0.26)), 0, 0, 360, (20, 20, 20), 4)
+    cv2.circle(im, (cx, cy), r, (250, 250, 250), -1)
+    cv2.circle(im, (cx, cy), r, (20, 20, 20), 4)
+    ca, sa = math.cos(math.radians(tilt)), math.sin(math.radians(tilt))
+
+    def rot(dx, dy):
+        return int(cx + dx * ca - dy * sa), int(cy + dx * sa + dy * ca)
+
+    if view == "front":
+        eye_dx = [-0.38 * r, 0.38 * r]
+    elif view == "profile_left":
+        eye_dx = [-0.62 * r]
+    else:
+        eye_dx = [-0.55 * r, 0.05 * r]
+    for dx in eye_dx:
+        ex, ey = rot(dx, -0.12 * r)
+        if eyes == "sclera":
+            cv2.circle(im, (ex, ey), int(0.24 * r), (252, 252, 252), -1)
+            cv2.circle(im, (ex, ey), int(0.24 * r), (20, 20, 20), 3)
+            cv2.circle(im, (ex, ey + 3), int(0.08 * r), (20, 20, 20), -1)
+        else:                                                  # closed eyes: ink arcs
+            cv2.ellipse(im, (ex, ey), (int(0.2 * r), int(0.08 * r)), tilt, 0, 180, (20, 20, 20), 4)
+    mdx = sum(eye_dx) / len(eye_dx) if view != "profile_left" else -0.55 * r
+    mx, my = rot(mdx, 0.48 * r)
+    if mouth == "line":
+        cv2.line(im, rot(mdx - 0.2 * r, 0.48 * r), rot(mdx + 0.2 * r, 0.48 * r), (20, 20, 20), 3)
+    elif mouth == "open":
+        cv2.ellipse(im, (mx, my), (int(0.24 * r), int(0.2 * r)), tilt, 0, 360, (40, 30, 30), -1)
+    return im
+
+
+def t_layered_anatomy():
+    import cv2
+    from . import layered_lipsync as LL
+    res = {}
+    cases = {
+        "front": dict(view="front"), "profile": dict(view="profile_left"), "three_q": dict(view="three_q"),
+        "closed": dict(view="front", eyes="ink"), "scream": dict(view="front", mouth="open"),
+        "tilt": dict(view="front", tilt=12.0),
+    }
+    ok = True
+    for name, kw in cases.items():
+        im = _toon(**kw)
+        info = LL.detect_face_anatomy(im)
+        hx, hy, hw, hh = info["head_box"]
+        head_ok = hy < im.shape[0] * 0.2 and hh < im.shape[0] * 0.5          # head, never the torso
+        mouth_ok = info["mouth_found"] and info["eyes_bottom_y"] < info["mouth_center"][1] < hy + hh
+        res[name] = info["view_mode"]
+        ok &= head_ok and mouth_ok
+    ok &= res["front"] == "front" and res["profile"] == "profile_left" and res["three_q"] == "three_quarter_left"
+    tilt = LL.detect_face_anatomy(_toon(view="front", tilt=12.0))["eye_angle_deg"]
+    ok &= abs(tilt - 12.0) < 3.0
+    # erase leaves no ink where the mouth was; placement passes QA for every viseme
+    im = _toon()
+    info = LL.detect_face_anatomy(im)
+    clean = LL.erase_base_mouth(im, info)
+    mx, my, mw, mh = info["mouth_box"]
+    erased = int(np.min(cv2.cvtColor(clean[my:my + mh, mx:mx + mw], cv2.COLOR_BGR2GRAY))) > 200
+    vm = LL.VectorMouths()
+    from . import lipsync as LS
+    qa_fail = sum(0 if LL.place_mouth(clean, info, vm.get(dict(LS.MOUTHS[v], v=v), info))[1]["ok"] else 1
+                  for v in LS.VISEMES)
+    # remaster: grey line → ink, saturated colour kept
+    faded = im.copy()
+    faded[faded < 60] = 80
+    faded[5:25, 5:25] = (150, 140, 236)                                   # pink "tongue" patch
+    hd = LL.enhance_lineart_hd(faded)
+    ink = int(np.min(hd)) <= 18 and int(hd[15, 15].min()) > 100
+    ok &= erased and qa_fail == 0 and ink
+    try:
+        LL.detect_face_anatomy(np.full((200, 200, 3), (115, 178, 225), np.uint8))
+        ok = False
+    except ValueError:
+        pass
+    return ok, f"views {res}, tilt {tilt:.1f}°, erase {erased}, viseme QA fails {qa_fail}, ink {ink}"
+
+
+def t_layered_render():
+    import os
+    import subprocess
+    import tempfile
+    import cv2
+    from . import layered_lipsync as LL
+    d = tempfile.mkdtemp(prefix="ll_selftest_")
+    W, H = 180, 320
+    bg = np.full((H, W, 3), (111, 174, 224), np.uint8)
+    cv2.rectangle(bg, (10, 20), (170, 150), (40, 40, 40), 2)
+    fg = np.full((H, W, 3), (111, 174, 224), np.uint8)
+    cv2.rectangle(fg, (0, 230), (W - 1, 245), (140, 145, 146), -1)
+    cv2.rectangle(fg, (0, 230), (W - 1, 245), (20, 20, 20), 2)
+    cv2.rectangle(fg, (8, 245), (40, H - 1), (140, 145, 146), -1)
+    cv2.rectangle(fg, (8, 245), (40, H - 1), (20, 20, 20), 2)
+    pose = cv2.resize(_toon(240, 300), (W, int(300 * W / 240)))
+    pose = np.vstack([np.full((H - pose.shape[0], W, 3), (115, 178, 225), np.uint8), pose])
+    for n, im in (("bg", bg), ("fg", fg), ("pose", pose)):
+        cv2.imwrite(os.path.join(d, n + ".png"), im)
+    occ = LL.occlusion_line(fg, LL.props_alpha(fg))
+    sr = 16000
+    # speech-like test signal: syllables of different loudness and timbre (dark "o" vs bright "e") with gaps
+    t = np.arange(int(sr * 1.2)) / sr
+    wav = np.zeros_like(t, dtype=np.float32)
+    rng = np.random.default_rng(3)
+    syll = [(0.05, 0.25, 0.45, 260.0), (0.33, 0.50, 0.12, 2400.0), (0.58, 0.80, 0.30, 1400.0),
+            (0.88, 1.10, 0.45, 300.0)]
+    for a, b, amp, f in syll:
+        m = (t >= a) & (t < b)
+        tone = np.sin(2 * np.pi * f * t[m]) + 0.3 * rng.standard_normal(m.sum())
+        wav[m] = (amp * tone * np.hanning(m.sum())).astype(np.float32)
+    ap = os.path.join(d, "a.wav")
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "f32le", "-ar", str(sr), "-ac", "1", "-i", "-", ap],
+                   input=wav.tobytes(), check=True)
+    keys = LL.audio_viseme_track(ap, 24)
+    talks = len({k["v"] for k in keys}) >= 3
+    out = os.path.join(d, "o.mp4")
+    rep = LL.render(bg=os.path.join(d, "bg.png"), poses=os.path.join(d, "pose.png"), fg=os.path.join(d, "fg.png"),
+                    audio=ap, out=out, wh=(W, H), report_path=None)
+    cap = cv2.VideoCapture(out)
+    nfr = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    cap.release()
+    ok = (rep["qa_clean"] and abs(nfr - 29) <= 1 and occ is not None and abs(occ - 230) <= 3 and talks
+          and rep["resolution"] == f"{W}x{H}")
+    return ok, (f"{nfr} frames {rep['resolution']}, qa_clean {rep['qa_clean']}, occlusion y {occ}, "
+                f"audio visemes {sorted({k['v'] for k in keys})}")
+
+
+TESTS = [t_glossary, t_easing, t_retime, t_flow, t_saber, t_saber_time, t_lipsync, t_character, t_bridges, t_robust, t_layered_anatomy, t_layered_render]
 
 
 def main():

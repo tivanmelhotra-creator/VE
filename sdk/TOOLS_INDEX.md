@@ -1,5 +1,5 @@
 # TOOLS_INDEX — auto-generated inventory of the SDK
-_generated 2026-10-21 by `python3 sdk/tools/build_tools_index.py` — do not edit by hand; edit docstrings instead. The curated guide is `SKILL_TOOLBOX.md`._
+_generated 2026-10-29 by `python3 sdk/tools/build_tools_index.py` — do not edit by hand; edit docstrings instead. The curated guide is `SKILL_TOOLBOX.md`._
 
 
 ## v14 engine — talking-head footage (USE THIS FOR REAL VIDEO)
@@ -105,6 +105,7 @@ WHY A NEW PIPELINE (v13.9 audit, see V14_AUDIT.md):
 | `load_words(path)` |  |
 | `Camera` | Virtual camera on the source plate. keys: [t, zoom, cx, cy, ease?, rot?]  (cx, cy in source uv). |
 | `Frame` | Everything a layer needs for one frame. |
+| `wide_blur(img, sigma, thresh)` | Gaussian blur; for sigma > thresh (≥ 19 here) it runs at half resolution (sigma/2) and is upsampled — visually identical |
 | `surface_array(surf)` |  |
 | `decontaminate_foreground_edge(fg_u8, alpha_f32, strength)` | Ported from EffectCraft `crates/track/src/roto/refine.rs` (`decontaminate`): |
 | `glass(ctx, F, path_fn, bbox, blur, tint, …)` | TRUE frosted glass: blurs the real composite under the shape (not a flat fill). |
@@ -186,8 +187,11 @@ PIPELINE (every step is deterministic → same input = same edit):
 | `build_segments(words, src_dur, pause)` | Speech islands separated by pauses > `pause` → [[a, b], ...] in source seconds. |
 | `score_words(tw)` | tw = Timeline.words (output time).  Returns list of floats (impact score per word). |
 | `pick_beats(tw, scores, duration, bmin, bmax)` | Greedy: one hero word per [last + bmin, last + bmax] window (first beat = best word in the opening). |
-| `build_layers(tl, tw, scores, beats, duration, seg_of)` |  |
-| `auto_edit(words_path, video_path, out_path, theme, qa, log)` |  |
+| `style_seed(tw)` | Deterministic per-video seed from the transcript → different videos get different visual identities. |
+| `choose_beat_treatment(bi, tw, i, scores, style_seed, ctx_words, …)` | v21 semantic beat classifier → "compare" / "warn" / "object" / "pure_glow" (/ legacy kind). |
+| `compare_sides(tw, i, scores, span, t_max)` | The two concepts of a comparison: the strongest CONTENT word before the pivot («اما / یا / ولی …») and the |
+| `build_layers(tl, tw, scores, beats, duration, seg_of, …)` |  |
+| `auto_edit(words_path, video_path, out_path, theme, qa, log, …)` |  |
 | `main(argv)` |  |
 
 ### `mograph.v14.flow_cut`  (sdk/mograph/v14/flow_cut.py)
@@ -292,10 +296,10 @@ Each layer is a JSON dict.  Common keys:
   pass      "back" (behind the speaker) | "front" (default) | "both" (3D layers split themselves by depth)
   anchor    tracked point the layer is glued to: head_top face nose chin neck chest belly shoulder_l/r hand_l/r hands
             or "screen" (fixed).  "offset": [dx, dy] in units of HEAD WIDTH (so it scales with the speaker/zoom)
-            "x","y" = screen px when anchor == "screen".   "follow": 0..1 how much it follows (default 1)
+            "x","y" = screen px when anchor == "screen".   "follow": 0..1 how much it follows (default 1;
+            v21: kinetic_title / frame_box / halo default 0.18 = world-stabilised, "track": true = full tracking)
   size      base font px (scaled by "head_scale" × head width when anchored, default true)
   text      MARKUP (see glyphs.py):  "آمپول‌های|*لاغری*"
-  styles    per-layer style overrides       palette  {"accent": "#FF2E42", ...}
 ```
 </details>
 
@@ -304,6 +308,7 @@ Each layer is a JSON dict.  Common keys:
 | `prepare(L, R)` |  |
 | `in_pass(L, p)` |  |
 | `pos(L, F)` |  |
+| `follow_of(L)` |  |
 | `element_radius(L, F, hw)` | Approximate bounding radius (px) of a layer — used by the layout guard and the stage light. |
 | `blk(L, size_mul, text_key, size_key)` |  |
 | `draw(ctx, L, F)` |  |
@@ -325,7 +330,6 @@ Each layer is a JSON dict.  Common keys:
 | `draw_object_3d(ctx, L, F)` |  |
 | `draw_ambient_bokeh(ctx, L, F)` | Rendered by the compositor (bokeh.py) in the two depth slots; nothing to draw on the layer canvases. |
 | `draw_vegas_comet(ctx, L, F)` | Ported from EffectCraft `crates/effects/src/generate3.rs` (`vegas`): |
-| `draw_god_rays(ctx, L, F)` | Ported from EffectCraft `crates/effects/src/generate2.rs` (`light_rays` / `light_burst`): |
 
 ### `mograph.v14.motionblur`  (sdk/mograph/v14/motionblur.py)
 mograph.v14.motionblur — velocity-driven 180° shutter DIRECTIONAL motion blur (v14.8).
@@ -361,15 +365,15 @@ mograph.v14.object3d — `object_3d` layer: a REAL turning 3D object inside the 
 
 ```
 {"type": "object_3d", "t": "w:لپ‌تاپ", "out": "we:قیمت+0.3",
-     "model": "croissant",                   # v14.6 PHOTOREAL scanned PBR model (pbr3d) — preferred — or —
-     "src": "laptop_3d.png",                 # any RGBA image (assets_3d / project path)  — or —
-     "preset": "laptop_pro_3d",              # procedural sculpt3d model (laptop_pro_3d | ozempic_pen_3d | trophy_3d)
-     "geometry": "auto",                     # auto | slab | badge | cushion | multiview (image sources)
+     "three_model": "hourglass_3d",          # v20 PROCEDURAL Three.js 3D mesh (360° true PBR + glass) — or —
+     "three_script": "custom_model.js",      # v20 custom JavaScript Three.js procedural generator script — or —
+     "model": "croissant",                   # v14.6 PHOTOREAL scanned PBR model (pbr3d) — or —
+     "preset": "laptop_pro_3d",              # procedural sculpt3d model (laptop_pro_3d | ozempic_pen_3d | trophy_3d) — or —
+     "src": "laptop_3d.png",                 # auto-upgraded to three3d when a matching 3D model exists!
+     "geometry": "auto",                     # auto | three3d | slab | badge | cushion | multiview
      "anchor": "hand_r", "offset": [0.2, -0.6],   # or "anchor": "screen", "x": 760, "y": 640
      "size": 1.4,                            # diameter in HEAD WIDTHS when anchored, px when anchor == screen
      "motion": "hover",                      # turntable_osc | spin_360 | spring_entry | hover | none
-     "yaw": -20, "pitch": 12,                # base angles;  "turn_on": "w:…" → one 360° spin at that word
-     "enter": "spring_pop" | "drop" | "fade",  "exit": "pop_out" | "fall" | "fade",
 ```
 </details>
 
@@ -451,6 +455,8 @@ mograph.v14.qa — fast checks before any render (< 5 s):
   * every layer: duration > 0.25 s, inside the edit, sampled at 3 instants → ink bbox on screen (warn if clipped)
   * overlapping FRONT layers at the same instant in the same screen region (clutter)
   * subtitle phrases: none longer than 3.5 s, none shorter than 0.35 s
+  * v21: no aecomp lower_third / chest-zone hero visible while a subtitle phrase is visible (zero collision)
+  * v21: originality audit (mograph.style_bank) — copied reference text / cloned spec / fixed widget rotation
 Exit code 0 = clean, 1 = warnings.
 ```
 </details>
@@ -552,7 +558,8 @@ B) STAGE LIGHT  (the user's taste: a translucent engineering grid, low opacity, 
 
 | function / class | what |
 |---|---|
-| `face_zone(F, margin)` | Protected ellipse (cx, cy, rx, ry) in screen px: forehead … below the chin. |
+| `face_zone(F, margin, crown)` | Protected ellipse (cx, cy, rx, ry) in screen px: HAIR CROWN … below the chin. |
+| `guard_mode(L, kind)` |  |
 | `guard(L, F, x, y, r, kind)` | Return a safe (x, y) for an element of radius r.  Smooth over time (no jumps). |
 | `plate_brightness(F, cx, cy, R)` |  |
 | `draw_stage(F, L, cx, cy, size, color, …)` | Drawn on the BACK canvas (behind the speaker) — called by the renderer's stage pass. |
@@ -579,6 +586,7 @@ v14: the capsule keeps physical state across phrases:
 
 | function / class | what |
 |---|---|
+| `lower_zone_windows(R, pad)` | [[t0, t1], …] (edited seconds) of every layer that owns the lower zone: aecomp lower thirds and chest/belly |
 | `prepare_subs(cfg, R)` |  |
 | `draw_subs(ctx, S, F)` |  |
 
@@ -595,7 +603,9 @@ v13.9 audit: live one-euro tracking is causal (text trails the speaker) and the 
   pose   MediaPipe pose every frame → CENTRED Gaussian smoothing (no lag) → anchors:
          head_top face nose chin neck chest belly shoulder_l shoulder_r hand_l hand_r hands head_c
          + head_width / shoulder_width (u units) so layers scale with the speaker.
-CLI:  python3 -m mograph.v14.track media/raw.mp4      (run once; resumable)
+CLI:  python3 -m mograph.v14.track media/raw.mp4 [--engine modnet|rvm]     (run once; resumable)
+
+v22 matte engine "rvm" (Robust Video Matting, MobileNetV3, 15 MB, idea from Concat concat-vision/segment.rs):
 ```
 </details>
 
@@ -603,8 +613,11 @@ CLI:  python3 -m mograph.v14.track media/raw.mp4      (run once; resumable)
 |---|---|
 | `cache_dir(path)` |  |
 | `matte_frame(bgr, ref)` |  |
-| `prep_matte(path, log)` |  |
+| `prep_matte_rvm(path, log, reset_every)` | RVM over the whole clip, sequential (the recurrent state needs order).  Resumable: on restart the state is |
+| `prep_matte(path, log, engine)` |  |
 | `prep_pose(path, log, work_w)` |  |
+| `matte_dir(path, engine)` | cache dir of the chosen matte engine; engine None/"modnet" = classic, "rvm" = v22, "auto" = rvm if complete. |
+| `median3(a, b, c)` | exact per-pixel median of three uint8 images: a + b + c − min − max  (SIMD in OpenCV, no sort). |
 | `Tracks` |  |
 
 
@@ -1480,6 +1493,61 @@ mograph.media — real footage inside the vector world.
 | `punch_zoom(scene, el, t)` | 1.0 ↔ 1+punch alternating at every jump cut (spec._cuts) → no visible jump cut. |
 | `el_talking_head(ctx, el, s)` |  |
 
+### `mograph.models_hub`  (sdk/mograph/models_hub.py)  · CLI: `python3 -m mograph.models_hub …`
+mograph.models_hub — v22 OPTIONAL ML models (downloaded on first use, sha256-verified, NEVER in git).
+
+<details><summary>details</summary>
+
+```
+The repo must stay < 100 MB, so every v22 model lives in  ~/.cache/mograph_models/  (override: MOGRAPH_MODELS).
+Each feature has a pure-numpy/OpenCV fallback, so nothing breaks offline.
+
+    python3 -m mograph.models_hub --list            # status of every model
+    python3 -m mograph.models_hub rvm esrgan        # fetch the named ones
+    python3 -m mograph.models_hub --all             # fetch all (except opt-in: isnet 178 MB, gyro voice)
+
+| name          | file                              |   MB | licence      | used by                                  |
+|---------------|-----------------------------------|------|--------------|------------------------------------------|
+| rvm           | rvm_mobilenetv3_fp32.onnx         | 15.0 | GPL-3.0      | v14.track matte engine "rvm" (temporal)   |
+```
+</details>
+
+| function / class | what |
+|---|---|
+| `path(name)` |  |
+| `have(name)` |  |
+| `ensure(name, log)` | local path of model `name` (downloads + verifies once).  Raises on failure. |
+| `try_ensure(name, log)` | like ensure() but None when offline / failed (callers then use their fallback). |
+| `session(name, threads, log)` | cached onnxruntime session (CPU, ≤ 2 threads — the sandbox has 2 cores / 1 GB) or None. |
+| `status()` |  |
+| `main(argv)` |  |
+
+### `mograph.musicbed`  (sdk/mograph/musicbed.py)  · CLI: `python3 -m mograph.musicbed …`
+mograph.musicbed — v22 MUSIC-BED DETECTOR: does the source already carry background music?
+
+<details><summary>details</summary>
+
+```
+Why: auto-edit jump-cuts every pause > 0.35 s.  If the clip already has a piano / pad under the voice, each cut
+makes the melody jump.  This looks only at the GAPS between words (no speech there), so any steady tonal
+energy is music, not voice:
+
+  * level        gap RMS relative to the speech RMS (room tone sits ≈ -45…-60 dB under speech, a bed -15…-30 dB)
+  * tonality     1 - spectral flatness in 80 Hz…5 kHz (noise / room tone is flat, notes have peaks)
+  * persistence  share of gap frames that are tonal AND loud
+  * floor peaks  (main signal, robust to word-timing errors) — in 3 s windows the 20th-percentile spectrum is the
+                 sound that is ALWAYS there; speech comes and goes so it vanishes from that floor, a music bed / drone
+                 stays as narrow peaks above the smoothed floor.  peak-energy share: dry voice ≈ 0.0, room/noise ≈ 0.0,
+```
+</details>
+
+| function / class | what |
+|---|---|
+| `floor_peaks(S, win_frames)` | median over 3 s windows of the energy share of narrow persistent peaks in the 20th-percentile spectrum. |
+| `analyse(pcm, words, sr)` |  |
+| `detect(audio_path, words)` |  |
+| `selftest()` | synthetic voice bursts with pauses: (a) dry room tone → no music, (b) + soft piano chord bed → music. |
+
 ### `mograph.obj3d`  (sdk/mograph/obj3d.py)
 mograph.obj3d — v14.4 core 3D object renderer (pure NumPy + OpenCV + Cairo, CPU, no GPU).
 
@@ -2035,6 +2103,36 @@ returns events exactly where the eye sees something happen:
 | `parse_lines(text)` |  |
 | `cutfx_events(scene)` | v12: edit-point transitions get their sound (zoom/whip = whoosh into the cut, glitch = blip, flash = hit). |
 
+### `mograph.style_bank`  (sdk/mograph/style_bank.py)  · CLI: `python3 -m mograph.style_bank …`
+mograph.style_bank — v21 EXPANDABLE STYLE & INSPIRATION BANK + ORIGINALITY GUARD.
+
+<details><summary>details</summary>
+
+```
+python3 -m mograph.pro style-bank --sync          scan sdk/style_bank/references/ → update catalog.json
+    python3 -m mograph.pro style-bank --list          print every registered reference + its principles
+    python3 -m mograph.pro style-bank --sheet [-o p]  visual overview sheet of all references
+    python3 -m mograph.pro originality <edit.json>    ANTI-COPY / ANTI-REPETITION audit of a spec (exit 1 = fails)
+
+THE LAW (user, v21 — قانون منع مطلق کپی و تکرار):
+  References are STYLE STUDIES, never templates.  The engine and every agent must extract the PRINCIPLE (why it
+  works: hierarchy, light, rhythm, semantic fit) and synthesise a NEW form for the new video.  It is FORBIDDEN to
+  reproduce a reference frame, a reference's exact text, its exact widget/shape, its colours or its ordering, and
+  FORBIDDEN to clone an existing project spec (same layer-type sequence / same texts / same geometry).
+```
+</details>
+
+| function / class | what |
+|---|---|
+| `load_catalog()` |  |
+| `sync(log, optimize, max_side)` | Register every file in references/ into catalog.json (keeps hand-written analysis, adds stubs for new files). |
+| `list_refs(log)` |  |
+| `sheet(out, log)` | Overview contact sheet of every reference (thumbnail + id + tags). |
+| `hero_layers(spec)` |  |
+| `originality_report(spec, spec_path, clone_ratio, min_pure)` | → (errors, warnings, stats).  errors = copying/cloning (forbidden); warnings = repetition / taste drift. |
+| `run_originality(spec_path, log)` |  |
+| `selftest()` |  |
+
 ### `mograph.styles`  (sdk/mograph/styles.py)
 mograph.styles — three house styles as presets, so the agent writes ONE word ("meta.style") and gets a
 
@@ -2105,6 +2203,86 @@ HarfBuzz shaping → glyph outlines → cairo paths.  Consequences:
 | `draw_text(ctx, text, x, y, size, color, …)` | Draw vector text.  `word_style(i) -> dict(color=?, alpha=?, dy=?, scale=?)` styles words |
 | `text_style(style, size)` | Normalise a text style → dict or None (solid fast path). |
 | `kashida_text(text, word, after)` | Insert ONE tatweel at the first legal join of `word` (or of the first word that has one) unless the |
+
+### `mograph.three3d`  (sdk/mograph/three3d.py)  · CLI: `python3 -m mograph.three3d …`
+mograph.three3d — VE v20 Procedural Three.js 3D Engine (True 360° Closed Meshes + Two-Pass Glass/Metallic PBR).
+
+<details><summary>details</summary>
+
+```
+Why v20 replaces `obj3d.py` 2D image slab extrusion:
+  `obj3d.py` thickens a single 2D PNG along Z (`depth=0.14`) and paints a flat silhouette on the back. Past ~40° yaw
+  it collapses into a cardboard cutout, its lighting is frozen into the 2D bitmap, and internal sub-parts cannot move.
+
+`three3d` implements a Blender-style Procedural Three.js Scene Graph & Geometry API (`THREE.*` primitives:
+`LatheGeometry`, `TubeGeometry` + `CatmullRomCurve3`, `OctahedronGeometry`, `CylinderGeometry`, `TorusGeometry`,
+`ConeGeometry`, `BoxGeometry`, `BufferGeometry`, `MeshStandardMaterial`, `MeshPhysicalMaterial`) and also includes a
+**Node.js `.js` Script Bridge (`load_three_js_script`)** that executes standalone JavaScript Three.js generator scripts
+(`three_models.js` or custom `.js` files) directly into the **Two-Pass Deferred PBR + Refractive Glass Pipeline**
+(`zraster.raster_attr`, 2× SSAA):
+```
+</details>
+
+| function / class | what |
+|---|---|
+| `Vector2` |  |
+| `Vector3` |  |
+| `MeshStandardMaterial` |  |
+| `MeshPhysicalMaterial` |  |
+| `BufferGeometry` |  |
+| `CylinderGeometry(r_top, r_bot, height, segs)` |  |
+| `ConeGeometry(radius, height, segs)` |  |
+| `SphereGeometry(radius, w_segs, h_segs)` |  |
+| `TorusGeometry(radius, tube, r_segs, t_segs)` | Torus in the XY plane (matches Three.js default; rotation.x = pi/2 lays it flat in XZ). |
+| `BoxGeometry(w, h, d, bevel)` |  |
+| `LatheGeometry(points, segs)` |  |
+| `OctahedronGeometry(radius, detail)` |  |
+| `CatmullRomCurve3` |  |
+| `TubeGeometry(curve, tubular_segs, radius, radial_segs, closed, taper)` |  |
+| `Group` |  |
+| `Mesh` |  |
+| `THREE` | Drop-in Python namespace matching Three.js classes for procedural 3D model scripts. |
+| `split_script_ref(ref)` | `"models.js:buildStarTrophy3D"` → ("models.js", "buildStarTrophy3D");  `"models.js"` → ("models.js", ""). |
+| `resolve_script_ref(ref, base_dir)` | Absolute-path form of a `three_script` value (keeps the optional `:builderName` suffix). |
+| `load_three_js_script(js_path, fn_name)` | Execute a JavaScript Three.js procedural generator file via Node.js and return a `THREE.Group` root node. |
+| `create_studio_materials()` |  |
+| `hg_glass_r(y)` | outer radius of the blown-glass profile at height y (shared by the mesh, the sand and the volume table). |
+| `hg_inner_r(y)` | sand radius limit — inside the glass wall so the glass z-test never lets sand poke through. |
+| `build_hourglass_3d(mats, sand)` |  |
+| `build_microblading_pen_3d(mats)` |  |
+
+### `mograph.three_anim`  (sdk/mograph/three_anim.py)  · CLI: `python3 -m mograph.three_anim …`
+mograph.three_anim — v20.1 PROCEDURAL 3D ANIMATION for `three3d` models (state changes *inside* the object, not only
+
+<details><summary>details</summary>
+
+```
+turning it):  hourglass that pours and flips, laptop lid on a real hinge, parts that assemble / fly apart.
+
+Why a module (and not "just keyframe yaw"):  the v14 `object_3d` layer can only spin / bob the WHOLE object.  An
+hourglass needs its SAND to move: the top pile drains through the neck (crater forms), a stream falls, the bottom
+pile grows (mound forms) — and when the top is empty the glass turns over and it starts again.  That is geometry that
+changes every frame, so it must be rebuilt from a state, with a LOCKED camera framing (otherwise the bounding box
+change makes the object breathe on screen) and with the sand volume conserved (otherwise the sand visibly grows or
+shrinks — an instant "fake" tell).
+
+    {"type": "object_3d", "three_model": "hourglass_3d", "anim": "hourglass_loop",
+     "pour_dur": 3.0,          # seconds for a full pour (ignored between word-synced flips: fitted to the gap)
+```
+</details>
+
+| function / class | what |
+|---|---|
+| `sand_total()` |  |
+| `hourglass_sand(p, settle, stream_front, stream_tail)` | sand state for pour fraction p (0 = all on top … 1 = all at the bottom). |
+| `hourglass_state(cfg, lt, t_end)` | → (sand, root_rot (rx, ry, rz) rad, lift 0..1)  at layer-local time lt. |
+| `config(L)` | normalise a layer / element dict → cfg (anim name + parameters) or None (static model). |
+| `state(cfg, model, lt, t_end)` | → (builder kwargs tuple, root rotation, explode override / None, lift). |
+| `scene(model, kwargs, rot, explode_q)` |  |
+| `render_state(model, cfg, lt, size, yaw, pitch, …)` | → (premultiplied uint8 BGRA D×D, D, lift) |
+| `paint(ctx, model, cfg, lt, cx, cy, …)` |  |
+| `sheet(name, out_path, cell, n)` | 10 frames across one full cycle (pour → empty → flip → settle → pour) to LOOK at the animation. |
+| `selftest()` |  |
 
 ### `mograph.track`  (sdk/mograph/track.py)
 mograph.track — v11 offline motion tracking (Motion Tracking / Point Track / Planar Track / body landmarks).
@@ -2236,6 +2414,73 @@ Widgets registered here:
 | `el_physics_ball(ctx, el, s)` |  |
 | `el_ui_film_world(ctx, el, s)` | Renders the complete, reference-accurate 10s Rube Goldberg UI Motion Film world |
 
+### `mograph.v22`  (sdk/mograph/v22.py)  · CLI: `python3 -m mograph.v22 …`
+mograph.v22 — regression tests of the v22 "Concat-inspired" kit (< 20 s, no footage needed).
+
+<details><summary>details</summary>
+
+```
+cd sdk && python3 -m mograph.v22 selftest
+
+  masks      SDF shape masks: resolution independent, exact circle area, animated iris
+  rtime      rational time: NTSC 30000/1001 exact, 2 h round-trip, contiguous chunks
+  enhance    tiled Real-ESRGAN: tiles cover once, fixed window; model sharper than bicubic (if cached)
+  stabilize  synthetic hand-held clip: shake removed, intended pan kept, range merging
+  cutout     product photo IoU > 0.8 (u2netp or GrabCut fallback)
+  vad        speech regions + early (glued-into-silence) word snapped onto the speech onset
+  rvm        recurrent matte on a synthetic moving disc: alpha follows it, state carried (if cached)
+  local_tts  offline Persian voice: audio produced, words inside speech (if cached)
+```
+</details>
+
+| function / class | what |
+|---|---|
+| `t_masks()` |  |
+| `t_rtime()` |  |
+| `t_enhance()` |  |
+| `t_stabilize()` |  |
+| `t_cutout()` |  |
+| `t_vad()` |  |
+| `t_rvm()` |  |
+| `t_local_tts()` |  |
+| `t_mcp()` |  |
+| `t_musicbed()` |  |
+| `t_guard()` |  |
+| `t_median3()` |  |
+| `t_lower_hide()` |  |
+| `t_silhouette()` |  |
+| `t_hub()` |  |
+| `main()` |  |
+
+### `mograph.vad`  (sdk/mograph/vad.py)  · CLI: `python3 -m mograph.vad …`
+mograph.vad — v22 VOICE ACTIVITY DETECTION (Silero VAD v5, 2.3 MB ONNX, MIT; energy fallback offline).
+
+<details><summary>details</summary>
+
+```
+Why (lesson from Concat's own audit, finding H8/N3): without VAD, a transcriber glues the start of a new segment to
+the END of the previous one across a silence, so subtitles / "w:word" anchors appear 1–7 s before the speech.
+VE fixes this at the source: every word timing that comes from a transcriber or a TTS engine is SNAPPED to real
+speech onsets.
+
+    speech_regions(pcm, sr)           → [(t0, t1), …] seconds of speech
+    snap_words(words, regions)        → words whose start lies in silence are moved to the next speech onset,
+                                        ends clamped to the speech region (in-place safe copy)
+    words_in_regions(tokens, regions) → evenly-weighted word timings distributed over the speech only
+                                        (used by the offline TTS provider, which returns no timestamps)
+```
+</details>
+
+| function / class | what |
+|---|---|
+| `load_audio(path, sr)` |  |
+| `probabilities(pcm, sr)` | speech probability per 32 ms window (Silero) or None if the model is unavailable. |
+| `speech_regions(pcm, sr, thresh, min_speech, min_silence, pad)` | → list of (t0, t1) seconds.  Hysteresis (thresh / thresh-0.15), short gaps merged, short blips dropped. |
+| `snap_words(words, regions, max_shift)` | move word starts that fall in silence to the next speech onset (≤ max_shift s); clamp ends to speech. |
+| `words_in_regions(tokens, regions, weight)` | distribute tokens over the speech regions only (by letter weight) → [{w, t, end}]. |
+| `selftest()` | synthetic: 0.6 s silence · 1.0 s 'speech' (harmonic + noise, syllabic AM) · 1.2 s silence · 0.8 s speech. |
+| `main(argv)` |  |
+
 ### `mograph.varstroke`  (sdk/mograph/varstroke.py)
 mograph.varstroke — VARIABLE-WIDTH TAPERED & WAVE STROKES + PER-VERTEX VARIABLE MASK FEATHER
 
@@ -2296,11 +2541,11 @@ Providers (REST only, no SDKs):
   gemini      Google AI Studio TTS (gemini-3.1-flash-tts-preview …, 30 voices, style prompt) → words aligned
               by whisper if installed, otherwise by syllable weight inside the trimmed clip
   draft       offline, free: speech-shaped placeholder audio with realistic durations (timing preview)
-
-Spec:
-  "voice": {"provider": "elevenlabs", "voice": "<voice_id>", "model": "eleven_v3", "lang": "fa",
-            "style": "calm, ironic documentary narrator",   # gemini: delivery prompt
-            "stability": 0.5, "speed": 1.0, "pause": 0.25, "gain": 1.0}
+  local       v22 OFFLINE REAL VOICE, free, no API key: Persian Piper/VITS int8 via sherpa-onnx (CPU, ~0.3× real
+              time, ~160 MB RAM).  Voices: "amir" (default, male) · "gyro" (opt-in download).  Model fetched once to
+              ~/.cache/mograph_models (models_hub "piper_fa"), never in git.  Word times = Silero-VAD speech
+              regions + letter weights (mograph.vad) → no word ever lands in a pause.
+              "voice": {"provider": "local", "voice": "amir", "speed": 1.0, "sid": 0}
 ```
 </details>
 
@@ -2309,6 +2554,7 @@ Spec:
 | `tts_elevenlabs(text, cfg, prev_text, next_text, project_dir)` |  |
 | `tts_gemini(text, cfg, style, project_dir)` |  |
 | `tts_draft(text, cfg)` | Free offline placeholder with realistic Persian pacing (~ 2.6 words/s) — for timing previews. |
+| `tts_local(text, cfg)` | v22 offline Persian TTS (sherpa-onnx Piper) → (pcm @SR, words placed inside VAD speech regions). |
 | `synth_line(line, cfg, provider, cache_dir, prev_text, next_text, …)` | One subtitle line → (pcm trimmed, words with DISPLAY spelling, times relative to clip start). |
 | `file_lines(cfg, subs, base)` | → {line_index: (pcm, words_relative)} cut from the external clips at word boundaries. |
 | `voice_spec(spec_path, provider, out_path, log, dedupe_fillers)` |  |
@@ -2349,7 +2595,8 @@ mograph.zraster — tiny per-pixel Z-buffered triangle rasteriser (Gouraud colou
 <details><summary>details</summary>
 
 ```
-engines (sculpt3d).  numba-JIT when available (≈ 5-15 ms for 2-5 k triangles at 600²), pure-NumPy fallback.
+engines (sculpt3d, real3d, three3d).  numba-JIT when available (≈ 5-15 ms for 2-5 k triangles at 600²),
+ultra-fast vectorized NumPy fallback (~4x faster pre-filtered bbox rasteriser when numba is absent).
 
 raster(tri_xy (N,3,2) px, tri_z (N,3) camera distance, tri_rgb (N,3,3) 0..255, tri_id (N,), W, H)
     → color (H,W,3) float32, alpha (H,W) float32 (coverage 0/1), ids (H,W) int32 (0 = empty)
@@ -2361,6 +2608,441 @@ Nearest surface wins (smaller z).  Pixel centres at +0.5.  Interpolation is pers
 |---|---|
 | `raster(tri_xy, tri_z, tri_rgb, tri_id, W, H)` |  |
 | `raster_attr(tri_xy, tri_z, tri_attr, tri_id, W, H)` | → attr (H,W,K) float32, ids (H,W) int32 (0 = empty), zbuf (H,W) (1e30 = empty). |
+
+
+## motion kit (v18+) — easing · retime · saber · character · lip sync
+
+### `mograph.motion.bridge`  (sdk/mograph/motion/bridge.py)
+mograph.motion.bridge — v18 motion kit inside BOTH renderers.
+
+<details><summary>details</summary>
+
+```
+v14 footage layers / v5–v13 scene elements (same keys):
+    {"type": "saber", "preset": "neon", "core": "text", "text": "مقاله", "t": "w:مقاله", "out": "we:مقاله+1",
+     "anchor": "head_top", "offset": [0, -0.6], "size": 150, "reveal": {"dur": 0.5}, "pass": "front"}
+        v14: "anchor"/"offset" place text/shape cores on the speaker (x, y computed per frame); path/saber
+        coords stay in screen px.  Light is ADDED (screen-like) and also feeds the v14 emission buffer so the glow
+        spills onto the speaker.  "reveal"/"out" times are RELATIVE to the layer start / out (seconds).
+    {"type": "character", "rig": "bean", "x": 540, "y": 1700, "size": 420, "actions": [...], "lip_sync": {...}}
+    {"type": "mouth", "x": 540, "y": 900, "size": 200, "lip_sync": {"words": "words.json"}}   # mouth only
+fx stack item (any v14 layer / v5 element, aefx bridge):
+    "fx": [{"saber": {"preset": "electric"}, "t": 2.0, "dur": 1.5}]      → the LAYER's own alpha is the core
+```
+</details>
+
+| function / class | what |
+|---|---|
+| `draw_saber_layer(ctx, L, F)` | v14 DRAW entry. |
+| `draw_character_layer(ctx, L, F)` |  |
+| `draw_mouth_layer(ctx, L, F)` |  |
+| `register_v14(DRAW)` |  |
+| `apply_saber_item(img, it, t, ramp)` | aefx bridge hook: glow a BGRA premultiplied layer with saber using its own alpha as the core. |
+| `install()` | idempotent: register everything (called from mograph.motion __init__). |
+
+### `mograph.motion.character`  (sdk/mograph/motion/character.py)
+mograph.motion.character — rubber-hose / cutout cartoon characters driven by the animation principles.
+
+<details><summary>details</summary>
+
+```
+A character = a RIG (bones + parts, cutout style) + ACTIONS on a timeline + optional LIP SYNC.
+    {"type": "character", "rig": "bean", "x": 540, "y": 1500, "size": 520, "color": "#ffcc33",
+     "actions": [{"do": "enter", "t": 0.0, "from": "left"}, {"do": "hop", "t": 1.2}, {"do": "wave", "t": 2.0, "dur": 1.4},
+                 {"do": "talk", "t": 3.0, "dur": 2.5}, {"do": "point", "t": 5.6, "side": "r"}, {"do": "exit", "t": 8.0}],
+     "lip_sync": {"words": "words.json", "audio": "media/raw.mp4", "offset": 0.0},     # or "visemes": [...]
+     "timing": "twos",   # ones | twos | threes  (limited animation: pose held 2/3 frames — the cartoon feel)
+     "style": "rubber_hose", "exaggeration": 1.0, "face": "happy", "blink": true}
+
+PRINCIPLES (all on by default, each is a measurable number — see `principles_report()`):
+    squash_and_stretch   body scale sy = 1/sx (volume kept) from vertical velocity + landing impact
+```
+</details>
+
+| function / class | what |
+|---|---|
+| `damped(t, freq, zeta)` | impulse response of an under-damped spring (follow-through wobble), 0 at t=0, decays. |
+| `Pose` |  |
+| `solve(C, t)` | pose at time t (pure function: frames render in any order). |
+| `draw(ctx, C, t, x, y, size, …)` | draw the character at screen (x, y) = feet centre, `size` = body height px. |
+| `quantise(t, timing, fps)` | limited animation: hold each drawing for 1/2/3 frames (on ones / twos / threes). |
+| `prepare(spec, resolve, base_dir)` | spec → prepared character dict (actions resolved & sorted, rig, visemes). |
+| `principles_report(C, t0, t1, fps)` | numbers per principle over [t0, t1] — QA that the motion actually has them. |
+
+### `mograph.motion.easing`  (sdk/mograph/motion/easing.py)
+mograph.motion.easing — ONE resolver for every way a user / agent can say "ease".
+
+<details><summary>details</summary>
+
+```
+from mograph.motion.easing import ease
+    f = ease("out_back")                      # Penner name (also "easeOutBack", "ease-out-back", "back.out")
+    f = ease("cubic-bezier(.2,.8,.2,1)")      # CSS / After Effects graph editor (x1,y1,x2,y2), overshoot y allowed
+    f = ease([0.68, -0.35, 0.27, 1.35])       # same as a list
+    f = ease({"type": "elastic", "dir": "out", "amp": 1.2, "period": 0.3})
+    f = ease({"type": "back", "dir": "in_out", "overshoot": 2.2})
+    f = ease({"type": "bounce", "dir": "out", "bounces": 4, "decay": 0.5})
+    f = ease({"type": "spring", "stiffness": 260, "damping": 11, "dur": 1.0})   # physical (normalised to dur)
+    f = ease({"type": "ae", "out_speed": 0, "out_influence": 0.75, "in_speed": 0, "in_influence": 0.9})
+    f = ease({"type": "steps", "n": 6})       # stepped / limited animation (on twos for a 12-frame move)
+```
+</details>
+
+| function / class | what |
+|---|---|
+| `cubic_bezier(x1, y1, x2, y2)` | CSS / AE graph-editor cubic-bezier: Newton + bisection solve of x(u) = p (x1, x2 clamped to [0, 1]). |
+| `ae_ease(out_speed, out_influence, in_speed, in_influence)` | After Effects keyframe velocity dialog for a normalised 0→1 move over 1 s. |
+| `spring_curve(stiffness, damping, mass, v0, dur)` | physical damped spring 0→1, time normalised so p=1 ↔ dur seconds (ends wherever the spring is). |
+| `steps(n, mode)` | stepped timing (CSS steps()): limited animation / on twos when n = frames / 2. |
+| `ease(spec, default)` | any easing spec → callable p → y.   None → default.  Callables pass through. |
+| `names()` | every NAME accepted by ease() (for list / suggest). |
+| `measure(spec, n)` | numbers of a curve (graph-editor readout).  velocities in × the linear speed. |
+| `character(spec)` | one-line human description from the measurements (agent-facing). |
+| `graph_image(specs, out, size, speed, labels)` | AE-style graph editor: per curve a VALUE graph (with bezier handles) and a SPEED graph, side by side. |
+| `install_into_core()` | no-op since v18: mograph.core.get_ease itself falls back to ease() for every non-legacy spec. |
+
+### `mograph.motion.glossary`  (sdk/mograph/motion/glossary.py)
+mograph.motion.glossary — map the user's words (Persian / English / slang) onto engine vocabulary.
+
+<details><summary>details</summary>
+
+```
+from mograph.motion.glossary import resolve
+    resolve("یه اسلوموشن نرم با ease out و افکت نئون روی متن")
+    → [{"canonical": "retime", "op": "slow_motion", ...}, {"canonical": "easing", "type": "ease_out"},
+       {"canonical": "saber", "preset": "neon", "target": "text_layer"}]
+
+The glossary lives in glossary.yaml (user-authored, + "spec"/"cli" hints); glossary.json is the
+dependency-free mirror (regenerate with `python3 -m mograph.motion glossary --sync`).
+Sub-terms (SUBTERMS) turn a phrase into a concrete parameter: "ease out" → type ease_out, "تایم‌لپس" →
+op fast_motion, "صاعقه" → saber preset electric …  Longest match wins, each span is used once.
+```
+</details>
+
+| function / class | what |
+|---|---|
+| `normalise(s)` | lower-case, Arabic→Persian letters, ZWNJ → space, punctuation → space, collapse spaces. |
+| `load()` | glossary dict {key: entry}.  YAML when PyYAML is present, else the JSON mirror. |
+| `sync_json()` |  |
+| `resolve(text, strict)` | free text → list of {canonical, matched, **params} (merged per canonical, order of first appearance). |
+| `describe(canonical)` |  |
+
+### `mograph.motion.lipsync`  (sdk/mograph/motion/lipsync.py)
+mograph.motion.lipsync — words (+ audio) → a timed VISEME track on the Preston Blair mouth chart.
+
+<details><summary>details</summary>
+
+```
+Preston Blair / Hanna-Barbera 10-mouth set (the classic animation chart; letters = Papagayo / Rhubarb names):
+    rest  X   closed, relaxed                 MBP   A   lips pressed (m b p)
+    AI    D   wide open (a, ā, i in "father") E     C   mid open, teeth (e, eh, ae)
+    O     E   round open (o, aw)              U     F   small round / pucker (u, oo, w, و)
+    FV    G   lower lip under teeth (f v)     L     H   tongue up behind teeth (l, th, d-n "la")
+    WQ    F   pucker (w, q, و consonant)      etc   B   slightly open teeth (c d g k n r s t y z ش ...)
+
+Persian: words are in Persian script (no short vowels written) → a rule-based grapheme→phoneme pass:
+    long vowels ا/آ → AI, و → U (or WQ before a vowel), ی → E (ee); consonants by place of articulation;
+    unwritten short vowels are inserted between consonant clusters as /a/ (AI, reduced) or /e/ (E) — the
+```
+</details>
+
+| function / class | what |
+|---|---|
+| `g2v_fa(word)` | Persian word → viseme list (short vowels inferred). |
+| `g2v_en(word)` |  |
+| `g2v(word)` |  |
+| `envelope(audio_path, fps, sr)` | per-frame normalised loudness (0..1) of the voice — drives jaw opening. |
+| `load_words(w)` | words.json ({"words": [{start,end,text}]}) / list of dicts / list [t0, t1, text] → [(t0, t1, text)]. |
+| `track(words, audio, fps, lead, offset, min_frames_closure)` | → list of keys {"t", "v", "open"} (step function, sorted).  `offset` shifts all words (e.g. layer start). |
+| `at(keys, t, blend)` | (viseme, open, prev_viseme, p) at time t;  p 0→1 over `blend` s after a key (shape interpolation). |
+| `shape_at(keys, t, blend)` | interpolated mouth geometry dict at t (smooth transitions between chart mouths). |
+| `draw_mouth(ctx, g, x, y, w, ink, …)` | cartoon mouth from geometry g (shape_at) centred at x, y, width w (cairo). |
+| `chart_image(out, cell)` | the Preston Blair chart as rendered by draw_mouth (for LOOK / docs). |
+
+### `mograph.motion.retime`  (sdk/mograph/motion/retime.py)
+mograph.motion.retime — speed changes on the EDITED timeline (Premiere "Time Remapping" / AE "Time Remap").
+
+<details><summary>details</summary>
+
+```
+Ops (all times in EDITED seconds = after the EDL cuts, i.e. what `python3 -m mograph.v14 words` prints, or
+"w:word" anchors; `dur` = edited seconds the op covers):
+    {"op": "slow_motion",  "t": 3.2, "dur": 1.0, "speed": 0.35, "ramp": 0.25}     # 1 s of action → 2.9 s on screen
+    {"op": "fast_motion",  "t": 5.0, "dur": 4.0, "speed": 4.0,  "ramp": 0.15}     # timelapse: "speed": 8+
+    {"op": "speed_ramp",   "t": 2.0, "dur": 0.6, "from": 1.0, "to": 0.25, "ease": "in_out_sine",
+                           "hold": 0.8, "back": 0.5}                            # 1× → ¼× (hold 0.8 s) → back to 1×
+    {"op": "speed_ramp",   "t": 2.0, "keys": [[0, 1.0], [0.5, 0.2], [1.4, 0.2], [1.8, 3.0], [2.2, 1.0]]}
+                                                                               # keys = [edited offset, speed]
+    {"op": "freeze_frame", "t": "w:مقاله", "dur": 0.8, "flash": true}           # hold 0.8 s ON SCREEN (consumes 0)
+    {"op": "reverse",      "t": 6.0, "dur": 1.2, "speed": 1.5, "mode": "rewind"}   # rewind: play, rewind, replay
+```
+</details>
+
+| function / class | what |
+|---|---|
+| `Retime` | out time (on screen) ↔ edited time.  Build with Retime(ops, duration_edited, resolve, speed=1.0). |
+| `FlowInterp` | in-between frames for slow motion: nearest / blend / flow (bidirectional DIS optical flow, occlusion-aware |
+| `retime_file(src, out, ops, speed, interpolate, audio, …)` | retime any video file (no v14 spec needed).  Returns the Retime summary. |
+| `RetimedTimeline` | drop-in for v14 compositor.Timeline: OUTPUT time = on screen after retime.  Word anchors ("w:…"), cuts, |
+| `install_v14(R)` | called by the v14 Renderer when spec.source has retime / speed (see compositor.Renderer.__init__). |
+| `v14_frame(R, t, st)` | (frame, matte or None, idx) with in-between synthesis for slow motion and shutter blend for fast motion. |
+| `v14_events(R)` | retime → sound events (whoosh into slow motion, hit on freeze, rewind tape). |
+
+### `mograph.motion.saber`  (sdk/mograph/motion/saber.py)
+mograph.motion.saber — light / energy effects modelled on Video Copilot SABER (free AE plugin), rebuilt from its
+
+<details><summary>details</summary>
+
+```
+public parameter set (read from the plugin binary: Preset · Glow Color/Intensity/Spread/Bias · Core Size/Start/End ·
+Core Type Saber|Layer Masks|Text Layer · Start/End Size/Offset/Roundness · Halo · Core Softness · Flicker ·
+Mask Randomization · Distortion (Smoke|Fluid|Energy, Distortion|Multiply, wind, noise speed/scale/bias/complexity/
+aspect, Lock Noise to Saber, Core Distortion) · Glow 1–4 Intensity/Size · Gamma/Brightness/Saturation/Alpha Boost ·
+Composite Transparent|Black|Add · Mask Core / Mask Glow / Use Text Alpha) + our own LIGHTNING bolt generator.
+
+One call renders a frame:   img = render(params, t, W, H)            → BGRA premultiplied uint8 (W×H)
+    params = {"preset": "neon", "core": "text", "text": "سلام", "color": "#ff2a6d", ...overrides}
+Cores ("core"):
+    "saber"  straight blade  "start": [x, y], "end": [x, y]  (px) + start_size / end_size / roundness (taper)
+    "path"   polylines        "paths": [[[x,y],...], ...], "closed": true   (= AE layer masks / shape layers)
+```
+</details>
+
+| function / class | what |
+|---|---|
+| `preset_names()` |  |
+| `preset(name)` | preset → full parameter dict (names accept 'Arc Reactor', 'arc-reactor', 'arc_reactor'). |
+| `params(spec)` | spec (preset + overrides) → resolved parameter dict. |
+| `fbm(W, H, t, scale, speed, octaves, …)` | animated fractal noise (-1..1-ish), W×H float32.  Time-continuous: each octave cross-fades between random |
+| `flicker(t, speed, seed)` | smooth 1-D flicker value in [-1, 1] (sum of incommensurate sines + a little jitter). |
+| `shape_path(kind, x, y, w, h, rot, …)` | closed polyline of a generated shape (px). |
+| `core_mask(p, t, W, H, k, alpha)` | core intensity map (0..1) at work scale k (W·k × H·k) — before softness / distortion. |
+| `energy_map(spec, t, W, H, alpha, k)` | (core C, glow G) float32 maps at work scale k, plus resolved params.  Exposed for tests / custom comps. |
+| `render(spec, t, W, H, alpha, k)` | → BGRA premultiplied uint8 (W×H).  composite 'black' → opaque on black. |
+| `render_over(bg_bgr, spec, t, alpha, mode)` | composite onto a BGR frame: 'add' (screen-like, default — light adds) or 'over' (premultiplied over). |
+| `blit_cairo(ctx, fx)` | paint a BGRA premultiplied array (cairo ARGB32 layout) onto a cairo context with ADD (light). |
+
+### `mograph.motion.selftest`  (sdk/mograph/motion/selftest.py)
+numeric regression tests of the v18 motion kit (< 20 s, no footage).  python3 -m mograph.motion selftest
+
+| function / class | what |
+|---|---|
+| `t_glossary()` |  |
+| `t_easing()` |  |
+| `t_retime()` |  |
+| `t_flow()` |  |
+| `t_saber()` |  |
+| `t_saber_time()` |  |
+| `t_lipsync()` |  |
+| `t_character()` |  |
+| `t_bridges()` |  |
+| `t_robust()` |  |
+| `t_layered_anatomy()` |  |
+| `t_layered_render()` |  |
+| `main()` |  |
+
+
+## layered lip-sync (v29.3) — 2D cartoon plates → lip-synced Full-HD MP4
+
+### `mograph.motion.layered_lipsync.anatomy`  (sdk/mograph/motion/layered_lipsync/anatomy.py)
+Head / eye-pair / mouth landmarks for flat 2D cartoon characters (white or flat-colour heads, ink outlines).
+
+<details><summary>details</summary>
+
+```
+Why it is robust (v29.3 rewrite of the v29.2 detector — every rule fixes a failure seen on real panels):
+  * the head score uses the CONVEX HULL of each fill region: eyes / open mouths / raised fingers cut notches into
+    the raw contour (raw circularity of a screaming head = 0.15 → v29.2 picked the trousers instead).
+  * score = hull_circularity^6 · ellipse_ratio^0.5 · feature_bonus · upper_bonus · sqrt(area) · border_penalty;
+    feature_bonus rewards enclosed holes (eyes / mouth) — a sweater or trouser blob has none.
+  * eyes = sclera blobs lying inside the DILATED head hull (catches the far eye of a 3/4 view whose ring touches
+    the head outline) → best PAIR by size similarity + horizontality; 1 eye = profile; 0 sclera = ink-eye
+    fallback (closed / squinted / `><`).
+  * mouth = the non-fill component inside the eroded head, below the eyes, nearest the anatomical expectation
+    (eyes_mid + 0.62·inter_ocular along the face's down axis) — not "union of all ink" (blush, hands, wrinkles).
+```
+</details>
+
+| function / class | what |
+|---|---|
+| `fill_mask(img_bgr, fill, tol)` | uint8 0/1 mask of the character fill colour. None → 'white' (low saturation, high value; beige bg excluded). |
+| `kernel(k)` | odd elliptical structuring element of size ≈ k. |
+| `find_heads(img_bgr, fill, hint, min_area_frac, max_candidates, _cc)` | Ranked head candidates [{score, label, bbox, hull, circularity, ellipse, n_features, centroid, ...}]. |
+| `detect_face_anatomy(img_bgr, head_roi_y, head_roi_x, fill, hint)` | Universal head / eye-pair / mouth landmarks (front, 3/4, profile, tilted, closed eyes). Zero manual ROI needed. |
+| `anatomy_summary(info)` | JSON-safe subset of a detect_face_anatomy() result. |
+| `debug_anatomy_image(img_bgr, head_roi_y, head_roi_x, fill)` | Draws head box, eyes, eye-bottom ruler, mouth box + crosshair and a view/confidence label. |
+
+### `mograph.motion.layered_lipsync.cli`  (sdk/mograph/motion/layered_lipsync/cli.py)
+CLI for the layered lip-sync engine:  python3 -m mograph.motion layered-lipsync <sub> …
+
+<details><summary>details</summary>
+
+```
+detect <img> [-o dbg.jpg]                 head / eye-pair / mouth landmarks (JSON + debug image)
+  sheet <pose> [--visemes grid] [-o s.jpg]  all 10 Preston Blair mouths on a pose — LOOK before rendering
+  render --bg B --poses P --audio A [--fg F] [--words w.json] [--visemes grid] [-o out.mp4]
+  video <in.mp4> [--words w.json] [-o out]  lip-sync a character that moves (per-frame tracking + EMA)
+  enhance-hd <img|mp4> [--size WxH] [-o o]  Full-HD ink-black / studio-white remaster
+  contact <mp4> [-n 8] [-o sheet.jpg]       contact sheet for visual QC
+
+Exit codes: 0 ok · 1 usage error · 2 rendered but QA reported failures (check the report JSON).
+```
+</details>
+
+| function / class | what |
+|---|---|
+| `main(rest)` |  |
+
+### `mograph.motion.layered_lipsync.compat`  (sdk/mograph/motion/layered_lipsync/compat.py)
+v29.2 API compatibility layer — every public function of the old single-file `layered_lipsync.py` keeps its name
+
+<details><summary>details</summary>
+
+```
+and signature, implemented on top of the v29.3 package (so old scripts / agent prompts keep working).
+```
+</details>
+
+| function / class | what |
+|---|---|
+| `qa_mouth_placement(anatomy, dst_x0, dst_y0, sw_s, sh_s)` | v29.2 box-based QA: box below the eyes, centre above the chin, eye-mask overlap count. |
+| `extract_viseme_grid_sprites(grid_bgr, rows, cols)` | v29.2: list of {index, bgr, mask, inter_ocular, eye_angle_deg, mouth_center} (one per usable cell). |
+| `extract_stickman_rgba(img_bgr)` | v29.2: (bgr, alpha) of the character on flat paper. |
+| `extract_fg_desk_rgba(fg_bgr)` | v29.2: (bgr, alpha) of the foreground props. |
+| `place_viseme_on_pose(clean_pose_bgr, pose_anatomy, viseme_sprite, scale_mult)` | v29.2: place a sprite from extract_viseme_grid_sprites(). |
+| `slice_poses_sheet(poses_bgr, num_poses, target_wh)` | v29.2: split a horizontal pose sheet, centre-crop each panel to the target aspect and resize. |
+| `prepare_aligned_clean_poses(pose_panels, ref_pose_bgr, head_roi_y, head_roi_x)` | v29.2: (clean_poses, pose_infos, pose_alphas) registered on the reference eye midpoint / ruler. |
+| `render_layered_lipsync(bg_path, poses_path, visemes_path, fg_path, audio_path, out_mp4, …)` | v29.2 signature → v29.3 render(): 3-panel pose sheet + 4×4 viseme grid (integer mouth_timeline = cell ids). |
+
+### `mograph.motion.layered_lipsync.layers`  (sdk/mograph/motion/layered_lipsync/layers.py)
+Layer extraction for the 3-layer compositor (plates drawn on a flat paper colour with ink outlines).
+
+<details><summary>details</summary>
+
+```
+* paper_color(img)            dominant border colour (the flat beige / paper of the plate)
+  * character_alpha(img)        everything that is NOT paper-coloured open space → the character silhouette;
+                                enclosed paper holes (between arm and torso, between legs) are transparent too.
+  * props_alpha(img)            foreground props (desk, lamp, book…): paper regions connected to the TOP edge (wall)
+                                or BOTTOM edge (floor / under-desk gap) are transparent, everything else is a prop —
+                                no hard-coded seed points (v29.2 used 9 fixed seeds tuned to one desk drawing).
+  * occlusion_line(img, alpha)  y of the dominant prop surface (longest near-horizontal ink edge on the prop) —
+                                the character is IN FRONT of props above it (hands raised over the desk) and BEHIND
+                                them below it (legs under the desk). Replaces the v29.2 constants 0.631·H / 0.278·W.
+  * split_pose_sheet(img)       auto-detects panel count on a horizontal turnaround / pose sheet (paper gutters).
+```
+</details>
+
+| function / class | what |
+|---|---|
+| `paper_color(img_bgr, border)` | median colour of the outer border band (robust to a few ink lines touching the edge). |
+| `paper_mask(img_bgr, paper, tol)` | uint8 0/1 — pixels within `tol` (CIE-Lab ΔE) of the paper colour. |
+| `character_alpha(img_bgr, paper, min_hole_frac, keep, feather)` | float32 0..1 alpha of the character drawn on flat paper. keep='largest' / 'all' (multiple characters). |
+| `props_alpha(img_bgr, paper, ink_v, feather)` | float32 alpha of foreground props: paper regions reachable from the top / bottom edge are see-through. |
+| `occlusion_line(img_bgr, alpha, min_span)` | y of the dominant prop TOP surface (≥ min_span·W long near-horizontal ink run on the prop), else None. |
+| `split_pose_sheet(sheet_bgr, num_poses, min_gutter, max_poses)` | split a horizontal pose sheet at paper gutters (columns with no ink). num_poses='auto' → detect. |
+| `fit_panel(panel_bgr, wh, paper, anchor)` | letterbox a pose panel into wh on its own paper colour (keeps the whole character — no cover crop). |
+| `load_layer(path, wh, kind)` | load + cover-fit a plate. kind: 'bg' (opaque) / 'fg' (props alpha) / 'char' (character alpha). |
+
+### `mograph.motion.layered_lipsync.media`  (sdk/mograph/motion/layered_lipsync/media.py)
+Media I/O for the layered lip-sync engine: image loading (RGBA aware), registered cover-fit, audio decode, and a
+
+<details><summary>details</summary>
+
+```
+single-pass ffmpeg writer (raw BGR frames piped straight into libx264 + AAC mux — no lossy mp4v intermediate).
+
+API: load_image(path) → (bgr, alpha|None) · cover_fit(img, (w, h)) · read_audio_mono(path, sr) · has_audio(path) ·
+     FFmpegWriter(out, (w, h), fps, audio=None, crf=18)  (context manager, .write(bgr))
+```
+</details>
+
+| function / class | what |
+|---|---|
+| `require_ffmpeg()` | raise a clear error if ffmpeg / ffprobe are missing. |
+| `load_image(path)` | → (bgr uint8, alpha float32 0..1 or None). Raises FileNotFoundError with the path (cv2.imread returns None). |
+| `cover_params(src_wh, dst_wh)` | scale + crop offsets that make src COVER dst (centre crop). Same params for every layer = registration. |
+| `cover_fit(img, dst_wh, interp)` | resize to cover dst_wh (aspect preserved) then centre-crop. Works for uint8 images and float masks. |
+| `read_audio_mono(path, sr)` | decode any audio / video file to mono float32 at `sr`. Raises on missing file / no audio stream. |
+| `has_audio(path)` | True if the file has at least one audio stream. |
+| `video_info(path)` | {fps, frames, w, h} via OpenCV (raises if unreadable). |
+| `FFmpegWriter` | Pipe BGR frames into ffmpeg → H.264 (yuv420p, +faststart) with optional audio mux in the same pass. |
+
+### `mograph.motion.layered_lipsync.mouths`  (sdk/mograph/motion/layered_lipsync/mouths.py)
+Mouth sources + placement for the layered lip-sync engine.
+
+<details><summary>details</summary>
+
+```
+Two interchangeable sources, both keyed by the Preston Blair visemes of `mograph.motion.lipsync`
+(rest MBP etc E AI O U FV L WQ):
+  * GridMouths(grid_img, rows, cols)   cut real drawn mouths from an R×C viseme sheet (each cell = the character's
+                                       head with one mouth). Each sprite is AUTO-ASSIGNED to a viseme by its measured
+                                       geometry (width / opening relative to the inter-ocular ruler) — no hand-made
+                                       index table (v29.2 hard-coded cells 0/2/4/10/5 for 5 loudness bands).
+  * VectorMouths(style)                procedural, resolution-independent mouths drawn with OpenCV at 4× supersampling
+                                       from `lipsync.MOUTHS` geometry; they BLEND between shapes (shape_at), stroke
+                                       width follows the character's measured line weight.
+```
+</details>
+
+| function / class | what |
+|---|---|
+| `draw_vector_mouth(g, width_px, stroke_px, style, face_color, ss)` | render one mouth (geometry g from lipsync.MOUTHS / shape_at) → {bgr, alpha, anchor} (anchor = lip line centre). |
+| `VectorMouths` | procedural mouth source. get(geom, anatomy) → sprite sized for that pose (cached by quantised geometry). |
+| `GridMouths` | real drawn mouths cut from a viseme sheet; sprites auto-assigned to Preston Blair visemes by geometry. |
+| `place_mouth(frame_bgr, anatomy, sprite, scale_mult, in_place)` | composite a mouth sprite on an (erased) pose at anatomy['mouth_center'] → (frame, qa). |
+| `erase_base_mouth(img_bgr, anatomy)` | paint the drawn mouth away with the face colour (eyes protected), feathered so no ghost line remains. |
+
+### `mograph.motion.layered_lipsync.remaster`  (sdk/mograph/motion/layered_lipsync/remaster.py)
+Full-HD ink-black / studio-white line-art remaster for flat 2D cartoon art (stills and videos).
+
+<details><summary>details</summary>
+
+```
+Lanczos-4 cover-fit → bilateral de-blocking → fine unsharp → INK S-curve on the HSV *value* channel (so dark
+  brown / grey lines go to #0A0A0C but saturated bright colours — pink tongue, orange props — are untouched;
+  v29.2 used luma, which partially blackened tongues) → low-saturation off-white fills pushed to studio white.
+
+API: enhance_lineart_hd(img, target_wh=None, ...) → bgr · enhance_video_hd(in_mp4, out_mp4, target_wh) → report
+```
+</details>
+
+| function / class | what |
+|---|---|
+| `enhance_lineart_hd(img_bgr, target_wh, ink_gamma, ink_dark_cutoff, whiten_character, sharpen, …)` | Remaster blurry / compressed line art: optional cover-fit to target_wh, de-block, sharpen, ink-black lines, |
+| `enhance_video_hd(in_mp4, out_mp4, target_wh, ink_gamma, crf)` | Remaster every frame of a video to target_wh (audio stream copied/encoded in the same ffmpeg pass). |
+
+### `mograph.motion.layered_lipsync.render`  (sdk/mograph/motion/layered_lipsync/render.py)
+3-layer dual-track lip-sync renderer (still plates) + in-place lip-sync for continuous character video.
+
+<details><summary>details</summary>
+
+```
+render(...)  Layer 0 background → Layer 1 character (BODY track: pose per frame · MOUTH track: viseme per frame ·
+             auto blinks) → Layer 2 foreground props (auto occlusion line: hands above the desk top are in front,
+             legs below it are behind).  Everything is rendered NATIVELY at the output size (plates are cover-fit and
+             remastered ONCE, not every frame) and piped straight into libx264 + AAC (no mp4v round trip).
+
+Mouth track drivers (first available wins):
+  1. mouth_timeline   explicit per-frame list (viseme names, or grid-cell indices — v29.2 compatible)
+  2. words            words.json / list → mograph.motion.lipsync.track (Persian + English G2P, Preston Blair,
+                      closures ≥ 2 frames, anticipation lead) — shapes BLEND between keys (vector mouths)
+  3. audio only       audio_viseme_track(): loudness → jaw opening, spectral centroid → round (O/U) vs spread (E)
+```
+</details>
+
+| function / class | what |
+|---|---|
+| `audio_viseme_track(audio, fps, sr, min_hold)` | audio-only mouth keys [{t, v, open}] — loudness → opening, spectral centroid → round vs spread. |
+| `speech_mask_from_keys(keys, n, fps)` |  |
+| `auto_body_timeline(n_poses, speech, fps, lead_s, tail_s, trans_frames)` | rest (0) in silence → transition poses (1..n-2, each `trans_frames`) → gesture (n-1) while talking → back. |
+| `blink_schedule(n, fps, seed, every, dur_s, start_s)` | per-frame lid closure 0..1 (deterministic for a seed). |
+| `apply_blink(frame, info, c)` | close the sclera eyes by `c` (0..1) in place: face colour from the top + an ink lid edge. |
+| `render(bg, poses, audio, out, fg, words, …)` | render a 3-layer lip-synced MP4. Returns a JSON-safe report (also written to `<out>.report.json`). |
+| `render_video_lipsync(video, out, audio, words, mouth_style, smooth, …)` | lip-sync a character that MOVES (continuous body video): per-frame detection with temporal hint + EMA. |
+| `viseme_sheet(pose, out, visemes, grid, remaster)` | all 10 Preston Blair mouths on one pose (head crops in a 5×2 grid) — LOOK before rendering. |
+| `contact_sheet(mp4, out, n, cols, tile_w)` | n evenly spaced frames of a video tiled into one JPG (frame index stamped). |
 
 
 ## tools/ — shell & maintenance scripts
@@ -2608,6 +3290,8 @@ Only numbers and our own renders are kept; the vendor preview is read, never cop
 
 - `tools/push_backup.sh` — 
 - `tools/render_chunks.sh` — Resumable chunked render:  bash render_chunks.sh <spec.json> [chunk_seconds] Each chunk → out/chunks/cNN.mp4 (skipped if it exists), then concat + audio → out/<name>.mp4
+- `tools/restore_human.sh` — One-shot environment restore for mograph.human (v25) after a sandbox reset (~40 s): pip moderngl + pycairo, libEGL (headless GL), MakeHuman CC0 assets → ~/.cache/mograph_models/human
+- `tools/restore_vecanim.sh` — v27 vecanim: restore after a sandbox reset (~15 s). pycairo only; mediapipe is OPTIONAL (needs ~600 MB RAM; the 1 GB sandbox froze running it next to other work).
 - `tools/setup_env.sh` — One-shot environment restore for mograph v14 (run after ANY sandbox reset): bash /home/user/webapp/sdk/tools/setup_env.sh
 
 ## models / binaries / assets

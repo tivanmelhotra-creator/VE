@@ -132,3 +132,40 @@
   transitions, caption files, EDL, reformat, parallel render, spec linter, 1-command restore → all in mograph/pro.
 - Lesson: background processes started in a Bash call can die when the call returns → use `setsid nohup …`.
 - Lesson: the sandbox reset twice in this session → commit after EVERY file, never batch.
+
+
+## 2026-10-29 — v29.1 Anatomical 2D Layered Lip-Sync (`motion/layered_lipsync.py`)
+- Trigger: In 3-layer dual-track 2D lip-sync (`lipsync_3layer_dual_track.mp4`), naive head-bounding-box warping (`B > 185` convex hull) merged the white shirt collar at the bottom of the 16-viseme grid cells with the white head circle, shifting the mouth coordinate system upward by ~55 px so the pasted mouth landed between the two eyes while the base pose's static closed mouth line remained un-erased on the chin.
+- Root cause: Using whole-cell white bounding boxes without separating the closed skull contour from the neck/collar and without using the two circular eyes as an invariant anatomical ruler.
+- Fix: Added `sdk/mograph/motion/layered_lipsync.py` (and CLI `python3 -m mograph.motion layered-lipsync detect|render`):
+  1. `detect_face_anatomy`: isolates the closed white skull interior via 4-connected components + external contour fill, detects the two circular Eye Contours in the upper/middle head band (`0.18 <= rel_y <= 0.74`) to establish `eyes_mid`, `eyes_bottom_y`, and `inter_ocular` distance, and locates the exact `mouth_box` / `mouth_center` strictly below `eyes_bottom_y + 2` and inside the eroded inner head mask.
+  2. `erase_base_mouth`: automatically erases the static base mouth line using median forehead skin color while protecting the eyes and any overlapping raised hand/fingers.
+  3. `extract_viseme_grid_sprites` & `place_viseme_on_pose`: extracts pure mouth sprites from an R×C viseme sheet, scales by `pose_inter_ocular / cell_inter_ocular`, anchors directly on the pose's anatomical `mouth_center`, and validates every frame with `qa_mouth_placement` (`eye_overlap == 0`, `below_eyes == True`, `above_chin == True`).
+- Verified: `python3 -m mograph.motion selftest` `11/11 pass`, 16-viseme sheet `anatomical_16viseme_pose2_verify.jpg`, 4-frame strip `fixed_video_4frames_strip.jpg`, and full render `lipsync_3layer_dual_track_fixed.mp4` (`qa_clean: true, qa_failures: 0`).
+- Lesson / rule for next agents: Never warp 2D facial features by outer head+neck bounding boxes; always anchor on the detected eye-pair ruler (`eyes_mid`, `inter_ocular`, `eyes_bottom_y`) and erase the base mouth before compositing viseme sprites.
+
+## 2026-10-29 — v29.3 Layered lip-sync hardening (`motion/layered_lipsync/` package)
+- Trigger: audit of the v29.2 patch on the real plates (seated pose, desk, turnaround sheet, scream panel).
+- Failures found in v29.2 and their fixes:
+  1. Scream / open-mouth panel: raw-contour circularity of the head = 0.15 (eyes + mouth notch the contour) → the
+     detector picked the TROUSERS as the head. Fix: score the CONVEX HULL (circularity^6 · ellipse · eye-hole bonus).
+  2. 3/4 turnaround: the far eye touches the head outline → not inside the head mask → classified as "profile".
+     Fix: eyes = fill blobs inside the DILATED hull, best size-similar horizontal PAIR.
+  3. Desk occlusion used hard-coded constants (`0.631·H`, `0.278·W`) and 9 fixed flood-fill seeds tuned to one
+     drawing. Fix: props alpha = paper reachable from top/bottom edge; occlusion line = longest horizontal prop edge.
+  4. Mouth driver = 5 RMS bands mapped to hard-coded grid cells 0/2/4/10/5; `lipsync.track` was never connected.
+     Fix: `--words` → Preston Blair via `lipsync.track` (blended shapes) or audio loudness + spectral centroid;
+     grid cells auto-mapped to visemes by measured geometry.
+  5. Rendered at 720p then upscaled + remastered EVERY frame, written via lossy mp4v then re-encoded.
+     Fix: plates remastered once at native 1080×1920, per-pose composite cache, raw frames piped to libx264+AAC.
+  6. Ink curve on luma blackened saturated colours (pink tongue). Fix: curve on HSV value, saturated colours kept.
+  7. `cv2.imread` → None crashed deep inside; missing ffmpeg / audio gave opaque errors. Fix: explicit errors.
+  8. The v29.2 self-test only exercised synthetic circles. Fix: 2 new tests (6 head variants incl. torso + scream +
+     tilt + closed eyes, erase, all-viseme QA, remaster colour safety, end-to-end render with props + audio).
+- Added: blinks, auto body track (rest → transition → gesture → back), moving-character `video` mode (temporal
+  hint + EMA), `sheet` (all 10 mouths on a pose), `contact`, `<out>.report.json`, exit code 2 on QA failure.
+- Verified: `python3 -m mograph.motion selftest` 12/12; real render 1080×1920, 109 frames, words driver, qa_clean,
+  occlusion found automatically (hands over desk, legs behind); video mode 108/108 frames tracked, 0 misses.
+- Lessons: (a) score shapes by their convex hull when interior features cut the outline; (b) never hard-code
+  scene coordinates — detect them and print them in the report so a human can override; (c) the sandbox reset
+  twice during this session — commit + push after every module.
