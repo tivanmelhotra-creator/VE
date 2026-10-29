@@ -91,8 +91,37 @@ python3 -m mograph.motion lipsync g2v مقاله سلام hello
 python3 -m mograph.motion lipsync track ../projects/maghale/words.json --audio ../work/input/raw.mp4 -o vis.json
 ```
 
+## 5b. Layered 2D lip-sync — `motion/layered_lipsync/` (v29.3)
+Flat cartoon plates (paper colour + ink outlines): **bg** → **character** (body track × mouth track × blinks) →
+**fg props** (desk…). Zero manual coordinates: head / eyes / mouth / props / occlusion line are all detected.
+
+| step | what it does | module |
+|---|---|---|
+| detect | head = best convex-hull circle with eye holes (never the torso, even when the mouth is screaming); eye PAIR → `eyes_mid`, `inter_ocular`, `eye_angle_deg`; view `front / three_quarter_* / profile_*`; closed-eye fallback; stroke width measured | `anatomy.py` |
+| layers | paper colour → character alpha; props alpha (paper reachable from top/bottom edge = see-through); **occlusion line** = desk top: char in FRONT above it, BEHIND below | `layers.py` |
+| mouths | `VectorMouths` (procedural, blends between visemes, line weight = character stroke) or `GridMouths` (drawn sheet, cells **auto-mapped** to visemes by geometry; override `--viseme-map`) | `mouths.py` |
+| drive | `--words words.json` → `lipsync.track` (Persian/English G2P) · audio only → loudness + spectral centroid (round O/U vs spread E), short gaps → MBP, closures ≥ 2 frames | `render.py` |
+| body | auto: rest pose in silence → transition poses (2 frames each) → gesture pose while talking → back; or `--body` | `render.py` |
+| output | native 1080×1920, plates remastered ONCE, raw frames piped to libx264+AAC, `<out>.report.json` (QA per frame), optional contact sheet | `render.py` `media.py` |
+
+```bash
+python3 -m mograph.motion layered-lipsync detect pose.png -o dbg.jpg            # LOOK: boxes on head / eyes / mouth
+python3 -m mograph.motion layered-lipsync sheet pose.png -o mouths.jpg          # LOOK: all 10 mouths on this pose
+python3 -m mograph.motion layered-lipsync render --bg bg.png --poses pose.png --fg desk.png \
+        --audio voice.wav --words words.json --contact qc.jpg -o out.mp4        # exit 2 = QA failures → read report
+python3 -m mograph.motion layered-lipsync render ... --poses rest.png,raise.png,gesture.png   # body track
+python3 -m mograph.motion layered-lipsync render ... --poses sheet.png --sheet auto            # pose sheet
+python3 -m mograph.motion layered-lipsync render ... --visemes grid.png --grid 4x4             # drawn mouths
+python3 -m mograph.motion layered-lipsync video moving_char.mp4 --words words.json -o out.mp4  # character moves
+python3 -m mograph.motion layered-lipsync enhance-hd old_720p.mp4 -o hd.mp4                    # remaster only
+```
+Rules: always `detect` + `sheet` and LOOK before a long render · prefer `--words` over audio-only (real phonemes)
+· if `occlusion_y` in the report is wrong use `--occlusion <y>` / `front` / `behind` · v29.2 names
+(`render_layered_lipsync`, `place_viseme_on_pose`, …) still work via `layered_lipsync/compat.py`.
+
 ## 6. Files
 `motion/{glossary.py,glossary.yaml,glossary.json,easing.py,retime.py,saber.py,character.py,lipsync.py,bridge.py,selftest.py,__main__.py}`
+`motion/layered_lipsync/{anatomy,layers,mouths,render,remaster,media,compat,cli}.py`
 Hooks: `v14/compositor.py` (retime timeline + in-betweens), `v14/audio.py` (voice remap + retime sfx),
 `v14/layers.py` (DRAW saber/character/mouth), `aefx/bridge.py` (fx item `saber`), `core.get_ease`, `scene.py`.
 No new binaries, no new pip deps (numpy/cv2/cairo/scipy already required) → repo size +≈0.2 MB.

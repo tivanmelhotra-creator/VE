@@ -38,7 +38,7 @@
 | **Halo text** | `v14/layers._halo_text` | text INSIDE the bright disc: `text_mode` center (stacked lockup) / arc (bent along the edge) / auto; optional `arc_text` line on the top edge; ≤ 35 % behind the head; first hero glyph peeks in front | `text_mode`, `arc_text`, `arc_r`, `max_hidden`, `peek_glyphs` |
 | **Layout guard** | `v14/stage.guard` | no element over the face; safe frame | `"guard": false / "down" / "up" / "side"` |
 | **Stage light** | `v14/stage.draw_stage` | scrim + world-locked grid + coloured light behind elements (colour = hero word) | `"stage": false / {...}` |
-| **Layered 2D Lip-Sync** | `motion/layered_lipsync.py` | topological eye-pair & mouth-contour detector (`detect_face_anatomy`), auto base-mouth erasure (`erase_base_mouth`), 16-viseme grid extractor (`extract_viseme_grid_sprites`), 3-layer Z-depth + dual-track renderer (`render_layered_lipsync`), and `qa_mouth_placement` guard | CLI `python3 -m mograph.motion layered-lipsync detect/render` |
+| **Layered 2D Lip-Sync** | `motion/layered_lipsync/` (v29.3) | flat-cartoon lip-sync with zero manual coordinates: convex-hull head + eye-pair + mouth detector (front / 3/4 / profile / tilt / closed eyes), bg → character → props with auto occlusion line, vector or drawn-grid mouths (auto viseme mapping), words.json or audio-only driver, auto body track, blinks, moving-character video mode, native 1080×1920 + QA report | CLI `python3 -m mograph.motion layered-lipsync detect/sheet/render/video/enhance-hd/contact` · guide MOTION_GUIDE §5b |
 | **Subtitles** | `v14/subs.py` | phrase grouping + smart merge of < 0.45 s phrases, jelly capsule, karaoke | `subtitles.max_words`, `hide`, `emph` |
 
 ## 3. Visual building blocks (layers) — see V14_GUIDE.md §3 for params
