@@ -38,6 +38,7 @@ class PlateRig:
     style: ToonStyle
     eyes: list = field(default_factory=list)       # [(x, y, w, h, cx, cy)]
     info: dict = field(default_factory=dict)
+    occluder: np.ndarray = None       # bool, plate pixels (hair curls) that stay IN FRONT of the drawn face
 
 
 def _white(img: np.ndarray) -> np.ndarray:
@@ -161,18 +162,46 @@ def analyze(img: np.ndarray, style: ToonStyle | None = None, search_box=None, me
     nd, ld = cv2.connectedComponents(dark & zone, connectivity=8)
     touch = np.unique(ld[(eye_ring > 0) & (ld > 0)])
     rem = np.isin(ld, touch[touch > 0]) & ~erase
-    # never touch the face contour itself: protect a band around the face boundary
-    th = max(2, int(round(_contour_thickness(gray, fill.astype(np.uint8)))))
-    edge = cv2.morphologyEx(fill.astype(np.uint8), cv2.MORPH_GRADIENT, np.ones((3, 3), np.uint8))
-    band = cv2.dilate(edge, np.ones((2 * th + 3, 2 * th + 3), np.uint8)) > 0
+    # protect ONLY the real face outline (band around the convex hull), not the skin-mask border:
+    # lash bands / far-eye outlines merged with the skin border are features and must go
+    th = max(2, int(round(_contour_thickness(gray, hull))))
+    hedge = cv2.morphologyEx(hull, cv2.MORPH_GRADIENT, np.ones((3, 3), np.uint8))
+    band = cv2.dilate(hedge, np.ones((2 * th + 1, 2 * th + 1), np.uint8)) > 0
+    eye_big = cv2.dilate(eye_m, np.ones((7, 7), np.uint8)) > 0
+    rem |= eye_big & ~erase
     rem &= ~band
     if rem.any():
-        rem_d = cv2.dilate(rem.astype(np.uint8), np.ones((3, 3), np.uint8)) & (~band).astype(np.uint8)
-        inside = (rem_d > 0) & fill
+        rem_d = (cv2.dilate(rem.astype(np.uint8), np.ones((3, 3), np.uint8)) > 0) & ~band
+        inside = rem_d & (hull > 0)
         clean[inside] = skin.astype(np.uint8)
-        outside = ((rem_d > 0) & ~fill).astype(np.uint8)
+        outside = (rem_d & ~(hull > 0)).astype(np.uint8)
         if outside.any():
-            clean = cv2.inpaint(clean, outside, 4, cv2.INPAINT_TELEA)
+            clean = cv2.inpaint(clean, cv2.dilate(outside, np.ones((3, 3), np.uint8)), 5, cv2.INPAINT_TELEA)
+    # whatever ink of an eye survived ON the outline band is repainted as a clean outline
+    band_eye = band & (cv2.dilate(rem.astype(np.uint8), np.ones((2 * th + 3, 2 * th + 3), np.uint8)) > 0)
+    if band_eye.any():
+        ink_bgr = np.median(img[(gray < 70) & band], axis=0) if ((gray < 70) & band).any() else np.array([20, 30, 55])
+        tmp = clean.copy()
+        tmp[band_eye] = skin.astype(np.uint8)
+        hp = hull_pts.reshape(-1, 1, 2)
+        cv2.polylines(tmp, [hp], True, [int(v) for v in ink_bgr], th, cv2.LINE_AA)
+        clean[band_eye] = tmp[band_eye]
+    fill = (fill | (hull > 0)).astype(bool)
+    # hair occluder: hair-coloured pixels (and their ink) inside the face hull, above the eyes
+    hair_col = None
+    top_band = sm[max(0, int(np.where(hull > 0)[0].min()) - 8):int(np.where(hull > 0)[0].min()) + 2]
+    hb = top_band.reshape(-1, 3).astype(float)
+    hb = hb[(np.linalg.norm(hb - skin, axis=1) > 12) & (hb.mean(1) > 170)]
+    occ = np.zeros((H, W), bool)
+    if len(hb) > 10:
+        hair_col = np.median(hb, axis=0)
+        hd = np.linalg.norm(sm.astype(np.float32) - hair_col[None, None].astype(np.float32), axis=2) < 20
+        eye_top = min(e[1] for e in eyes)
+        ycut = np.zeros((H, W), bool)
+        ycut[:int(eye_top), :] = True
+        occ = hd & (hull > 0) & ycut & ~face_skin
+        occ = cv2.dilate(occ.astype(np.uint8), np.ones((2 * th + 1, 2 * th + 1), np.uint8)) > 0
+        occ &= ~face_skin & ycut
     # ---- 5. head sphere
     cnt = hull_pts.reshape(-1, 2)
     ccs, _ = cv2.findContours(fill.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
@@ -197,7 +226,8 @@ def analyze(img: np.ndarray, style: ToonStyle | None = None, search_box=None, me
     if measure_style:
         st_out = _measure(img, gray, st0, eyes, holes, fill, skin, cx, cy, R, yaw, eye_u, eye_v, info)
     head = HeadFrame(cx, cy, R, yaw=yaw, roll=roll, depth=st_out.face_depth, cheat=st_out.cheat)
-    return PlateRig(clean=clean, fill=fill.astype(np.uint8), head=head, style=st_out, eyes=eyes, info=info)
+    return PlateRig(clean=clean, fill=fill.astype(np.uint8), head=head, style=st_out, eyes=eyes, info=info,
+                    occluder=occ)
 
 
 def _contour_thickness(gray, hull) -> float:
@@ -278,4 +308,5 @@ def mirror(rig: PlateRig) -> PlateRig:
     eyes = sorted([(W - e[0] - e[2], e[1], e[2], e[3], W - 1 - e[4], e[5]) for e in rig.eyes], key=lambda e: e[4])
     return PlateRig(clean=rig.clean[:, ::-1].copy(), fill=rig.fill[:, ::-1].copy(),
                     head=h.replace(cx=W - 1 - h.cx, yaw=-h.yaw, roll=-h.roll),
-                    style=rig.style.copy(nose_dir=-rig.style.nose_dir), eyes=eyes, info=dict(rig.info, mirrored=True))
+                    style=rig.style.copy(nose_dir=-rig.style.nose_dir), eyes=eyes, info=dict(rig.info, mirrored=True),
+                    occluder=None if rig.occluder is None else rig.occluder[:, ::-1].copy())
