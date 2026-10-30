@@ -180,8 +180,8 @@ def comparison_sheet(stills, refs, out, ref_labels=None):
         cv2.rectangle(img, (0, 0), (img.shape[1], 44), (20, 20, 20), -1)
         cv2.putText(img, s, (12, 31), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 255, 255), 2, cv2.LINE_AA)
         return img
-    ours = [lab(o, n) for o, n in zip(ours, ["v31.2: 'bebin' (brow jump)", "v31.2: sigh / eye-roll (worry)",
-                                             "v31.2: 'asla' (anger V)", "v31.2: 'nadaram'"])]
+    ours = [lab(o, n) for o, n in zip(ours, ["v31.3: 'bebin' (brow jump)", "v31.3: sigh / eye-roll (worry)",
+                                             "v31.3: 'asla' (anger V)", "v31.3: 'nadaram'"])]
     rows = [np.hstack(ours)]
     if rr:
         rr = [lab(r, n) for r, n in zip(rr, ref_labels or ["ref"] * len(rr))]
@@ -204,8 +204,11 @@ def main():
     a = ap.parse_args()
     stills = render(a.audio, a.out, a.character, a.yaw)
     if a.sheet:
-        refs = [cv2.imread(p) for p in a.refs]
-        comparison_sheet(stills, refs, a.sheet)
+        ref_paths = a.refs or [os.path.join(FIX, f"refs/ref_{i}.jpg") for i in (1, 2, 3, 4)
+                               if os.path.exists(os.path.join(FIX, f"refs/ref_{i}.jpg"))]
+        refs = [cv2.imread(p) for p in ref_paths if os.path.exists(p)]
+        ref_labels = ["ref: khab 14.0s", "ref: khab 18.5s", "ref: roshanfekr 15.0s", "ref: roshanfekr 17.0s"]
+        comparison_sheet(stills, refs, a.sheet, ref_labels=ref_labels)
         print("[gate] sheet", a.sheet)
 
 

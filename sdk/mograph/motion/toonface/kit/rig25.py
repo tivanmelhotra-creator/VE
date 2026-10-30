@@ -1,18 +1,15 @@
 """
-toonface.kit.rig25 — v31.2 multi-view hand-authored kit (front 0° ↔ 3/4 ±25°) with FIXED topology + renderer v2.
+toonface.kit.rig25 — v31.3 multi-view hand-authored kit (front 0° ↔ 3/4 ±25°) with FIXED topology + renderer v3.
 
-Topology (identical in every view key → continuous morph, CANDIDE-style fixed point count):
-    eye outline 32 pts (canonical start = leftmost point, positive orientation) · brow centre line 7 pts (outer→inner)
-    nose 7 pts · mouth = 3 anchors (left corner, lowest point, right corner) → quadratic neutral line
-Negative yaw = mirrored 3/4 key (labels L/R stay screen-left / screen-right).
-
-Face (all 0 = neutral):
-    lid_open (1 authored, 0 shut, >1 wide)   lid_tilt (+ inner corners down)   lower (lower-lid raise)
-    look (gx, gy) pupils only                pupil (scale, <1 surprise)
-    brow_up   (+1 ≈ a third of an eye height up, arc grows; -1 down)
-    brow_anger 0..1 (inner ends dive to the lid, V angle, outer tails flick up, thicker inner)
-    brow_worry 0..1 (inner ends up, outer down)   furrow 0..1   bags 0..1 (only for real exhaustion)
-    mouth dict (visemes params)
+Upgrades in v31.3:
+  1. Organic S-Curved / Arched Angry & Surprised Eyebrows (`brow_line`):
+     * Preserves the natural curved camber of the character's eyebrow instead of flattening it into a rigid straight
+       line (`straight`), rotating and bending the arch organically into a fierce V-brow while tucking the far-eye
+       outer tail inward in 3/4 view so it never pokes past the temple hairline.
+  2. Hand-Crafted D-Bean / Kidney-Bean Open Mouths (`mouth_geom` & `draw_mouth`):
+     * Decouples the upper-lip baseline (`base_up`) from the lower-lip sag when the mouth opens (`o > 0.05`) so the
+       upper lip arches gracefully upward (`︵`) instead of sagging downward into the oral cavity, giving full,
+       appealing visibility to the curved white upper teeth ribbon and rounded corners.
 """
 from __future__ import annotations
 
@@ -81,7 +78,10 @@ def _mirror(va, W):
         out["eyes"][o] = dict(e, outline=canon_closed(mx(e["outline"])), pupil=mx(e["pupil"]), outer=-e["outer"])
         b = va["brows"][s]
         out["brows"][o] = dict(b, line=mx(b["line"]))
-    out["nose"] = mx(va["nose"])
+    ns_m = mx(va["nose"])
+    if abs(ns_m[-1, 0] - ns_m[0, 0]) > abs(ns_m[-1, 1] - ns_m[0, 1]) and ns_m[-1, 0] < ns_m[0, 0]:
+        ns_m = ns_m[::-1].copy()
+    out["nose"] = ns_m
     m = va["mouth"]
     out["mouth"] = {"left": mx(m["right"]), "right": mx(m["left"]), "low": mx(m["low"])}
     return out
@@ -115,7 +115,7 @@ class Kit:
         """continuous view.  |yaw| ≤ 25 interpolates front↔3/4; 25 < |yaw| ≤ 35 extrapolates the same (fixed-topology)
         deltas (max 1.4×).  Returns (view, t) with t ∈ [0, 1] the turn amount used for near-side styling."""
         tg = float(np.clip(abs(yaw) / YAW_KEY, 0.0, YAW_MAX / YAW_KEY))
-        if tg > 1.0:                                   # past the 3/4 key: features keep turning only a little
+        if tg > 1.0:
             tg = 1.0 + (tg - 1.0) / 0.4 * YAW_EXTRA
         v = _lerp(self.front, self.q if yaw >= 0 else self.qm, tg)
         if abs(pitch) > 0.01:
@@ -124,9 +124,9 @@ class Kit:
 
 
 YAW_MAX, PITCH_MAX = 35.0, 20.0
-YAW_EXTRA = 0.15          # feature extrapolation share at |yaw| = 35 (matches turn25.PLATE_EXTRA)
-PITCH_CY = 475.0          # head centre (plate px) — must match turn25.head_pitch (pivot.y − 260)
-PITCH_SHIFT = 60.0        # plate px · sin(pitch) — must match turn25.head_pitch
+YAW_EXTRA = 0.15
+PITCH_CY = 475.0
+PITCH_SHIFT = 60.0
 PITCH_SQUASH = 0.06
 
 
@@ -138,8 +138,6 @@ def pitch_map_y(y, pitch_deg, extra=0.0):
 
 
 def _pitch(v, pitch_deg):
-    """head pitch: features follow the plate's pitch map exactly (anchor lock) and, being on the front of the
-    head sphere, slide a little further (≤ 4 px at 20°); eyes foreshorten through the same squash."""
     def P(p, extra):
         q = np.array(p, float).copy()
         q[..., 1] = pitch_map_y(q[..., 1], pitch_deg, extra)
@@ -251,10 +249,8 @@ def draw_eye(ctx, e, st: Face, kit: Kit):
         ink.circle(ctx, cx - 0.36 * rx, cy - 0.42 * ry, 0.30 * min(rx, ry * 0.8), GLINT)
         ink.circle(ctx, cx + 0.30 * rx, cy + 0.40 * ry, 0.11 * rx, GLINT, alpha=0.85)
         ctx.restore()
-        # lower lid: thin, a touch heavier toward the outer corner
         lw = (0.55 + 0.35 * s_out ** 1.5) * sw * kit.d.get("lower_w", 1.0)
         ink.tapered(ctx, np.c_[xs, yb], INK, 1.0, widths=lw * (0.35 + 0.65 * np.sin(np.pi * s) ** 0.35))
-        # lower lashes (girl): two small strokes at the outer-lower corner, like the model sheet
         if kit.d.get("lower_lashes") and op > 0.3:
             for so, ln in ((0.80, 0.085), (0.92, 0.075)):
                 k = int(np.argmin(np.abs(s_out - so)))
@@ -289,15 +285,11 @@ def draw_eye(ctx, e, st: Face, kit: Kit):
             wedge = np.vstack([[[wx, wy]], lower_edge, upper_edge[::-1]])
         ink.fill(ctx, ink.catmull(wedge, per_seg=3, closed=True), INK)
     else:
-        # round "boy" eye: one continuous outline (no corner gaps); a lowered lid = skin cap + its own lid line
-        ring = np.vstack([np.c_[xs, ty], np.c_[xs[::-1], by[::-1]]])
-        u_any = float(np.max(yl - ty))
-        if u_any > 0.04 * hmax:
-            cap = np.vstack([np.c_[xs, ty - 0.6 * sw], np.c_[xs[::-1], yl[::-1]]])
-            ink.fill(ctx, cap, kit.skin)
-        ink.stroke(ctx, ring, INK, 0.95 * sw, closed=True)
-        if u_any > 0.04 * hmax:
-            ink.tapered(ctx, np.c_[xs, yl], INK, 1.0, widths=sw * (0.55 + 0.75 * np.sin(np.pi * s) ** 0.4))
+        # Clean posed eye outline (follows top_vis and yb directly — zero ghost outer ring when half-lidded or squinting!)
+        top_vis = np.minimum(yl, yb)
+        posed_ring = np.vstack([np.c_[xs, top_vis], np.c_[xs[::-1], yb[::-1]]])
+        ink.stroke(ctx, posed_ring, INK, 0.92 * sw, closed=True)
+        ink.tapered(ctx, np.c_[xs, top_vis], INK, 1.0, widths=sw * (0.65 + 0.70 * np.sin(np.pi * s) ** 0.45))
     if kit.d.get("lashes"):
         oy_off = 0.0 if closed else 0.6
         ox, oy = (xs[-1], yl[-1] - oy_off * th[-1]) if outer > 0 else (xs[0], yl[0] - oy_off * th[0])
@@ -313,28 +305,52 @@ def draw_eye(ctx, e, st: Face, kit: Kit):
 
 # ----------------------------------------------------------------------------------------------------------- brows
 def brow_line(b, e, st: Face):
+    """
+    v31.3 Organic Curved Brow Deformer:
+      * Keeps the natural hand-drawn arch camber of the brow instead of flattening it into a straight stick (`straight`).
+      * Scales vertical lift on foreshortened far eyes in 3/4 view (`far_k`) and tucks the outer tip inward so it
+        never pokes past the temple hairline.
+    """
     c = b["line"].copy()
     n = len(c)
     s = np.linspace(0, 1, n)                                   # 0 outer → 1 inner
     xs, ty, by, *_ = eye_geom(e, Face())
+    eye_w = float(xs[-1] - xs[0])
     eh = float(np.max(by - ty))
     L = float(np.hypot(*(c[-1] - c[0])))
     dirx = 1.0 if c[-1, 0] > c[0, 0] else -1.0                 # outer → inner direction on screen
-    up = st.brow_up * 0.34 * eh
-    c[:, 1] -= up * (0.85 + 0.35 * np.sin(np.pi * s))         # raising also lifts the arch
+
+    # Detect foreshortened far eye in 3/4 view (`eye_w < 110 px`) to prevent over-lifting or temple poke-out
+    far_k = float(np.clip((eye_w - 60.0) / 65.0, 0.68, 1.0))
+
+    # Extract original organic arch camber relative to the outer→inner chord
+    chord0 = c[0][None] + (c[-1] - c[0])[None] * s[:, None]
+    camber0 = c - chord0
+
+    up = st.brow_up * 0.30 * eh * far_k
+    c[:, 1] -= up * (0.78 + 0.28 * np.sin(np.pi * s))
+
     a = float(np.clip(st.brow_anger, 0, 1.2))
     if a > 0:
         lid_top_inner = float(np.interp(c[-1, 0], xs, ty))
         gap = max(0.0, lid_top_inner - c[-1, 1])
-        tin = c[-1] + np.array([dirx * 0.08 * L, 0.92 * gap])
-        tout = c[0] + np.array([-dirx * 0.03 * L, -0.20 * eh])
-        straight = tout[None] + (tin - tout)[None] * s[:, None]
-        straight[:, 1] -= 0.06 * eh * np.sin(np.pi * np.clip(s * 1.15, 0, 1))   # slight convex bulge
-        c = c * (1 - min(a, 1)) + straight * min(a, 1)
+        # Inner head dives toward the upper lid; outer tail lifts moderately while pulling inward on the far 3/4 side
+        in_pull_x = 0.07 * L if far_k > 0.85 else 0.03 * L
+        out_tuck_x = 0.02 * L if far_k > 0.85 else 0.14 * L
+        tin = c[-1] + np.array([dirx * in_pull_x, 0.86 * gap])
+        tout = c[0] + np.array([dirx * out_tuck_x, -0.15 * eh * far_k])
+        new_chord = tout[None] + (tin - tout)[None] * s[:, None]
+        # Preserve 55% of the natural hand-drawn camber + a muscular outer-third S-arch (zero straight-stick look!)
+        s_arch = -0.11 * eh * far_k * (np.sin(np.pi * (s ** 0.82)) ** 1.15)
+        posed = new_chord + 0.55 * camber0
+        posed[:, 1] += s_arch
+        k_a = min(a, 1.0)
+        c = c * (1.0 - k_a) + posed * k_a
+
     w = float(np.clip(st.brow_worry, 0, 1))
     if w > 0:
-        c[:, 1] -= w * 0.26 * eh * s ** 1.6
-        c[:, 1] += w * 0.08 * eh * (1 - s) ** 1.5
+        c[:, 1] -= w * 0.25 * eh * far_k * (s ** 1.5)
+        c[:, 1] += w * 0.08 * eh * ((1 - s) ** 1.4)
         c[-1, 0] -= dirx * w * 0.04 * L
     return c, a
 
@@ -344,8 +360,9 @@ def draw_brow(ctx, b, e, st: Face, kit: Kit):
     c, a = brow_line(b, e, st)
     cc = ink.catmull(c, per_seg=10)
     t = np.linspace(0, 1, len(cc))
-    w = b["th"] * (0.16 + 0.84 * np.sin(np.pi * np.clip(t * 0.9 + 0.06, 0, 1)) ** 0.7)
-    w *= 1.0 + (0.10 + 0.30 * a) * (t - 0.45)
+    # Plump, soft-tapered cream-blonde brow body (fuller inner head when angry, graceful outer taper)
+    w = b["th"] * (0.20 + 0.84 * np.sin(np.pi * np.clip(t * 0.88 + 0.07, 0, 1)) ** 0.65)
+    w *= 1.0 + (0.12 + 0.26 * a) * (t - 0.42)
     g = np.gradient(cc, axis=0)
     g /= np.maximum(np.hypot(g[:, 0], g[:, 1]), 1e-9)[:, None]
     nrm = np.c_[-g[:, 1], g[:, 0]]
@@ -363,9 +380,9 @@ def draw_furrow(ctx, inner_l, inner_r, eh, amt, kit: Kit):
     gap = abs(inner_r[0] - inner_l[0])
     for side in (-1, 1):
         x0 = mid[0] + side * 0.12 * gap
-        p = np.array([(x0 + side * 0.04 * gap, mid[1] - 0.30 * eh), (x0, mid[1] - 0.12 * eh),
+        p = np.array([(x0 + side * 0.04 * gap, mid[1] - 0.28 * eh), (x0, mid[1] - 0.11 * eh),
                       (x0 - side * 0.02 * gap, mid[1] + 0.02 * eh)])
-        ink.tapered(ctx, ink.catmull(p, 8), INK, 0.5 * sw, alpha=min(1.0, amt))
+        ink.tapered(ctx, ink.catmull(p, 8), INK, 0.48 * sw, alpha=min(1.0, amt))
 
 
 # ------------------------------------------------------------------------------------------------------------ nose
@@ -375,6 +392,11 @@ def draw_nose(ctx, nose, kit: Kit):
 
 # ----------------------------------------------------------------------------------------------------------- mouth
 def mouth_geom(mv, m: dict, n: int = 49):
+    """
+    v31.3 Hand-Crafted D-Bean / Kidney-Bean Mouth Geometry:
+      * Separates the upper-lip baseline (`base_up`) from the lower-lip baseline (`base_lo`) as soon as `open > 0`
+        so the upper lip arches upward (`︵`) instead of sagging downward into the mouth cavity.
+    """
     Lc, Rc, Lo = mv["left"].copy(), mv["right"].copy(), mv["low"].copy()
     u = (Rc - Lc) / np.linalg.norm(Rc - Lc)
     nv = np.array([-u[1], u[0]])
@@ -385,24 +407,38 @@ def mouth_geom(mv, m: dict, n: int = 49):
     tp = float(np.clip(np.dot(Lo - Lc, u) / (2 * hw), 0.2, 0.8))
     o = float(m.get("open", 0.0))
     rnd = float(m.get("round", 0.0))
-    wid = float(m.get("width", 1.0)) * (1.0 - 0.45 * rnd) * (1.0 + 0.12 * o)
+    wid = float(m.get("width", 1.0)) * (1.0 - 0.45 * rnd) * (1.0 + 0.14 * o)
     corner = float(m.get("corner", 0.0))
     skew = float(m.get("skew", 0.0))
-    # corners: width about the centre, smile lifts / frown drops them, skew lifts the screen-left (near) corner
-    Lc2 = C + (Lc - C) * wid - nv * hw * (0.22 * corner + 0.16 * skew)
-    Rc2 = C + (Rc - C) * wid - nv * hw * (0.20 * corner - 0.08 * skew)
-    sag = float(np.dot(Lo - (Lc + (Rc - Lc) * tp), nv)) * (1.0 + 0.9 * max(0.0, corner))
-    mid = Lc2 + (Rc2 - Lc2) * tp + nv * sag
-    P = (mid - (1 - tp) ** 2 * Lc2 - tp ** 2 * Rc2) / (2 * (1 - tp) * tp)
-    base = _quad(Lc2, P, Rc2, n)
+
+    # Lift corners gently when mouth opens so open mouths read as warm/expressive D-beans rather than droopy boats
+    open_lift = 0.10 * min(1.0, o * 1.4)
+    Lc2 = C + (Lc - C) * wid - nv * hw * (0.22 * corner + 0.16 * skew + open_lift)
+    Rc2 = C + (Rc - C) * wid - nv * hw * (0.20 * corner - 0.08 * skew + open_lift * 0.7)
+
+    sag_closed = float(np.dot(Lo - (Lc + (Rc - Lc) * tp), nv)) * (1.0 + 0.85 * max(0.0, corner))
+    # Lower lip keeps the natural downward sag; upper lip flattens and arches upward (`sag_up <= 0`) when open!
+    open_blend = min(1.0, o * 1.75)
+    sag_up = sag_closed * (1.0 - 1.48 * open_blend) - (0.14 * hw * open_blend)
+
+    mid_lo = Lc2 + (Rc2 - Lc2) * tp + nv * sag_closed
+    P_lo = (mid_lo - (1 - tp) ** 2 * Lc2 - tp ** 2 * Rc2) / (2 * (1 - tp) * tp)
+    base_lo = _quad(Lc2, P_lo, Rc2, n)
+
+    mid_up = Lc2 + (Rc2 - Lc2) * tp + nv * sag_up
+    P_up = (mid_up - (1 - tp) ** 2 * Lc2 - tp ** 2 * Rc2) / (2 * (1 - tp) * tp)
+    base_up = _quad(Lc2, P_up, Rc2, n)
+
     s = np.linspace(0, 1, n)
     z = np.where(s < tp, s / tp, (1 - s) / (1 - tp))
+
     def bump(pw):
         return np.sin(0.5 * np.pi * np.clip(z, 0, 1)) ** pw
-    K = 1.25 * hw                                              # ≈ +40 % area over v31.0 (with wider anchors)
-    lo = base + nv[None] * (o * K * (1.0 + 0.2 * rnd) * bump(0.45 + 0.35 * rnd))[:, None]
-    up = base - nv[None] * ((float(m.get("upper", 0.0)) * 0.35 * hw * bump(0.8) + 0.25 * rnd * o * K * bump(0.9)))[:, None]
-    return up, lo, base, hw, u, nv, tp
+
+    K = 1.28 * hw
+    lo = base_lo + nv[None] * (o * K * (0.96 + 0.22 * rnd) * bump(0.42 + 0.32 * rnd))[:, None]
+    up = base_up - nv[None] * ((float(m.get("upper", 0.0)) * 0.38 * hw * bump(0.75) + 0.26 * rnd * o * K * bump(0.85)))[:, None]
+    return up, lo, base_lo, hw, u, nv, tp
 
 
 def draw_mouth(ctx, mv, m: dict, kit: Kit, near: float = 1.0):
@@ -424,47 +460,51 @@ def draw_mouth(ctx, mv, m: dict, kit: Kit, near: float = 1.0):
                              c + nv * 0.09 * hw + tang * 0.01 * hw])
             ink.tapered(ctx, ink.catmull(tick, 6), INK, 0.5 * sw, alpha=alpha)
         return
-    poly = chaikin(np.vstack([up, lo[::-1]]), 2)
+
+    # Smooth rounded corners on open mouths (3 Chaikin passes eliminate sharp triangular corners)
+    poly = chaikin(np.vstack([up, lo[::-1]]), 3)
     rnd = float(m.get("round", 0.0))
     if rnd > 0.05:
-        # round visemes (OO / OH / SH) → blend the contour toward a soft oval (same point count, no pop)
         cen = poly.mean(axis=0)
         ang = np.arctan2(poly[:, 1] - cen[1], poly[:, 0] - cen[0])
         rel = poly - cen
         ax_u = np.abs(rel @ u).max()
         ax_n = np.abs(rel @ nv).max()
         oval = cen + np.outer(np.cos(ang) * ax_u * 0.92, u) + np.outer(np.sin(ang) * ax_n * 0.95, nv)
-        # keep the angular order consistent with the original contour
         k_ = min(1.0, rnd * 1.1)
         poly = poly * (1 - k_) + oval * k_
+
     ink.fill(ctx, poly, CAVITY)
     ctx.save()
     ink.path(ctx, poly, True)
     ctx.clip()
     k = int(len(lo) * tp)
     mid = 0.5 * (up[k] + lo[k])
-    ink.circle(ctx, mid[0] + nv[0] * 0.2 * gap, mid[1] + nv[1] * 0.2 * gap, 0.42 * gap, CAVITY_DEEP, alpha=0.55)
+    ink.circle(ctx, mid[0] + nv[0] * 0.22 * gap, mid[1] + nv[1] * 0.22 * gap, 0.44 * gap, CAVITY_DEEP, alpha=0.55)
     s = np.linspace(0, 1, len(up))
-    zz = np.sin(np.pi * s) ** 0.5
+    zz = np.sin(np.pi * s) ** 0.45
     tu = float(m.get("teeth_up", 0.0))
     if tu > 0.02:
-        band = min(0.46 * gap, tu * 0.42 * hw)
+        band = min(0.45 * gap, (0.14 + 0.86 * tu) * 0.46 * hw)
         ext = np.vstack([up[0] - u * hw * 0.2, up, up[-1] + u * hw * 0.2])
-        low_edge = up + nv[None] * (band * (0.55 + 0.45 * zz))[:, None]
+        low_edge = up + nv[None] * (band * (0.62 + 0.38 * zz))[:, None]
         low_edge = np.vstack([low_edge[0] - u * hw * 0.2, low_edge, low_edge[-1] + u * hw * 0.2])
-        ink.fill(ctx, np.vstack([ext - nv * sw, low_edge[::-1]]), TEETH)
+        teeth_poly = np.vstack([ext - nv * sw, low_edge[::-1]])
+        ink.fill(ctx, teeth_poly, TEETH)
+        ink.stroke(ctx, low_edge[1:-1], INK, 0.46 * sw, closed=False)
     tl = float(m.get("teeth_lo", 0.0))
     if tl > 0.02:
         band = min(0.36 * gap, tl * 0.30 * hw)
         hi_edge = lo - nv[None] * (band * (0.55 + 0.45 * zz))[:, None]
         ink.fill(ctx, np.vstack([lo + nv * sw, hi_edge[::-1]]), TEETH)
+        ink.stroke(ctx, hi_edge, INK, 0.42 * sw, closed=False)
     tg = float(m.get("tongue", 0.0))
     if tg > 0.02:
         tup = float(m.get("tongue_up", 0.0))
         b0 = lo[k]
-        ry = (0.24 + 0.24 * tg) * gap * (1 + 0.7 * tup)
-        rx = 0.50 * hw * (0.7 + 0.3 * tg)
-        c = b0 - nv * ry * (0.50 + 0.45 * tup)
+        ry = (0.26 + 0.25 * tg) * gap * (1 + 0.65 * tup)
+        rx = 0.54 * hw * (0.72 + 0.28 * tg)
+        c = b0 - nv * ry * (0.48 + 0.45 * tup)
         ctx.save()
         ctx.translate(c[0], c[1])
         ctx.rotate(math.atan2(u[1], u[0]))
@@ -474,9 +514,9 @@ def draw_mouth(ctx, mv, m: dict, kit: Kit, near: float = 1.0):
         ctx.set_source_rgb(*TONGUE)
         ctx.fill()
     ctx.restore()
-    ink.stroke(ctx, poly, INK, 0.82 * sw, closed=True)
+    ink.stroke(ctx, poly, INK, 0.84 * sw, closed=True)
     if rnd < 0.05:
-        ink.tapered(ctx, chaikin(up, 1)[2:-2] if len(up) > 8 else up, INK, 1.12 * sw, kind="both", tip=0.3, power=0.5)
+        ink.tapered(ctx, chaikin(up, 1)[2:-2] if len(up) > 8 else up, INK, 1.14 * sw, kind="both", tip=0.28, power=0.5)
     if float(m.get("fv", 0.0)) > 0.3:
         kk = slice(len(lo) // 5, 4 * len(lo) // 5)
         ink.tapered(ctx, lo[kk] + nv * 0.10 * hw, INK, 0.55 * sw, alpha=0.8)

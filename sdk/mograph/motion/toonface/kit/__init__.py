@@ -1,13 +1,13 @@
 """
-toonface.kit — v31 HAND-CRAFTED 2.5D puppet kit (Moho / Toon Boom style), replaces the formula face for production.
-
-    plate25.py     flat raster plate → clean plate (far eye fully removed + cheek contour re-stroked), alpha,
-                   foreground hair RGBA (forelocks composited AFTER brows/eyes)
-    shapes.py      authored key-shapes per character and per yaw key (same point count → morphable, CANDIDE-like
-                   fixed topology)
-    draw25.py      cairo renderer: wedge lids, lash wings, clipped pupils + glint, hair-coloured brows with ink rim,
-                   hooked 3/4 nose, asymmetric crimson mouths with teeth band + tongue
-    visemes.py     14 mouth key-shapes (same topology) + Persian G2P → viseme track
-    acting.py      blinks / saccades / mood keys / head micro-bob from audio energy / stepped breathing (on 2s)
-    gate.py        5 s quality-gate render + side-by-side comparison sheet
+toonface.kit — v31.3 hand-authored 2.5D multi-view Bezier kit + DIS/RBF turn compositor + video tracker.
 """
+from .acting import HeadPose, MoodKey, Performance, energy_envelope
+from .blankplate import BlankPlate, load_blank
+from .g2p_fa import g2p
+from .rig25 import Face, Kit, brow_line, draw_face, mouth_geom
+from .sheet25 import EXPRESSIONS_18, render_18_sheet
+from .turn25 import Character, lock_view
+from .videotrack import TrackedHeadFrame, composite_face_on_tracked_frame, detect_moving_head_pose
+from .visemes import VISEMES, mix, mouth_at, phonemes, vis, viseme_track
+
+__version__ = "31.3"

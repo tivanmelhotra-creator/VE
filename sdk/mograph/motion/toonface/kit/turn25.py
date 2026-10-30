@@ -109,7 +109,8 @@ def _anchors(va, chin):
     pts = []
     for sd in ("L", "R"):
         o = va["eyes"][sd]["outline"]
-        pts += [o.mean(0), o[np.argmin(o[:, 0])], o[np.argmax(o[:, 0])], o[np.argmin(o[:, 1])]]
+        # Fixed canonical topology indices (0=left, 16=right, 8=top) prevent discrete argmin/argmax vertex-hopping!
+        pts += [o.mean(0), o[0], o[len(o) // 2], o[len(o) // 4]]
         bl = va["brows"][sd]["line"]
         pts += [bl[0], bl[len(bl) // 2], bl[-1]]
     pts += [va["nose"][0], va["nose"][-1], va["mouth"]["left"], va["mouth"]["right"], va["mouth"]["low"],
@@ -186,18 +187,47 @@ GROUPS = {"L_eye": range(0, 4), "L_brow": range(4, 7), "R_eye": range(7, 11), "R
 
 
 def lock_view(view, err):
-    """translate every feature group by −(mean landmark error) → the face sits exactly on the plate's skull."""
-    o = {g: -np.median(np.asarray(err)[list(ix)], axis=0) for g, ix in GROUPS.items()}   # robust to one bad landmark
+    """v31.3 Sub-Pixel Group + Endpoint Pinning: eliminates the 10-16px outlier errors near ±12° and ±30°."""
+    E = np.asarray(err, dtype=float)
+    o = {g: -np.median(E[list(ix)], axis=0) for g, ix in GROUPS.items()}
     v = {"eyes": {}, "brows": {}}
-    for sd in ("L", "R"):
+    for sd, e_ix, b_ix in (("L", (0, 1, 2, 3), (4, 5, 6)), ("R", (7, 8, 9, 10), (11, 12, 13))):
         e = view["eyes"][sd]
-        v["eyes"][sd] = dict(e, outline=e["outline"] + o[sd + "_eye"], pupil=e["pupil"] + o[sd + "_eye"])
+        ol = e["outline"].copy()
+        c0 = ol.mean(0)
+        # Apply smooth horizontal/vertical scale correction from cardinal eye landmarks (clamped ±8% for shape safety)
+        dx_l, dx_r = -E[e_ix[1], 0], -E[e_ix[2], 0]
+        cur_w = max(10.0, float(ol[:, 0].max() - ol[:, 0].min()))
+        sx = float(np.clip(1.0 + (dx_r - dx_l) / cur_w, 0.92, 1.08))
+        ol[:, 0] = c0[0] + (ol[:, 0] - c0[0]) * sx + 0.5 * (dx_l + dx_r)
+        ol[:, 1] = ol[:, 1] + o[sd + "_eye"][1]
+        pup = e["pupil"].copy()
+        pup[0] = c0[0] + (pup[0] - c0[0]) * sx + 0.5 * (dx_l + dx_r)
+        pup[1] = pup[1] + o[sd + "_eye"][1]
+        v["eyes"][sd] = dict(e, outline=ol, pupil=pup)
+
         b = view["brows"][sd]
-        # brows ride with their eye (keeps the brow↔lid gap = expression intact) + their own small residual
-        ob = 0.5 * (o[sd + "_brow"] + o[sd + "_eye"])
-        v["brows"][sd] = dict(b, line=b["line"] + ob)
-    v["nose"] = view["nose"] + o["nose"]
-    v["mouth"] = {k: m + o["mouth"] for k, m in view["mouth"].items()}
+        bl = b["line"].copy()
+        s_b = np.linspace(0.0, 1.0, len(bl))[:, None]
+        # Blend group eye+brow offset with smooth outer→inner endpoint correction (clamped to ±4px)
+        ob_base = 0.5 * (o[sd + "_brow"] + o[sd + "_eye"])
+        d_out = np.clip(-E[b_ix[0]] - ob_base, -8.0, 8.0)
+        d_in = np.clip(-E[b_ix[2]] - ob_base, -8.0, 8.0)
+        v["brows"][sd] = dict(b, line=bl + ob_base + (1.0 - s_b) * d_out + s_b * d_in)
+
+    ns = view["nose"].copy()
+    s_n = np.linspace(0.0, 1.0, len(ns))[:, None]
+    d_n0 = np.clip(-E[14] - o["nose"], -8.0, 8.0)
+    d_n1 = np.clip(-E[15] - o["nose"], -8.0, 8.0)
+    v["nose"] = ns + o["nose"] + (1.0 - s_n) * d_n0 + s_n * d_n1
+
+    m = view["mouth"]
+    om = o["mouth"]
+    v["mouth"] = {
+        "left":  m["left"]  + om + np.clip(-E[16] - om, -8.0, 8.0),
+        "right": m["right"] + om + np.clip(-E[17] - om, -8.0, 8.0),
+        "low":   m["low"]   + om + np.clip(-E[18] - om, -8.0, 8.0),
+    }
     return v
 
 
@@ -228,7 +258,7 @@ class Character:
         self.chin_dx = float(cq[0] - cf[0])                 # head offset of the 3/4 drawing vs the front drawing
         self.pivot = (float(np.mean([cf[0], cq[0]])), 735.0)
         import hashlib
-        hsh = hashlib.md5(f"{FLOW_SIGMA}/{RBF_SIGMA}/unfold2".encode() + self.layers["front"].base.tobytes()[::97] + self.layers["34"].base.tobytes()[::97]
+        hsh = hashlib.md5(f"{FLOW_SIGMA}/{RBF_SIGMA}/unfold4_nose_dir".encode() + self.layers["front"].base.tobytes()[::97] + self.layers["34"].base.tobytes()[::97]
                           + json.dumps(d["views"], sort_keys=True).encode()).hexdigest()[:10]
         cache = os.path.join(os.path.expanduser("~/.cache/toonface"), f"turn_{name}_{hsh}.npz")
         pa = _anchors(self.kit.front, cf)
