@@ -400,6 +400,18 @@ def draw_mouth(ctx, mv, m: dict, kit: Kit, near: float = 1.0):
             ink.tapered(ctx, ink.catmull(tick, 6), INK, 0.5 * sw, alpha=alpha)
         return
     poly = chaikin(np.vstack([up, lo[::-1]]), 2)
+    rnd = float(m.get("round", 0.0))
+    if rnd > 0.05:
+        # round visemes (OO / OH / SH) → blend the contour toward a soft oval (same point count, no pop)
+        cen = poly.mean(axis=0)
+        ang = np.arctan2(poly[:, 1] - cen[1], poly[:, 0] - cen[0])
+        rel = poly - cen
+        ax_u = np.abs(rel @ u).max()
+        ax_n = np.abs(rel @ nv).max()
+        oval = cen + np.outer(np.cos(ang) * ax_u * 0.92, u) + np.outer(np.sin(ang) * ax_n * 0.95, nv)
+        # keep the angular order consistent with the original contour
+        k_ = min(1.0, rnd * 1.1)
+        poly = poly * (1 - k_) + oval * k_
     ink.fill(ctx, poly, CAVITY)
     ctx.save()
     ink.path(ctx, poly, True)
@@ -438,11 +450,12 @@ def draw_mouth(ctx, mv, m: dict, kit: Kit, near: float = 1.0):
         ctx.fill()
     ctx.restore()
     ink.stroke(ctx, poly, INK, 0.82 * sw, closed=True)
-    ink.tapered(ctx, chaikin(up, 1)[2:-2] if len(up) > 8 else up, INK, 1.12 * sw, kind="both", tip=0.3, power=0.5)
+    if rnd < 0.05:
+        ink.tapered(ctx, chaikin(up, 1)[2:-2] if len(up) > 8 else up, INK, 1.12 * sw, kind="both", tip=0.3, power=0.5)
     if float(m.get("fv", 0.0)) > 0.3:
         kk = slice(len(lo) // 5, 4 * len(lo) // 5)
         ink.tapered(ctx, lo[kk] + nv * 0.10 * hw, INK, 0.55 * sw, alpha=0.8)
-    if o > 0.45:
+    if o > 0.45 and rnd < 0.05:
         kk = slice(len(lo) // 3, 2 * len(lo) // 3)
         ink.tapered(ctx, lo[kk] + nv * (0.16 * hw + 0.7 * sw), INK, 0.45 * sw, alpha=0.7)
 
