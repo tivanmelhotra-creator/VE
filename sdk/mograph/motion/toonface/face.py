@@ -310,6 +310,7 @@ def mouth_curves(st: ToonStyle, c: FaceControls, n: int = 64, dv: float = 0.0):
     lift_l = 0.11 * (c.smile - 0.4 * c.asym)
     lift = (lift_l + (lift_r - lift_l) * (s + 1) / 2) * (1.0 - 0.3 * c.press) * (1.0 - 0.5 * c.pucker)
     h = st.mouth_open * max(0.0, c.jaw) * (1.0 + 0.15 * c.pucker)
+    h = max(h, 0.10 * grit)                                  # clenched teeth always show a full grid
     base = cy - lift * np.abs(s) ** 1.6 + 0.018 * c.smile * (1 - s * s) * (1 - c.pucker)
     if c.wobble > 0:
         base = base + 0.018 * c.wobble * np.sin(s * math.pi * 2.6 + 0.4) * np.clip(1 - s * s, 0, 1) ** 0.3

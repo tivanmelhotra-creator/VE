@@ -52,8 +52,8 @@ class ToonStyle:
     nose_size: float = 0.06
     nose_dir: int = -1
     mouth_v: float = 0.505
-    mouth_w: float = 0.175
-    mouth_open: float = 0.25
+    mouth_w: float = 0.19
+    mouth_open: float = 0.33
     lashes: bool = False
     lash_weight: float = 1.0
     face_depth: float = 0.92
