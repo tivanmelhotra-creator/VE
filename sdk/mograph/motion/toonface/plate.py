@@ -1,21 +1,21 @@
 """
-toonface.plate — turn ANY flat-colour toon character image into a rig: no per-character templates.
+toonface.plate — turn ANY flat-colour toon character image into a face rig.  No per-character templates.
 
-    rig = analyze(img_bgr, style=None)      →  PlateRig(clean, face_mask, head, style, ...)
+    rig = analyze(img_bgr, style=None, search_box=None)   →  PlateRig(clean, fill, head, style, eyes, info)
 
-1. skin colour       = dominant warm mid-tone inside the upper half of the character (mode of a coarse histogram)
-2. face_skin         = largest connected component of skin-coloured pixels
-3. face_fill         = face_skin with its interior holes filled (eyes, brows, nose, mouth are holes in the skin)
-4. clean plate       = every hole pixel repainted with skin (feathered), so the original drawn features vanish
-                       while hair curls overlapping the forehead (connected to the OUTSIDE, not holes) survive
-5. head sphere       = Kåsa circle fit to the cheek / chin contour (lower half of face_fill) → cx, cy, R
-6. yaw               = horizontal offset of the eye-pair midpoint from the sphere centre, asin(dx / R·depth);
-                       roll = eye-line angle
-7. style             = measured eye spacing / size, brow height, nose height, mouth height & width, lash
-                       detection (dark mass above the eyes), palette (skin, hair, ink, pupil) — in head radii
-
-Everything later draws with HeadFrame + ToonStyle, so a profile, a mirrored 3/4 or a brand-new character uses the
-same expression and viseme library.
+Pipeline (eye-seeded, character-agnostic)
+  1. eyes        white blobs (low saturation, very bright) that are compact AND ringed by ink → best horizontal pair
+                 (one eye is accepted too: profile views)
+  2. skin        colour sampled on the cheek just below the eye pair; face skin = the connected region of that colour
+                 (hair of a similar cream colour is rejected by the tight colour distance + connectivity)
+  3. face fill   skin closed + holes filled + eye blobs inside the skin hull (in 3/4 the far eye touches the contour)
+  4. clean plate every interior feature (eyes, brows, nose, mouth) repainted with skin; ink that is connected to the
+                 eye outlines but escapes the face (lash wings, eye outline merged with the contour) is inpainted and
+                 the face contour is re-inked from the skin hull — hair curls over the forehead survive untouched
+  5. head sphere Kåsa circle fit of the cheek / chin contour → cx, cy, R
+  6. yaw         least-squares fit of the projected canonical eye pair to the detected eye centres (grid search),
+                 roll from the eye line (damped)
+  7. style       palette + proportions in head radii, lash detection (front-ish views only, or when no style given)
 """
 from __future__ import annotations
 
@@ -32,206 +32,250 @@ from .style import ToonStyle, bgr2rgb01
 
 @dataclass
 class PlateRig:
-    clean: np.ndarray                     # BGR plate with the original face features erased
-    face_mask: np.ndarray                 # uint8 0/255, face skin incl. feature holes
+    clean: np.ndarray
+    fill: np.ndarray                  # uint8 0/1 face area (skin + feature holes)
     head: HeadFrame
     style: ToonStyle
-    eyes: list = field(default_factory=list)     # [(x, y, w, h)] detected scleras (screen)
+    eyes: list = field(default_factory=list)       # [(x, y, w, h, cx, cy)]
     info: dict = field(default_factory=dict)
 
 
-def _skin_color(img: np.ndarray, region: np.ndarray) -> np.ndarray:
-    px = img[region > 0].reshape(-1, 3).astype(int)
-    hsv = cv2.cvtColor(px.reshape(-1, 1, 3).astype(np.uint8), cv2.COLOR_BGR2HSV).reshape(-1, 3)
-    ok = (hsv[:, 1] > 35) & (hsv[:, 1] < 120) & (hsv[:, 2] > 170)          # warm, mid-saturated, light
-    px = px[ok]
-    if len(px) == 0:
-        raise ValueError("no skin-like colour found")
-    q = (px // 8)
-    keys, counts = np.unique(q[:, 0] * 1024 + q[:, 1] * 32 + q[:, 2], return_counts=True)
-    k = keys[np.argmax(counts)]
-    sel = (q[:, 0] * 1024 + q[:, 1] * 32 + q[:, 2]) == k
-    return np.median(px[sel], axis=0)
-
-
-def _color_mask(img: np.ndarray, col: np.ndarray, tol: float) -> np.ndarray:
-    d = np.linalg.norm(img.astype(np.float32) - col[None, None, :].astype(np.float32), axis=2)
-    return (d < tol).astype(np.uint8)
-
-
-def analyze(img: np.ndarray, style: ToonStyle | None = None, skin_bgr=None, search_box=None,
-            mirror_style: bool = False, measure_style: bool | None = None) -> PlateRig:
-    """search_box = (x0, y0, x1, y1) restricts the face search (useful for multi-character frames)."""
-    H, W = img.shape[:2]
-    region = np.zeros((H, W), np.uint8)
-    if search_box is None:
-        search_box = (0, 0, W, int(H * 0.6))
-    x0, y0, x1, y1 = search_box
-    region[y0:y1, x0:x1] = 1
-    skin = np.asarray(skin_bgr, float) if skin_bgr is not None else _skin_color(img, region)
-    sk = _color_mask(img, skin, 26.0) & region
-    sk = cv2.morphologyEx(sk, cv2.MORPH_OPEN, np.ones((3, 3), np.uint8))
-    n, lbl, st, _ = cv2.connectedComponentsWithStats(sk, connectivity=4)
-    if n < 2:
-        raise ValueError("face skin not found")
-    # prefer big components that contain holes (eyes); the neck has none
-    best, best_score = 1, -1.0
-    for i in range(1, n):
-        a = st[i, 4]
-        if a < 400:
-            continue
-        comp = lbl == i
-        holes = ndi.binary_fill_holes(comp) & ~comp
-        score = a + 40.0 * holes.sum()
-        if score > best_score:
-            best, best_score = i, score
-    face_skin = (lbl == best)
-    # seal tiny gaps at the contour (far eye / lashes touching the outline) before filling holes
-    sealed = cv2.morphologyEx(face_skin.astype(np.uint8), cv2.MORPH_CLOSE,
-                              cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9, 9))) > 0
-    fill = ndi.binary_fill_holes(sealed)
-    holes = fill & ~face_skin
-    # ---------------- features (holes) ----------------
-    hl, nh = ndi.label(holes)
+def _white(img: np.ndarray) -> np.ndarray:
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-    white = (hsv[:, :, 1] < 40) & (hsv[:, :, 2] > 225)
-    eyes = []
-    for i in range(1, nh + 1):
-        m = hl == i
-        if m.sum() < 60:
+    return ((hsv[:, :, 1] < 28) & (hsv[:, :, 2] > 232)).astype(np.uint8)
+
+
+def find_eyes(img: np.ndarray, region: np.ndarray) -> list:
+    sm = cv2.medianBlur(img, 3)
+    gray = cv2.cvtColor(sm, cv2.COLOR_BGR2GRAY)
+    wm = _white(sm) & region
+    n, lbl, st, ce = cv2.connectedComponentsWithStats(wm, connectivity=4)
+    area_r = float(region.sum())
+    cands = []
+    for i in range(1, n):
+        x, y, w, h, a = st[i]
+        if a < 40 or a > 0.06 * area_r:
             continue
-        wf = (white & m).sum() / m.sum()
-        ys, xs = np.where(m)
-        if wf > 0.30:
-            eyes.append((int(xs.min()), int(ys.min()), int(xs.ptp() + 1), int(ys.ptp() + 1), float(xs.mean()),
-                         float(ys.mean())))
-    eyes = sorted(eyes, key=lambda e: -e[2] * e[3])[:2]
-    eyes = sorted(eyes, key=lambda e: e[4])
-    # ---------------- clean plate ----------------
-    erase = cv2.dilate(holes.astype(np.uint8), np.ones((3, 3), np.uint8)) & fill.astype(np.uint8)
-    # keep the outer contour ink: never erase within 2 px of the outside
-    outside_guard = cv2.dilate((~fill).astype(np.uint8), np.ones((5, 5), np.uint8))
-    erase = erase & (1 - outside_guard)
+        if a / float(w * h) < 0.42 or not (0.35 < h / float(w) < 3.2):
+            continue
+        blob = (lbl[max(0, y - 6):y + h + 6, max(0, x - 6):x + w + 6] == i).astype(np.uint8)
+        ring = cv2.dilate(blob, np.ones((7, 7), np.uint8)) - blob
+        g = gray[max(0, y - 6):y + h + 6, max(0, x - 6):x + w + 6]
+        if ring.sum() == 0 or (g[ring > 0] < 120).mean() < 0.30:
+            continue
+        cands.append((int(x), int(y), int(w), int(h), float(ce[i][0]), float(ce[i][1]), int(a)))
+    best, best_s = None, -1.0
+    for i in range(len(cands)):
+        for j in range(i + 1, len(cands)):
+            a, b = cands[i], cands[j]
+            mh, mw = max(a[3], b[3]), 0.5 * (a[2] + b[2])
+            dy, dx = abs(a[5] - b[5]), abs(a[4] - b[4])
+            if dy > 0.6 * mh or not (0.8 * mw < dx < 4.5 * mw):
+                continue
+            s = a[6] + b[6] - 4.0 * dy
+            if s > best_s:
+                best, best_s = (a, b), s
+    if best:
+        return sorted([e[:6] for e in best], key=lambda e: e[4])
+    if cands:
+        return [max(cands, key=lambda e: e[6])[:6]]
+    return []
+
+
+def _fit_yaw(eyes, cx, R, depth, eye_u=None, eye_v=0.0):
+    xs = np.array([e[4] for e in eyes])
+    us = np.arange(0.26, 0.47, 0.01) if eye_u is None else np.array([eye_u])
+    best = (1e18, 0.0, us[0])
+    for u in us:
+        z = math.sqrt(max(0.0, 1 - u * u - eye_v * eye_v)) * depth
+        for yaw in np.arange(-1.3, 1.3001, 0.01):
+            cy_, sy_ = math.cos(yaw), math.sin(yaw)
+            if len(xs) == 2:
+                pred = np.array([cx + R * (-u * cy_ + z * sy_), cx + R * (u * cy_ + z * sy_)])
+            else:                                    # single eye: assume it is the near eye
+                side = 1 if yaw < 0 else -1
+                pred = np.array([cx + R * (side * u * cy_ + z * sy_)]) if False else \
+                    np.array([cx + R * ((u if xs[0] > cx else -u) * cy_ + z * sy_)])
+            err = float(((pred - xs) ** 2).sum()) + (abs(yaw) * 2.0 if len(xs) == 2 else 0.0)
+            if err < best[0]:
+                best = (err, float(yaw), float(u))
+    return best[1], best[2]
+
+
+def analyze(img: np.ndarray, style: ToonStyle | None = None, search_box=None, measure_style: bool | None = None,
+            skin_tol: float = 22.0) -> PlateRig:
+    H, W = img.shape[:2]
+    if search_box is None:
+        search_box = (0, 0, W, int(H * 0.65))
+    x0, y0, x1, y1 = [int(v) for v in search_box]
+    region = np.zeros((H, W), np.uint8)
+    region[y0:y1, x0:x1] = 1
+    sm = cv2.medianBlur(img, 3)
+    gray = cv2.cvtColor(sm, cv2.COLOR_BGR2GRAY)
+    eyes = find_eyes(img, region)
+    if not eyes:
+        raise ValueError("no eyes found in the search box")
+    # ---- 2. skin from the cheek below the eyes
+    ey_bot = max(e[1] + e[3] for e in eyes)
+    eh = float(np.mean([e[3] for e in eyes]))
+    sx = int(np.mean([e[4] for e in eyes]))
+    sy = int(min(H - 1, ey_bot + 0.45 * eh))
+    patch = sm[max(0, sy - 6):sy + 7, max(0, sx - 14):sx + 15].reshape(-1, 3)
+    patch = patch[cv2.cvtColor(patch.reshape(-1, 1, 3), cv2.COLOR_BGR2GRAY).ravel() > 150]
+    if len(patch) == 0:
+        raise ValueError("cheek sample failed")
+    skin = np.median(patch, axis=0)
+    dist = np.linalg.norm(sm.astype(np.float32) - skin[None, None].astype(np.float32), axis=2)
+    skm = ((dist < skin_tol) & (region > 0)).astype(np.uint8)
+    n, lbl = cv2.connectedComponents(skm, connectivity=4)
+    ys_s, xs_s = np.where(skm[max(0, sy - 10):sy + 11, max(0, sx - 30):sx + 31] > 0)
+    if len(ys_s) == 0:
+        raise ValueError("skin component not found")
+    k = np.argmin((ys_s - 10) ** 2 + (xs_s - 30) ** 2)
+    face_skin = lbl == lbl[max(0, sy - 10) + ys_s[k], max(0, sx - 30) + xs_s[k]]
+    # ---- 3. face fill
+    sealed = cv2.morphologyEx(face_skin.astype(np.uint8), cv2.MORPH_CLOSE,
+                              cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7)))
+    cs, _ = cv2.findContours(face_skin.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+    hull_pts = cv2.convexHull(max(cs, key=cv2.contourArea))
+    hull = np.zeros((H, W), np.uint8)
+    cv2.drawContours(hull, [hull_pts], -1, 1, -1)
+    eye_m = np.zeros((H, W), np.uint8)
+    for e in eyes:
+        x, y, w, h = e[:4]
+        cv2.ellipse(eye_m, (int(e[4]), int(e[5])), (int(w * 0.5) + 3, int(h * 0.5) + 3), 0, 0, 360, 1, -1)
+    fill = ndi.binary_fill_holes((sealed > 0) | ((eye_m > 0) & (hull > 0)))
+    holes = fill & ~face_skin
+    # ---- 4. clean plate
+    guard = cv2.dilate((~fill).astype(np.uint8), np.ones((5, 5), np.uint8)) > 0
+    erase = (cv2.dilate(holes.astype(np.uint8), np.ones((3, 3), np.uint8)) > 0) & fill & ~guard
     clean = img.copy()
-    clean[erase > 0] = skin.astype(np.uint8)
-    soft = cv2.GaussianBlur(erase.astype(np.float32), (0, 0), 1.0)[:, :, None]
-    clean = (clean.astype(np.float32) * (1 - soft * 0.0) + 0).astype(np.uint8)
-    # ---------------- head sphere ----------------
-    face_u8 = fill.astype(np.uint8) * 255
-    cs, _ = cv2.findContours(face_u8, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
-    cnt = max(cs, key=cv2.contourArea).reshape(-1, 2)
-    eye_y = float(np.mean([e[5] for e in eyes])) if eyes else float(cnt[:, 1].mean())
-    low = cnt[cnt[:, 1] > eye_y + 0.15 * (cnt[:, 1].max() - eye_y)]
+    clean[erase] = skin.astype(np.uint8)
+    # ink escaping the face but connected to an eye outline (lash wings, merged outlines)
+    dark = (gray < 125).astype(np.uint8)
+    zone = np.zeros((H, W), np.uint8)
+    for e in eyes:
+        x, y, w, h = e[:4]
+        cv2.rectangle(zone, (int(x - 0.5 * w), int(y - 0.6 * h)), (int(x + 1.5 * w), int(y + 1.15 * h)), 1, -1)
+    eye_ring = cv2.dilate(eye_m, np.ones((5, 5), np.uint8))
+    nd, ld = cv2.connectedComponents(dark & zone, connectivity=8)
+    touch = np.unique(ld[(eye_ring > 0) & (ld > 0)])
+    rem = np.isin(ld, touch[touch > 0]) & ~erase
+    if rem.any():
+        rem_d = cv2.dilate(rem.astype(np.uint8), np.ones((3, 3), np.uint8))
+        clean = cv2.inpaint(clean, rem_d, 4, cv2.INPAINT_TELEA)
+        inside = (rem_d > 0) & (hull > 0)
+        clean[inside] = skin.astype(np.uint8)
+        # re-ink the contour where it was removed
+        ink_bgr = np.median(img[(gray < 70) & (cv2.dilate(hull, np.ones((9, 9), np.uint8)) > 0)], axis=0)
+        th = max(2, int(round(_contour_thickness(gray, hull))))
+        tmp = clean.copy()
+        cv2.polylines(tmp, [hull_pts], True, [int(v) for v in ink_bgr], th, cv2.LINE_AA)
+        zz = cv2.dilate(rem_d, np.ones((2 * th + 1, 2 * th + 1), np.uint8)) > 0
+        clean[zz] = tmp[zz]
+    # ---- 5. head sphere
+    cnt = hull_pts.reshape(-1, 2)
+    ccs, _ = cv2.findContours(fill.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+    cnt = max(ccs, key=cv2.contourArea).reshape(-1, 2)
+    eye_y = float(np.mean([e[5] for e in eyes]))
+    low = cnt[cnt[:, 1] > eye_y + 0.25 * (cnt[:, 1].max() - eye_y)]
     cx, cy, R = fit_circle(low if len(low) > 20 else cnt)
-    ys_f, xs_f = np.where(fill)
-    R = float(np.clip(R, 0.40 * xs_f.ptp(), 0.75 * xs_f.ptp()))
+    fw = float(np.ptp(cnt[:, 0]))
+    R = float(np.clip(R, 0.42 * fw, 0.72 * fw))
     st0 = style or ToonStyle()
-    roll = 0.0
-    yaw = 0.0
-    if len(eyes) == 2:
-        (ax, ay), (bx, by) = (eyes[0][4], eyes[0][5]), (eyes[1][4], eyes[1][5])
-        roll = math.atan2(by - ay, bx - ax)
-        emx = 0.5 * (ax + bx)
-        # weight by eye size: the far eye is smaller → its centre is closer to the contour
-        wa, wb = eyes[0][2], eyes[1][2]
-        ratio = min(wa, wb) / max(wa, wb)
-        dx = (emx - cx) / (R * st0.face_depth)
-        yaw = math.asin(float(np.clip(dx * 1.25, -0.95, 0.95)))
-        if ratio > 0.86:
-            yaw *= 0.5 * (1 - (ratio - 0.86) / 0.14) + 0.0 if abs(dx) < 0.05 else 1.0
-    elif len(eyes) == 1:
-        dx = (eyes[0][4] - cx) / R
-        yaw = math.asin(float(np.clip(dx * 1.1, -0.95, 0.95)))
     if measure_style is None:
         measure_style = style is None
-    # ---------------- style measurement (front-ish views) ----------------
+    eye_v = (eye_y - cy) / R
+    yaw, eye_u = _fit_yaw(eyes, cx, R, st0.face_depth, None if measure_style else st0.eye_u, eye_v)
+    roll = 0.0
+    if len(eyes) == 2:
+        ang = math.atan2(eyes[1][5] - eyes[0][5], eyes[1][4] - eyes[0][4])
+        roll = float(np.clip(0.5 * ang, -0.15, 0.15))
+    info = {"skin_bgr": skin.tolist(), "yaw_deg": round(math.degrees(yaw), 1), "roll_deg": round(math.degrees(roll), 1),
+            "R": round(R, 1)}
     st_out = st0.copy()
-    info: dict = {"skin_bgr": skin.tolist(), "yaw_deg": math.degrees(yaw), "roll_deg": math.degrees(roll)}
     if measure_style:
-        st_out = _measure_style(img, st_out, eyes, holes, hl, fill, face_skin, skin, cx, cy, R, yaw, roll, info)
-    # place the sphere centre so the canonical eye line projects onto the drawn eye line
-    head = HeadFrame(cx, cy, R, yaw=yaw, pitch=0.0, roll=roll, depth=st_out.face_depth, cheat=st_out.cheat)
-    if eyes:
-        tgt_y = float(np.mean([e[5] for e in eyes]))
-        p, _ = head.wrap(np.array([[0.0, st_out.eye_v]]))
-        head = head.replace(cy=cy + (tgt_y - p[0, 1]))
-        if len(eyes) == 2:
-            pm, _ = head.wrap(np.array([[0.0, st_out.eye_v]]))
-            emx = 0.5 * (eyes[0][4] + eyes[1][4])
-            head = head.replace(cx=head.cx + 0.6 * (emx - pm[0, 0]) * (1 if abs(yaw) > 0.1 else 0.0))
-    return PlateRig(clean=clean, face_mask=face_u8, head=head, style=st_out, eyes=eyes, info=info)
+        st_out = _measure(img, gray, st0, eyes, holes, fill, skin, cx, cy, R, yaw, eye_u, eye_v, info)
+    head = HeadFrame(cx, cy, R, yaw=yaw, roll=roll, depth=st_out.face_depth, cheat=st_out.cheat)
+    return PlateRig(clean=clean, fill=fill.astype(np.uint8), head=head, style=st_out, eyes=eyes, info=info)
 
 
-def _measure_style(img, st: ToonStyle, eyes, holes, hl, fill, face_skin, skin, cx, cy, R, yaw, roll, info):
-    H, W = img.shape[:2]
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+def _contour_thickness(gray, hull) -> float:
+    edge = cv2.morphologyEx(hull, cv2.MORPH_GRADIENT, np.ones((3, 3), np.uint8))
+    band = cv2.dilate(edge, np.ones((9, 9), np.uint8)) > 0
+    d = (gray < 110) & band
+    if d.sum() == 0:
+        return 2.0
+    dt = cv2.distanceTransform(d.astype(np.uint8), cv2.DIST_L2, 3)
+    return float(np.clip(2.0 * np.percentile(dt[d], 90), 1.5, 8.0))
+
+
+def _measure(img, gray, st, eyes, holes, fill, skin, cx, cy, R, yaw, eye_u, eye_v, info):
+    kw: dict = {"skin": bgr2rgb01(skin)}
     ink_px = img[(gray < 70) & (cv2.dilate(fill.astype(np.uint8), np.ones((9, 9), np.uint8)) > 0)]
-    kw = {}
     if len(ink_px):
         kw["ink"] = bgr2rgb01(np.median(ink_px, axis=0))
-        kw["pupil"] = bgr2rgb01(np.median(ink_px, axis=0) * 0.9)
-    kw["skin"] = bgr2rgb01(skin)
-    # hair: light cream pixels directly above the face
+        kw["pupil"] = bgr2rgb01(np.median(ink_px, axis=0) * 0.85)
     ys_f, xs_f = np.where(fill)
     top = int(ys_f.min())
-    band = img[max(0, top - int(0.5 * R)):top, int(xs_f.min()):int(xs_f.max())].reshape(-1, 3)
+    band = img[max(0, top - int(0.45 * R)):top + 2, int(xs_f.min()):int(xs_f.max())].reshape(-1, 3)
     hsv = cv2.cvtColor(band.reshape(-1, 1, 3), cv2.COLOR_BGR2HSV).reshape(-1, 3)
-    hair = band[(hsv[:, 2] > 200) & (hsv[:, 1] < 90) & (np.linalg.norm(band.astype(float) - skin, axis=1) > 14)]
-    if len(hair) > 50:
+    hair = band[(hsv[:, 2] > 200) & (hsv[:, 1] < 100) & (np.linalg.norm(band.astype(float) - skin, axis=1) > 12)]
+    if len(hair) > 40:
         kw["hair"] = bgr2rgb01(np.median(hair, axis=0))
-    cos_y = max(0.4, math.cos(yaw))
-    if len(eyes) == 2 and abs(yaw) < 0.25:
-        e0, e1 = eyes
-        kw["eye_u"] = float(np.clip(0.5 * (e1[4] - e0[4]) / R / cos_y, 0.25, 0.48))
-        eh = 0.5 * float(np.mean([e0[3], e1[3]])) / R
-        ew = 0.5 * float(np.mean([e0[2], e1[2]])) / R / cos_y
-        kw["eye_rx"] = float(np.clip(ew * 1.0, 0.15, 0.32))
-        kw["eye_ry"] = float(np.clip(eh * 1.0, 0.13, 0.32))
-        eye_y = 0.5 * (e0[5] + e1[5])
-        # lashes = lots of ink in a band just above the scleras
-        lash = 0
+    kw["line"] = float(np.clip(_contour_thickness(gray, fill.astype(np.uint8)) / R * 0.95, 0.018, 0.045))
+    kw["line_fine"] = kw["line"] * 0.58
+    kw["eye_v"] = float(np.clip(eye_v, -0.25, 0.25))
+    if len(eyes) == 2 and abs(yaw) < 0.3:
+        cosy = max(0.5, math.cos(yaw))
+        kw["eye_u"] = float(np.clip(eye_u, 0.26, 0.46))
+        kw["eye_rx"] = float(np.clip(0.5 * np.mean([e[2] for e in eyes]) / R / cosy + 0.012, 0.14, 0.32))
+        kw["eye_ry"] = float(np.clip(0.5 * np.mean([e[3] for e in eyes]) / R + 0.012, 0.12, 0.32))
+        lash = []
         for e in eyes:
             x, y, w, h = e[:4]
-            y0 = max(0, y - int(0.35 * h))
-            roi = gray[y0:y + int(0.15 * h), max(0, x - int(0.2 * w)):x + int(1.2 * w)]
-            lash += float((roi < 80).mean())
-        kw["lashes"] = bool(lash / 2 > 0.22)
-        info["lash_score"] = lash / 2
-        # other holes: brows (above eyes), nose / mouth (below)
+            roi = gray[max(0, y - int(0.4 * h)):y + int(0.1 * h), max(0, x - int(0.25 * w)):x + int(1.25 * w)]
+            lash.append(float((roi < 90).mean()) if roi.size else 0.0)
+        info["lash_score"] = round(float(np.mean(lash)), 3)
+        kw["lashes"] = bool(np.mean(lash) > 0.20)
+        hl, nh = ndi.label(holes)
         feats = []
-        for i in range(1, hl.max() + 1):
+        for i in range(1, nh + 1):
             m = hl == i
-            if m.sum() < 25:
+            if m.sum() < 20:
                 continue
             ys, xs = np.where(m)
-            feats.append((float(xs.mean()), float(ys.mean()), int(xs.ptp() + 1), int(ys.ptp() + 1), m.sum()))
-        brows = [f for f in feats if f[1] < eye_y - 0.5 * eh * R and f[2] > 0.15 * R]
-        below = [f for f in feats if f[1] > eye_y + 0.6 * eh * R]
-        mid_x = 0.5 * (e0[4] + e1[4])
+            feats.append((float(xs.mean()), float(ys.mean()), int(np.ptp(xs) + 1), int(np.ptp(ys) + 1)))
+        eye_y = cy + eye_v * R
+        ehp = 0.5 * np.mean([e[3] for e in eyes])
+        mid_x = 0.5 * (eyes[0][4] + eyes[1][4])
+        brows = [f for f in feats if f[1] < eye_y - 1.05 * ehp and f[2] > 0.15 * R]
+        below = [f for f in feats if f[1] > eye_y + 1.05 * ehp]
         if brows:
-            kw["brow_v"] = float(np.clip(st.eye_v + (np.mean([b[1] for b in brows]) - eye_y) / R, -0.6, -0.2))
-            kw["brow_thick"] = float(np.clip(np.mean([b[3] for b in brows]) / R * 0.55, 0.03, 0.08))
+            kw["brow_v"] = float(np.clip((np.mean([b[1] for b in brows]) - cy) / R, -0.75, -0.15))
+            kw["brow_thick"] = float(np.clip(np.mean([b[3] for b in brows]) / R * 0.6, 0.03, 0.08))
+            kw["brow_len"] = float(np.clip(np.mean([b[2] for b in brows]) / R / (2 * kw["eye_rx"] * 0.55) * 0.95,
+                                           0.8, 1.6))
         if below:
             mouth = max(below, key=lambda f: f[1])
             if mouth[2] > 0.12 * R:
-                kw["mouth_v"] = float(np.clip(st.eye_v + (mouth[1] - eye_y) / R, 0.35, 0.7))
-                kw["mouth_w"] = float(np.clip(0.5 * mouth[2] / R * 0.95, 0.12, 0.3))
+                kw["mouth_v"] = float(np.clip((mouth[1] - cy) / R, 0.25, 0.75))
+                kw["mouth_w"] = float(np.clip(0.5 * mouth[2] / R * 0.9, 0.12, 0.30))
             noses = [f for f in below if f is not mouth and abs(f[0] - mid_x) < 0.3 * R]
             if noses:
                 nose = min(noses, key=lambda f: f[1])
-                kw["nose_v"] = float(np.clip(st.eye_v + (nose[1] - eye_y) / R, 0.12, 0.42))
+                kw["nose_v"] = float(np.clip((nose[1] - cy) / R, 0.05, 0.45))
                 kw["nose_size"] = float(np.clip(0.5 * max(nose[2], nose[3]) / R, 0.035, 0.09))
-                kw["nose_dir"] = -1 if nose[0] > mid_x else 1
-    info["measured"] = {k: (v if not isinstance(v, float) else round(v, 3)) for k, v in kw.items()}
+    info["measured"] = {k: (round(v, 3) if isinstance(v, float) else v) for k, v in kw.items()
+                        if not isinstance(v, tuple)}
     return st.copy(**kw)
 
 
 def mirror(rig: PlateRig) -> PlateRig:
-    """Horizontally mirrored rig (a 3/4 view facing the other way) — the vector face is redrawn, never flipped."""
+    """Mirrored rig (3/4 facing the other way).  The vector face is REDRAWN for the new orientation, never flipped."""
     W = rig.clean.shape[1]
     h = rig.head
-    st = rig.style.copy(nose_dir=-rig.style.nose_dir)
-    eyes = [(W - e[0] - e[2], e[1], e[2], e[3], W - 1 - e[4], e[5]) for e in rig.eyes][::-1]
-    return PlateRig(clean=rig.clean[:, ::-1].copy(), face_mask=rig.face_mask[:, ::-1].copy(),
-                    head=h.replace(cx=W - 1 - h.cx, yaw=-h.yaw, roll=-h.roll), style=st, eyes=eyes,
-                    info=dict(rig.info, mirrored=True))
+    eyes = sorted([(W - e[0] - e[2], e[1], e[2], e[3], W - 1 - e[4], e[5]) for e in rig.eyes], key=lambda e: e[4])
+    return PlateRig(clean=rig.clean[:, ::-1].copy(), fill=rig.fill[:, ::-1].copy(),
+                    head=h.replace(cx=W - 1 - h.cx, yaw=-h.yaw, roll=-h.roll),
+                    style=rig.style.copy(nose_dir=-rig.style.nose_dir), eyes=eyes, info=dict(rig.info, mirrored=True))
