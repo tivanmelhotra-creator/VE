@@ -112,21 +112,46 @@ class Kit:
         self.hair = (hb[2] / 255.0, hb[1] / 255.0, hb[0] / 255.0)
 
     def view(self, yaw: float, pitch: float = 0.0):
-        t = min(1.0, abs(yaw) / YAW_KEY)
-        v = _lerp(self.front, self.q if yaw >= 0 else self.qm, t)
+        """continuous view.  |yaw| ≤ 25 interpolates front↔3/4; 25 < |yaw| ≤ 35 extrapolates the same (fixed-topology)
+        deltas (max 1.4×).  Returns (view, t) with t ∈ [0, 1] the turn amount used for near-side styling."""
+        tg = float(np.clip(abs(yaw) / YAW_KEY, 0.0, YAW_MAX / YAW_KEY))
+        if tg > 1.0:                                   # past the 3/4 key: features keep turning only a little
+            tg = 1.0 + (tg - 1.0) / 0.4 * YAW_EXTRA
+        v = _lerp(self.front, self.q if yaw >= 0 else self.qm, tg)
         if abs(pitch) > 0.01:
             v = _pitch(v, pitch)
-        return v, t
+        return v, min(1.0, tg)
+
+
+YAW_MAX, PITCH_MAX = 35.0, 20.0
+YAW_EXTRA = 0.15          # feature extrapolation share at |yaw| = 35 (matches turn25.PLATE_EXTRA)
+PITCH_CY = 475.0          # head centre (plate px) — must match turn25.head_pitch (pivot.y − 260)
+PITCH_SHIFT = 60.0        # plate px · sin(pitch) — must match turn25.head_pitch
+PITCH_SQUASH = 0.06
+
+
+def pitch_map_y(y, pitch_deg, extra=0.0):
+    """the SAME vertical map turn25.head_pitch applies to the plate (rigid lock) + optional sphere slide."""
+    s = math.sin(math.radians(pitch_deg))
+    k = 1.0 - PITCH_SQUASH * abs(s)
+    return PITCH_CY + k * (np.asarray(y, float) - PITCH_CY + PITCH_SHIFT * s) + extra * s
 
 
 def _pitch(v, pitch_deg):
-    """head pitch on a blank face: features slide on the sphere (depth-weighted) and eyes foreshorten."""
-    s = math.sin(math.radians(pitch_deg))
-    k = 95.0 * s                                     # plate px at full ±90° (≈ 0.4 face radius)
-    v = {**v, "eyes": {}, "brows": {}}
-    for side in ("L", "R"):
-        pass
-    return v
+    """head pitch: features follow the plate's pitch map exactly (anchor lock) and, being on the front of the
+    head sphere, slide a little further (≤ 4 px at 20°); eyes foreshorten through the same squash."""
+    def P(p, extra):
+        q = np.array(p, float).copy()
+        q[..., 1] = pitch_map_y(q[..., 1], pitch_deg, extra)
+        return q
+    out = {"eyes": {}, "brows": {}}
+    for sd, e in v["eyes"].items():
+        out["eyes"][sd] = dict(e, outline=P(e["outline"], 10.0), pupil=P(e["pupil"], 10.0))
+    for sd, b in v["brows"].items():
+        out["brows"][sd] = dict(b, line=P(b["line"], 8.0))
+    out["nose"] = P(v["nose"], 12.0)
+    out["mouth"] = {k: P(m, 9.0) for k, m in v["mouth"].items()}
+    return out
 
 
 # --------------------------------------------------------------------------------------------------------- state
