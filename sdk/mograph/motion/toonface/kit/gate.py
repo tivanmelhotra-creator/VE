@@ -171,8 +171,8 @@ def comparison_sheet(stills, refs, out):
         return img
     ours = [lab(o, n) for o, n in zip(ours, ["v31 kit: 'bebin'", "v31 kit: sigh / eye-roll", "v31 kit: 'asla' (frown)",
                                              "v31 kit: 'nadaram'"])]
-    rr = [lab(r, n) for r, n in zip(rr, ["ref: khab 14.0s", "ref: khab 18.5s", "ref: roshanfekr 13.5s",
-                                         "ref: roshanfekr 18.0s"])]
+    rr = [lab(r, n) for r, n in zip(rr, ["ref: khab 14.0s", "ref: khab 18.5s", "ref: roshanfekr 15.0s",
+                                         "ref: roshanfekr 17.0s"])]
     sheet = np.vstack([np.hstack(ours), np.hstack(rr)])
     cv2.imwrite(out, sheet, [cv2.IMWRITE_JPEG_QUALITY, 90])
     return out
