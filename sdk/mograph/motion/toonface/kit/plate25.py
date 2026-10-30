@@ -50,7 +50,7 @@ def _stroke_width(dark, near):
     return float(np.clip(2.0 * np.percentile(dt[d], 85), 2.0, 16.0))
 
 
-def analyze25(img: np.ndarray, skin_seed=None, far_side: int = +1) -> Plate25:
+def analyze25(img: np.ndarray, skin_seed=None, far_side: int = +1, debug: bool = False) -> Plate25:
     H, W = img.shape[:2]
     sm = cv2.medianBlur(img, 3)
     g = cv2.cvtColor(sm, cv2.COLOR_BGR2GRAY)
@@ -103,7 +103,7 @@ def analyze25(img: np.ndarray, skin_seed=None, far_side: int = +1) -> Plate25:
     er &= ~(hair_m & ~brow_m)                         # never paint skin over real hair
     clean[er] = skin.astype(np.uint8)
     inner = cv2.erode(Fh.astype(np.uint8), np.ones((3, 3), np.uint8)) > 0
-    clean[inner & (g > 150) & ~(hair_m & ~brow_m)] = skin.astype(np.uint8)   # flat cel → no upscale halos
+    clean[inner & ~(hair_m & ~brow_m)] = skin.astype(np.uint8)   # whole interior → flat cel (no ghosts / halos)
     # ---- far eye
     fx, fy, fw, fh, fi = far
     sclera = (lw == fi).astype(np.uint8)
@@ -117,18 +117,26 @@ def analyze25(img: np.ndarray, skin_seed=None, far_side: int = +1) -> Plate25:
     lashm = dark & (zone > 0) & (dist_s < 0.42 * fw)
     lash = ndi.binary_propagation(lashm & (scl_d > 0), mask=lashm)
     old_eye = cv2.dilate(((scl_d > 0) | lash).astype(np.uint8), np.ones((3, 3), np.uint8)) > 0
-    # cheek arc below the far eye → circle → extrapolate through the eye zone
-    rows = np.arange(fy + fh - int(0.05 * fh), min(H - 1, fy + fh + int(0.75 * fh)))
+    # cheek contour below the far eye: inner skin edge + half a stroke = stroke centre line
+    r0 = fy + fh + int(0.12 * fh)
+    rows = np.arange(r0, min(H - 1, r0 + int(0.8 * fh)))
     pts = []
     for y in rows:
         r = np.where(face_skin[y])[0]
         if len(r):
-            pts.append((float(r.max() if far_side > 0 else r.min()), float(y)))
-    pts = np.array(pts)
-    ccx, ccy, cR = fit_circle(pts)
-    ys_c = np.arange(fy - int(0.30 * fh), rows[-1] + 1).astype(float)
+            pts.append(((r.max() + 0.5 * th) if far_side > 0 else (r.min() - 0.5 * th), float(y)))
+    pts = np.array(pts, float)
     sgn = 1.0 if far_side > 0 else -1.0
-    xs_c = ccx + sgn * np.sqrt(np.maximum(cR ** 2 - (ys_c - ccy) ** 2, 0.0))
+    ccx, ccy, cR = fit_circle(pts)
+    # continuation upward: quadratic fitted on the visible arc (x as a function of y), clamped curvature
+    cf = np.polyfit(pts[:, 1], pts[:, 0], 2)
+    y_top = fy - int(0.25 * fh)
+    ys_c = np.arange(y_top, rows[-1] + 1).astype(float)
+    xs_c = np.polyval(cf, ys_c)
+    # never curl back into the face above the eye: limit to the vertical through the top of the arc
+    x_lim = pts[0, 0] + sgn * 0.08 * fw
+    xs_c = np.where(ys_c < pts[0, 1], np.minimum(xs_c, x_lim) if far_side > 0 else np.maximum(xs_c, x_lim), xs_c)
+    xs_c[ys_c >= pts[0, 1]] = np.interp(ys_c[ys_c >= pts[0, 1]], pts[:, 1], pts[:, 0])
     contour = np.c_[xs_c, ys_c]
     side = np.zeros((H, W), bool)
     for x, y in contour.astype(int):
@@ -138,15 +146,35 @@ def analyze25(img: np.ndarray, skin_seed=None, far_side: int = +1) -> Plate25:
             else:
                 side[y, min(W, x):] = True
     side[:int(ys_c[0])] = False
-    clean[old_eye & side] = skin.astype(np.uint8)
-    clean[old_eye & ~side] = hair.astype(np.uint8)
-    face = (Fh | (old_eye & side)) & alpha
-    seg = contour[(contour[:, 1] >= fy + 0.05 * fh) & (contour[:, 1] <= fy + fh + 0.25 * fh)]
+    side[int(ys_c[-1]) + 1:] = True
+    # whole far-eye zone is rebuilt: face side → skin, outside → hair; hair outlines that mostly live outside the zone
+    # are kept (they pass behind the old lashes), lash wings / lid wedge (mostly inside the zone) are dropped
+    zbig = (zone > 0) | old_eye
+    nd, ld, sd, _ = cv2.connectedComponentsWithStats((dark & zbig).astype(np.uint8), connectivity=8)
+    nd2, ld2 = cv2.connectedComponents(dark.astype(np.uint8), connectivity=8)
+    keep_ink = np.zeros((H, W), bool)
+    for i in range(1, nd2):
+        m = ld2 == i
+        inside = (m & zbig).sum()
+        if inside == 0:
+            continue
+        if (m & ~zbig).sum() > 2.5 * inside and not (m & (scl_d > 0)).any():
+            keep_ink |= m
+    keep_ink &= ~side
+    rebuild = (old_eye | (dark & (zone > 0))) & ~keep_ink
+    rebuild = cv2.dilate(rebuild.astype(np.uint8), np.ones((3, 3), np.uint8)) > 0
+    rebuild &= ~keep_ink
+    clean[rebuild & side] = skin.astype(np.uint8)
+    clean[rebuild & ~side] = hair.astype(np.uint8)
+    old_eye = rebuild
+    face = (Fh | (rebuild & side)) & alpha
+    seg = contour[(contour[:, 1] >= fy - 0.02 * fh)]
     tmp = clean.copy()
     if len(seg) > 2:
         cv2.polylines(tmp, [np.round(seg * 4).astype(np.int32).reshape(-1, 1, 2)], False, INK_BGR, max(2, th),
                       cv2.LINE_AA, shift=2)
-    weld = cv2.dilate(old_eye.astype(np.uint8), np.ones((2 * th + 5, 2 * th + 5), np.uint8)) > 0
+    weld = cv2.dilate(rebuild.astype(np.uint8), np.ones((2 * th + 5, 2 * th + 5), np.uint8)) > 0
+    weld &= ~keep_ink
     clean[weld] = tmp[weld]
     # ---- forelock layer
     eye_top = min(near[1], far[1])
@@ -164,6 +192,8 @@ def analyze25(img: np.ndarray, skin_seed=None, far_side: int = +1) -> Plate25:
     info = {"skin_bgr": skin.round().tolist(), "hair_bgr": hair.round().tolist(), "stroke_px": round(stroke, 2),
             "near_eye": list(near[:4]), "far_eye": list(far[:4]),
             "cheek_circle": [round(float(v), 1) for v in (ccx, ccy, cR)]}
+    if debug:
+        info['_dbg'] = dict(old_eye=old_eye, fore=fore, brow_m=brow_m, side=side, face_skin=face_skin, hair_m=hair_m)
     return Plate25(src=img, clean=clean, alpha=alpha.astype(np.float32), face=face, hair_fg=hair_fg, skin_bgr=skin,
                    hair_bgr=hair, stroke_px=stroke, eyes=[near[:4], far[:4]], contour_far=seg,
                    cheek_circle=(ccx, ccy, cR), info=info)
