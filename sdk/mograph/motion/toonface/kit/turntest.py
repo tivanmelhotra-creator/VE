@@ -8,8 +8,9 @@ front, with a small pitch nod in the middle hold.  The mouth is lip-synced from 
 eyes blink and saccade.
 
 Stability metric (printed + burnt into the HUD), measured per drawing:
-    offset(t) = face anchor (eye midpoint after the head transform)  −  skull centroid (turned plate face mask)
-    jitter    = |offset(t) − 2·offset(t−1) + offset(t−2)|  (second difference → any pop / float shows up here)
+    reg(t)    = vector-face landmarks − where the plate drawing's OWN landmarks landed after the turn warp
+                (eyes, brows, nose, mouth; plate px).  median ≈ 0 → the face is glued to the skull.
+    jitter    = |r(t) − 2·r(t−1) + r(t−2)| of the mean registration vector (second difference → pops / floating)
     bob       = vertical anchor motion from nod/bob/breath (golden rule ≤ ±6–8 px)
 """
 from __future__ import annotations
@@ -78,7 +79,7 @@ def render(audio, out, dur=5.0, fps=24, log=print, strip=None):
                    check=True)
     proc = ffmpeg_writer(out, W, H, fps, tmp + ".m4a")
     hist = [[], []]
-    stats = {"girl": {"jitter_max": 0.0, "bob_max": 0.0}, "boy": {"jitter_max": 0.0, "bob_max": 0.0}}
+    stats = {nm: {"reg_median_mean": [], "reg_mean": [], "jitter_max": 0.0, "bob_max": 0.0} for nm in ("girl", "boy")}
     cache_key, cache = None, None
     stills = []
     n = int(round(dur * fps))
@@ -92,8 +93,9 @@ def render(audio, out, dur=5.0, fps=24, log=print, strip=None):
             for ci, (ch, ox) in enumerate(zip(chars, xs)):
                 rgba = ch.render(head.yaw, st, head, pitch=head.pitch)
                 _place(frame, rgba, ox, 0)
-                an = ch.anchor(head.yaw, head.pitch, head)
-                off = np.array([an["cx"], an["cy"]]) - ch.last_skull
+                err, _ = ch.registration()
+                dn = np.linalg.norm(err, axis=1)
+                off = err.mean(0)
                 hist[ci].append(off)
                 jit = 0.0
                 if len(hist[ci]) >= 3:
@@ -101,9 +103,11 @@ def render(audio, out, dur=5.0, fps=24, log=print, strip=None):
                     jit = float(np.linalg.norm(c - 2 * b + a))
                 nm = ("girl", "boy")[ci]
                 stats[nm]["jitter_max"] = max(stats[nm]["jitter_max"], jit)
+                stats[nm]["reg_median_mean"].append(float(np.median(dn)))
+                stats[nm]["reg_mean"].append(float(dn.mean()))
                 stats[nm]["bob_max"] = max(stats[nm]["bob_max"], abs(head.dy))
                 hud.append((ox + 70, [f"{nm}  yaw {head.yaw:+5.1f}  pitch {head.pitch:+4.1f}",
-                                      f"anchor-skull jitter {jit:4.2f}px  bob {head.dy:+4.1f}px"]))
+                                      f"face-skull reg {np.median(dn):4.2f}px  jitter {jit:4.2f}px  bob {head.dy:+4.1f}px"]))
             for x, ls in hud:
                 _hud(frame, x, ls)
             sub = "ببین، من که بهت گفتم..." if t < 3.0 else "دیگه اصلاً حوصله‌ی ..."
@@ -120,7 +124,11 @@ def render(audio, out, dur=5.0, fps=24, log=print, strip=None):
                 for k in range(0, len(stills), 5)]
         cv2.imwrite(strip, np.vstack(rows), [cv2.IMWRITE_JPEG_QUALITY, 88])
     for nm in stats:
-        stats[nm] = {k: round(v, 3) for k, v in stats[nm].items()}
+        d = stats[nm]
+        stats[nm] = {"reg_median_px": round(float(np.mean(d["reg_median_mean"])), 3),
+                     "reg_mean_px": round(float(np.mean(d["reg_mean"])), 3),
+                     "jitter_max_px": round(d["jitter_max"], 3), "bob_max_px": round(d["bob_max"], 3)}
+    json.dump(stats, open(os.path.splitext(out)[0] + "_stability.json", "w"), indent=1)
     log(f"[turntest] {out}  {n} frames  {dur:.2f}s  stability={stats}")
     return stats
 
