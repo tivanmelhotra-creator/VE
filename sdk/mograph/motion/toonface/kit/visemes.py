@@ -10,7 +10,7 @@ import re
 VISEMES = {
     "X":    dict(open=0.0, width=0.92),
     "MBP":  dict(open=0.0, width=0.86, press=1.0),
-    "AA":   dict(open=0.95, upper=0.10, width=0.98, teeth_up=0.45, tongue=0.55),
+    "AA":   dict(open=0.85, upper=0.10, width=0.98, teeth_up=0.45, tongue=0.55),
     "AH":   dict(open=0.62, upper=0.08, width=0.95, teeth_up=0.40, tongue=0.40),
     "EH":   dict(open=0.42, upper=0.08, width=1.02, teeth_up=0.50, tongue=0.25),
     "EE":   dict(open=0.26, upper=0.06, width=1.10, teeth_up=0.70, teeth_lo=0.45),

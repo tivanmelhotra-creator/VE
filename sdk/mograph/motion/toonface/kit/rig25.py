@@ -242,6 +242,8 @@ def draw_eye(ctx, e, st: Face, kit: Kit):
         if st.bags > 0.35:
             k = (s_out > 0.25) & (s_out < 0.8)
             ink.tapered(ctx, np.c_[xs[k], by[k] + 0.17 * hmax], INK, 0.42 * sw, alpha=min(0.7, st.bags - 0.35))
+    if closed and not wing:
+        ink.fill(ctx, np.vstack([np.c_[xs, ty], np.c_[xs[::-1], by[::-1]]]), kit.skin)
     if closed:
         yl = ty + 0.70 * h + 0.06 * hmax * np.sin(np.pi * s)
         lwid = (0.55 + 0.9 * np.sin(np.pi * s) ** 0.6) * ((0.35 * th_out if wing else 0.0) + 0.75 * sw)
@@ -262,14 +264,15 @@ def draw_eye(ctx, e, st: Face, kit: Kit):
             wedge = np.vstack([[[wx, wy]], lower_edge, upper_edge[::-1]])
         ink.fill(ctx, ink.catmull(wedge, per_seg=3, closed=True), INK)
     else:
-        # round "boy" eye: socket outline stays, the lid is a skin-coloured cap with its own line
+        # round "boy" eye: one continuous outline (no corner gaps); a lowered lid = skin cap + its own lid line
+        ring = np.vstack([np.c_[xs, ty], np.c_[xs[::-1], by[::-1]]])
         u_any = float(np.max(yl - ty))
         if u_any > 0.04 * hmax:
-            cap = np.vstack([np.c_[xs, ty - 0.5 * sw], np.c_[xs[::-1], yl[::-1]]])
+            cap = np.vstack([np.c_[xs, ty - 0.6 * sw], np.c_[xs[::-1], yl[::-1]]])
             ink.fill(ctx, cap, kit.skin)
-            ink.tapered(ctx, np.c_[xs, yl], INK, 1.0, widths=sw * (0.5 + 0.6 * np.sin(np.pi * s) ** 0.4))
-        ink.tapered(ctx, np.c_[xs, ty], INK, 1.0, widths=sw * (0.6 + 0.5 * np.sin(np.pi * s) ** 0.3))
-        ink.tapered(ctx, np.c_[xs, by], INK, 1.0, widths=sw * (0.5 + 0.45 * np.sin(np.pi * s) ** 0.3))
+        ink.stroke(ctx, ring, INK, 0.95 * sw, closed=True)
+        if u_any > 0.04 * hmax:
+            ink.tapered(ctx, np.c_[xs, yl], INK, 1.0, widths=sw * (0.55 + 0.75 * np.sin(np.pi * s) ** 0.4))
     if kit.d.get("lashes"):
         oy_off = 0.0 if closed else 0.6
         ox, oy = (xs[-1], yl[-1] - oy_off * th[-1]) if outer > 0 else (xs[0], yl[0] - oy_off * th[0])
@@ -298,8 +301,8 @@ def brow_line(b, e, st: Face):
     if a > 0:
         lid_top_inner = float(np.interp(c[-1, 0], xs, ty))
         gap = max(0.0, lid_top_inner - c[-1, 1])
-        tin = c[-1] + np.array([dirx * 0.07 * L, 0.80 * gap])
-        tout = c[0] + np.array([-dirx * 0.03 * L, -0.16 * eh])
+        tin = c[-1] + np.array([dirx * 0.08 * L, 0.92 * gap])
+        tout = c[0] + np.array([-dirx * 0.03 * L, -0.20 * eh])
         straight = tout[None] + (tin - tout)[None] * s[:, None]
         straight[:, 1] -= 0.06 * eh * np.sin(np.pi * np.clip(s * 1.15, 0, 1))   # slight convex bulge
         c = c * (1 - min(a, 1)) + straight * min(a, 1)
@@ -371,7 +374,7 @@ def mouth_geom(mv, m: dict, n: int = 49):
     z = np.where(s < tp, s / tp, (1 - s) / (1 - tp))
     def bump(pw):
         return np.sin(0.5 * np.pi * np.clip(z, 0, 1)) ** pw
-    K = 1.45 * hw                                              # +40 % over v31.0
+    K = 1.25 * hw                                              # ≈ +40 % area over v31.0 (with wider anchors)
     lo = base + nv[None] * (o * K * (1.0 + 0.2 * rnd) * bump(0.45 + 0.35 * rnd))[:, None]
     up = base - nv[None] * ((float(m.get("upper", 0.0)) * 0.35 * hw * bump(0.8) + 0.25 * rnd * o * K * bump(0.9)))[:, None]
     return up, lo, base, hw, u, nv, tp
@@ -445,8 +448,11 @@ def draw_mouth(ctx, mv, m: dict, kit: Kit, near: float = 1.0):
 
 
 # ------------------------------------------------------------------------------------------------------------ face
-def draw_face(ctx, kit: Kit, view, t_turn: float, st: Face):
+def draw_face(ctx, kit: Kit, view, t_turn: float, st: Face, parts=("brows", "eyes", "nose", "mouth")):
     e, b = view["eyes"], view["brows"]
+    if parts == ("mouth",):
+        draw_mouth(ctx, view["mouth"], st.mouth or {}, kit, near=t_turn)
+        return
     cl = draw_brow(ctx, b["L"], e["L"], st, kit)
     cr = draw_brow(ctx, b["R"], e["R"], st, kit)
     xs, ty, by, *_ = eye_geom(e["L"], Face())
@@ -454,4 +460,5 @@ def draw_face(ctx, kit: Kit, view, t_turn: float, st: Face):
     draw_eye(ctx, e["L"], st, kit)
     draw_eye(ctx, e["R"], st, kit)
     draw_nose(ctx, view["nose"], kit)
-    draw_mouth(ctx, view["mouth"], st.mouth or {}, kit, near=t_turn)
+    if "mouth" in parts:
+        draw_mouth(ctx, view["mouth"], st.mouth or {}, kit, near=t_turn)
