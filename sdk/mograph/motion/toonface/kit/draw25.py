@@ -114,27 +114,36 @@ def draw_eye(ctx, spec, st: FaceState, kit, closed_shape: float = 0.0):
     # upper lid wedge: thick at the outer corner, flicked past it (wing)
     th_in, th_out = spec["lid_th"]
     th = th_in + (th_out - th_in) * s_out ** 1.4
+    hmax = float(np.max(h))
     if closed:
-        yl = np.minimum(yl, yb)
-        th = th * 0.75
-    ext = 0.10 * (xs[-1] - xs[0])
-    if outer > 0:
-        wx, wy = xs[-1] + ext, yl[-1] - 0.10 * float(np.max(h)) * (0.4 + 0.6 * min(op, 1))
+        # shut lid = one soft downward arc across the lower third of the eye, tapered into both corners
+        yl = ty + 0.70 * h + 0.06 * hmax * np.sin(np.pi * s)
+        lw = (0.55 + 0.9 * np.sin(np.pi * s) ** 0.6) * (0.35 * th_out + 0.6 * sw)
+        g = np.c_[xs, yl]
+        ink.tapered(ctx, g, INK, 1.0, widths=lw)
+        ox, oy = (xs[-1], yl[-1]) if outer > 0 else (xs[0], yl[0])
+        wing = np.array([[ox, oy], [ox + outer * 0.07 * (xs[-1] - xs[0]), oy - 0.05 * hmax]])
+        ink.tapered(ctx, wing, INK, 0.9 * th_out * 0.6, kind="end", tip=0.1)
     else:
-        wx, wy = xs[0] - ext, yl[0] - 0.10 * float(np.max(h)) * (0.4 + 0.6 * min(op, 1))
-    lower_edge = np.c_[xs, yl + 0.35 * sw]
-    upper_edge = np.c_[xs, yl - th]
-    if outer > 0:
-        wedge = np.vstack([lower_edge, [[wx, wy]], upper_edge[::-1]])
-    else:
-        wedge = np.vstack([[[wx, wy]], lower_edge, upper_edge[::-1]])
-    wedge = ink.catmull(wedge, per_seg=3, closed=True)
-    ink.fill(ctx, wedge, INK)
+        ext = 0.10 * (xs[-1] - xs[0])
+        if outer > 0:
+            wx, wy = xs[-1] + ext, yl[-1] - 0.10 * hmax * (0.4 + 0.6 * min(op, 1))
+        else:
+            wx, wy = xs[0] - ext, yl[0] - 0.10 * hmax * (0.4 + 0.6 * min(op, 1))
+        lower_edge = np.c_[xs, yl + 0.35 * sw]
+        upper_edge = np.c_[xs, yl - th]
+        if outer > 0:
+            wedge = np.vstack([lower_edge, [[wx, wy]], upper_edge[::-1]])
+        else:
+            wedge = np.vstack([[[wx, wy]], lower_edge, upper_edge[::-1]])
+        wedge = ink.catmull(wedge, per_seg=3, closed=True)
+        ink.fill(ctx, wedge, INK)
     # lashes: two-prong fork out of the outer end of the wedge (girl)
     if kit.get("lashes"):
         L = xs[-1] - xs[0]
-        ox, oy = (xs[-1], yl[-1] - 0.6 * th[-1]) if outer > 0 else (xs[0], yl[0] - 0.6 * th[0])
-        lift = 0.55 + 0.45 * min(op, 1.0)
+        ox, oy = (xs[-1], yl[-1] - (0.6 * th[-1] if not closed else 0)) if outer > 0 else \
+            (xs[0], yl[0] - (0.6 * th[0] if not closed else 0))
+        lift = (0.55 + 0.45 * min(op, 1.0)) if not closed else -0.35
         for ang, ln, wd in ((-58, 0.30, 0.95), (-18, 0.26, 0.85)):
             a = math.radians(ang)
             d = np.array([math.cos(a) * outer, math.sin(a) * lift])
