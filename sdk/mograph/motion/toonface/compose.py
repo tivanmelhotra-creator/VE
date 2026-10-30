@@ -57,53 +57,66 @@ def acting_head(rig: PlateRig, c: FaceControls, max_yaw_deg: float = 9.0, max_pi
 
 
 class FaceCompositor:
-    """Caches the masks of one rig so per-frame rendering is cheap."""
+    """Caches the masks of one rig; per frame only a head-sized ROI is drawn (fast)."""
 
-    def __init__(self, rig: PlateRig, original: np.ndarray | None = None, supersample: int = 1):
+    def __init__(self, rig: PlateRig, original: np.ndarray | None = None):
         self.rig = rig
         H, W = rig.clean.shape[:2]
         self.H, self.W = H, W
+        R = rig.head.R
         fill = (rig.fill > 0).astype(np.uint8)
-        k = max(3, int(round(rig.head.R * 0.02)) | 1)
-        # skin mask: shrink by ~the contour thickness so nothing is drawn on top of the outline ink
+        k = max(3, int(round(R * 0.03)) | 1)
         inner = cv2.erode(fill, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (k, k)))
-        self.skin_mask = cv2.GaussianBlur(inner.astype(np.float32), (0, 0), 0.7)
-        self.eye_mask = cv2.GaussianBlur(fill.astype(np.float32), (0, 0), 0.7)
+        self.skin_mask = cv2.GaussianBlur(inner.astype(np.float32), (0, 0), 0.8)
+        # toon cheat: eyes may spill past the cheek contour onto the hair (never onto the background far away)
+        ke = max(5, int(round(R * 0.35)) | 1)
+        self.eye_mask = cv2.GaussianBlur(cv2.dilate(fill, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (ke, ke)))
+                                         .astype(np.float32), (0, 0), 0.8)
         self.occ = None
         if original is not None and rig.occluder is not None and rig.occluder.any():
-            occ = rig.occluder.astype(np.float32)
-            self.occ = cv2.GaussianBlur(occ, (0, 0), 0.6)[:, :, None]
+            self.occ = cv2.GaussianBlur(rig.occluder.astype(np.float32), (0, 0), 0.6)[:, :, None]
             self.orig = original
+        h = rig.head
+        m = 1.75 * R
+        self.roi = (max(0, int(h.cx - m)), max(0, int(h.cy - m)), min(W, int(h.cx + m)), min(H, int(h.cy + m)))
+
+    def _layer(self, draw, x0, y0, w, h) -> np.ndarray:
+        s = cairo.ImageSurface(cairo.FORMAT_ARGB32, w, h)
+        ctx = cairo.Context(s)
+        ctx.set_antialias(cairo.ANTIALIAS_BEST)
+        ctx.translate(-x0, -y0)
+        draw(ctx)
+        return _surface_to_bgra(s)
 
     def render(self, c: FaceControls, t: float = 0.0, head: HeadFrame | None = None,
                base: np.ndarray | None = None) -> np.ndarray:
-        rig = self.rig
-        head = head or acting_head(rig, c)
-        W, H = self.W, self.H
-        # pass 1: skin features (mouth, nose, cheek fx) / pass 2: eyes + brows, no outer fx
-        s1 = cairo.ImageSurface(cairo.FORMAT_ARGB32, W, H)
-        ctx = cairo.Context(s1)
         from .face import _cheek_fx, draw_nose, draw_mouth, draw_eyes, draw_brows
-        ctx.set_antialias(cairo.ANTIALIAS_BEST)
+        rig, st = self.rig, self.rig.style
+        head = head or acting_head(rig, c)
+        x0, y0, x1, y1 = self.roi
+        w, h = x1 - x0, y1 - y0
         dv_e, dv_m = -0.04 * c.squash, 0.05 * c.squash
-        _cheek_fx(ctx, head, rig.style, c, t)
-        draw_nose(ctx, head, rig.style, c)
-        draw_mouth(ctx, head, rig.style, c, dv_m)
-        s2 = cairo.ImageSurface(cairo.FORMAT_ARGB32, W, H)
-        ctx2 = cairo.Context(s2)
-        ctx2.set_antialias(cairo.ANTIALIAS_BEST)
-        draw_eyes(ctx2, head, rig.style, c, t, dv_e)
-        draw_brows(ctx2, head, rig.style, c, dv_e)
-        s3 = cairo.ImageSurface(cairo.FORMAT_ARGB32, W, H)
-        ctx3 = cairo.Context(s3)
-        ctx3.set_antialias(cairo.ANTIALIAS_BEST)
-        _outer_fx(ctx3, head, rig.style, c, t)
+
+        def skin(ctx):
+            _cheek_fx(ctx, head, st, c, t)
+            draw_nose(ctx, head, st, c)
+            draw_mouth(ctx, head, st, c, dv_m)
+
+        def eyes(ctx):
+            draw_eyes(ctx, head, st, c, t, dv_e)
+            draw_brows(ctx, head, st, c, dv_e)
+
         out = (base if base is not None else rig.clean).copy()
-        out = _over(out, _surface_to_bgra(s1), self.skin_mask)
-        out = _over(out, _surface_to_bgra(s2), self.eye_mask)
+        sub = out[y0:y1, x0:x1]
+        sub = _over(sub, self._layer(skin, x0, y0, w, h), self.skin_mask[y0:y1, x0:x1])
+        sub = _over(sub, self._layer(eyes, x0, y0, w, h), self.eye_mask[y0:y1, x0:x1])
         if self.occ is not None:
-            out = (out.astype(np.float32) * (1 - self.occ) + self.orig.astype(np.float32) * self.occ).astype(np.uint8)
-        out = _over(out, _surface_to_bgra(s3))
+            o = self.occ[y0:y1, x0:x1]
+            sub = (sub.astype(np.float32) * (1 - o) + self.orig[y0:y1, x0:x1].astype(np.float32) * o).astype(np.uint8)
+        out[y0:y1, x0:x1] = sub
+        # outer FX may leave the ROI (bulb, zzz, tears) → full-frame transparent layer, cheap when empty
+        if c.fx:
+            out = _over(out, self._layer(lambda ctx: _outer_fx(ctx, head, st, c, t), 0, 0, self.W, self.H))
         return out
 
 
