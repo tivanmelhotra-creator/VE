@@ -5,7 +5,6 @@ Params: open, upper (upper-lip lift), width, round, teeth_up, teeth_lo, tongue, 
 """
 from __future__ import annotations
 
-import re
 
 VISEMES = {
     "X":    dict(open=0.0, width=0.92),
@@ -40,56 +39,49 @@ def mix(a: dict, b: dict, t: float) -> dict:
 
 
 # ---------------------------------------------------------------------------------------------- Persian G2P
-# phoneme symbols: consonants b p m f v t d n s z sh ch j k g q x h r l y ' ; vowels a A e i o u
-LEXICON = {
-    "ببین": "b e b i n", "من": "m a n", "که": "k e", "بهت": "b e h e t", "گفتم": "g o f t a m",
-    "دیگه": "d i g e", "اصلا": "A s l a n", "اصلاً": "A s l a n", "حوصله": "h o w s e l e", "حوصله‌ی": "h o w s e l e y e",
-    "این": "i n", "بازیا": "b A z i y A", "بازی‌ها": "b A z i h A", "رو": "r o", "ندارم": "n a d A r a m",
-}
-_LET = {"ب": "b", "پ": "p", "ت": "t", "ث": "s", "ج": "j", "چ": "ch", "ح": "h", "خ": "x", "د": "d", "ذ": "z", "ر": "r",
-        "ز": "z", "ژ": "zh", "س": "s", "ش": "sh", "ص": "s", "ض": "z", "ط": "t", "ظ": "z", "ع": "'", "غ": "q",
-        "ف": "f", "ق": "q", "ک": "k", "ك": "k", "گ": "g", "ل": "l", "م": "m", "ن": "n", "ه": "h", "ء": "'"}
-
-
-def g2p(word: str) -> list:
-    w = re.sub(r"[\u064B-\u0652،.!؟?…\"«»]", "", word).strip()
-    if w in LEXICON:
-        return LEXICON[w].split()
-    out = []
-    for i, ch in enumerate(w):
-        if ch in "اآ":
-            out.append("A")
-        elif ch == "و":
-            out.append("v" if i == 0 else "u")
-        elif ch in "یي":
-            out.append("y" if i == 0 else "i")
-        elif ch == "ه" and i == len(w) - 1 and i > 0:
-            out.append("e")
-        elif ch in _LET:
-            if out and out[-1] not in "aAeiou" and _LET[ch] not in "'":
-                out.append("a")                      # unwritten short vowel between consonants
-            out.append(_LET[ch])
-    return out
-
+from .g2p_fa import VOWELS, g2p  # noqa: E402  (universal rule-based Persian G2P + lexicon)
 
 P2V = {"b": "MBP", "p": "MBP", "m": "MBP", "f": "FV", "v": "FV", "t": "DTN", "d": "DTN", "n": "DTN", "r": "DTN",
        "s": "SZ", "z": "SZ", "sh": "SHCH", "ch": "SHCH", "j": "SHCH", "zh": "SHCH", "k": "KG", "g": "KG", "q": "KG",
        "x": "KG", "h": "KG", "'": "KG", "l": "L", "y": "EE", "w": "OO",
-       "a": "AH", "A": "AA", "e": "EH", "i": "EE", "o": "OH", "u": "OO"}
+       "a": "AH", "A": "AA", "e": "EH", "i": "EE", "o": "OH", "u": "OO", "ow": "OH", "ey": "EH"}
+# relative durations: long vowels > short vowels > consonants; labials keep a visible closure
+DUR = {"A": 1.9, "i": 1.6, "u": 1.7, "a": 1.4, "e": 1.25, "o": 1.35, "ow": 1.8, "ey": 1.7,
+       "b": 1.05, "p": 1.05, "m": 1.1, "f": 1.0, "v": 0.95, "h": 0.6, "'": 0.5, "y": 0.7, "w": 0.7}
+MIN_LABIAL = 0.055          # s — a bilabial closure must be on screen ≥ 1 drawing on twos (≈ 1/12 s with lead)
+
+
+def phonemes(words):
+    """[(text, t0, t1)] → [(text, t0, t1, [phonemes])] (merges a word-final -e with the next ezafe if written)."""
+    return [(w, t0, t1, g2p(w)) for w, t0, t1 in words]
 
 
 def viseme_track(words: list) -> list:
-    """words = [(text, start, end)] → [(t0, t1, viseme)] with vowels weighted 1.6× consonants."""
+    """words = [(text, start, end)] → [(t0, t1, viseme)].
+    Geminates (tashdid) are one longer segment; labial closures are guaranteed a minimum hold."""
     track = []
-    for text, t0, t1 in words:
-        ph = g2p(text)
+    for text, t0, t1, ph in phonemes(words):
         if not ph:
             continue
-        wts = [1.6 if p in "aAeiou" else 1.0 for p in ph]
-        tot = sum(wts)
+        segs = []                                           # merge identical neighbours (gemination)
+        for p in ph:
+            if segs and segs[-1][0] == p and p not in VOWELS:
+                segs[-1][1] += 0.8
+            else:
+                segs.append([p, DUR.get(p, 1.0 if p not in VOWELS else 1.4)])
+        tot = sum(d for _, d in segs)
+        span = t1 - t0
+        durs = [span * d / tot for _, d in segs]
+        lab = [i for i, (p, _) in enumerate(segs) if P2V.get(p) == "MBP"]
+        for i in lab:                                       # steal time from neighbours for a readable closure
+            need = MIN_LABIAL - durs[i]
+            if need > 0:
+                durs[i] += need
+                others = [j for j in range(len(durs)) if j != i]
+                for j in others:
+                    durs[j] = max(0.01, durs[j] - need / max(1, len(others)))
         t = t0
-        for p, wgt in zip(ph, wts):
-            d = (t1 - t0) * wgt / tot
+        for (p, _), d in zip(segs, durs):
             track.append((t, t + d, P2V.get(p, "EH")))
             t += d
     return track
