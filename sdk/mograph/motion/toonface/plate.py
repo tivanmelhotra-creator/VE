@@ -61,7 +61,7 @@ def find_eyes(img: np.ndarray, region: np.ndarray) -> list:
         blob = (lbl[max(0, y - 6):y + h + 6, max(0, x - 6):x + w + 6] == i).astype(np.uint8)
         ring = cv2.dilate(blob, np.ones((7, 7), np.uint8)) - blob
         g = gray[max(0, y - 6):y + h + 6, max(0, x - 6):x + w + 6]
-        if ring.sum() == 0 or (g[ring > 0] < 120).mean() < 0.30:
+        if ring.sum() == 0 or (g[ring > 0] < 130).mean() < 0.15:
             continue
         cands.append((int(x), int(y), int(w), int(h), float(ce[i][0]), float(ce[i][1]), int(a)))
     best, best_s = None, -1.0
@@ -84,7 +84,7 @@ def find_eyes(img: np.ndarray, region: np.ndarray) -> list:
 
 def _fit_yaw(eyes, cx, R, depth, eye_u=None, eye_v=0.0):
     xs = np.array([e[4] for e in eyes])
-    us = np.arange(0.26, 0.47, 0.01) if eye_u is None else np.array([eye_u])
+    us = np.arange(0.26, 0.60, 0.01) if eye_u is None else np.array([eye_u])
     best = (1e18, 0.0, us[0])
     for u in us:
         z = math.sqrt(max(0.0, 1 - u * u - eye_v * eye_v)) * depth
@@ -161,18 +161,18 @@ def analyze(img: np.ndarray, style: ToonStyle | None = None, search_box=None, me
     nd, ld = cv2.connectedComponents(dark & zone, connectivity=8)
     touch = np.unique(ld[(eye_ring > 0) & (ld > 0)])
     rem = np.isin(ld, touch[touch > 0]) & ~erase
+    # never touch the face contour itself: protect a band around the face boundary
+    th = max(2, int(round(_contour_thickness(gray, fill.astype(np.uint8)))))
+    edge = cv2.morphologyEx(fill.astype(np.uint8), cv2.MORPH_GRADIENT, np.ones((3, 3), np.uint8))
+    band = cv2.dilate(edge, np.ones((2 * th + 3, 2 * th + 3), np.uint8)) > 0
+    rem &= ~band
     if rem.any():
-        rem_d = cv2.dilate(rem.astype(np.uint8), np.ones((3, 3), np.uint8))
-        clean = cv2.inpaint(clean, rem_d, 4, cv2.INPAINT_TELEA)
-        inside = (rem_d > 0) & (hull > 0)
+        rem_d = cv2.dilate(rem.astype(np.uint8), np.ones((3, 3), np.uint8)) & (~band).astype(np.uint8)
+        inside = (rem_d > 0) & fill
         clean[inside] = skin.astype(np.uint8)
-        # re-ink the contour where it was removed
-        ink_bgr = np.median(img[(gray < 70) & (cv2.dilate(hull, np.ones((9, 9), np.uint8)) > 0)], axis=0)
-        th = max(2, int(round(_contour_thickness(gray, hull))))
-        tmp = clean.copy()
-        cv2.polylines(tmp, [hull_pts], True, [int(v) for v in ink_bgr], th, cv2.LINE_AA)
-        zz = cv2.dilate(rem_d, np.ones((2 * th + 1, 2 * th + 1), np.uint8)) > 0
-        clean[zz] = tmp[zz]
+        outside = ((rem_d > 0) & ~fill).astype(np.uint8)
+        if outside.any():
+            clean = cv2.inpaint(clean, outside, 4, cv2.INPAINT_TELEA)
     # ---- 5. head sphere
     cnt = hull_pts.reshape(-1, 2)
     ccs, _ = cv2.findContours(fill.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
@@ -228,9 +228,9 @@ def _measure(img, gray, st, eyes, holes, fill, skin, cx, cy, R, yaw, eye_u, eye_
     kw["eye_v"] = float(np.clip(eye_v, -0.25, 0.25))
     if len(eyes) == 2 and abs(yaw) < 0.3:
         cosy = max(0.5, math.cos(yaw))
-        kw["eye_u"] = float(np.clip(eye_u, 0.26, 0.46))
-        kw["eye_rx"] = float(np.clip(0.5 * np.mean([e[2] for e in eyes]) / R / cosy + 0.012, 0.14, 0.32))
-        kw["eye_ry"] = float(np.clip(0.5 * np.mean([e[3] for e in eyes]) / R + 0.012, 0.12, 0.32))
+        kw["eye_u"] = float(np.clip(eye_u, 0.26, 0.58))
+        kw["eye_rx"] = float(np.clip(0.5 * np.mean([e[2] for e in eyes]) / R / cosy + 0.012, 0.14, 0.44))
+        kw["eye_ry"] = float(np.clip(0.5 * np.mean([e[3] for e in eyes]) / R + 0.012, 0.12, 0.44))
         lash = []
         for e in eyes:
             x, y, w, h = e[:4]
