@@ -42,6 +42,61 @@ def kernel(k: float) -> np.ndarray:
     return cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (k, k))
 
 
+
+def _try_colored_skin_components(img_bgr: np.ndarray) -> _Components | None:
+    """
+    Detect colored/peach-skinned cartoon faces (e.g. warm beige skin with bright white eye scleras
+    separated by dark ink outlines) when the default white fill_mask only catches individual scleras.
+    """
+    H, W = img_bgr.shape[:2]
+    gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
+    hsv = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2HSV)
+    sclera_raw = ((hsv[:, :, 1] < 26) & (hsv[:, :, 2] > 228) & (gray >= 165)).astype(np.uint8)
+    sn, slbl, sst, sce = cv2.connectedComponentsWithStats(sclera_raw, connectivity=4)
+    if sn < 3:
+        return None
+    non_ink = ((gray >= 140) & (sclera_raw == 0)).astype(np.uint8)
+    non_ink_er = cv2.erode(non_ink, np.ones((3, 3), np.uint8))
+    n, lbl, st, ce = cv2.connectedComponentsWithStats(non_ink_er, connectivity=4)
+    best_id, best_area = None, -1
+    for i in range(1, n):
+        x, y, w, h, a = st[i]
+        if a < max(800, int(H * W * 0.015)) or x <= 1 or y <= 1 or x + w >= W - 1:
+            continue
+        comp_mask = (lbl == i).astype(np.uint8)
+        cs, _ = cv2.findContours(comp_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        if not cs:
+            continue
+        hull = cv2.convexHull(max(cs, key=cv2.contourArea))
+        ha = cv2.contourArea(hull)
+        comp_dil = cv2.dilate(comp_mask, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (25, 25)))
+        enclosed = 0
+        for j in range(1, sn):
+            sa = sst[j, 4]
+            if 60 <= sa <= 0.35 * ha:
+                sx, sy = sce[j]
+                if cv2.pointPolygonTest(hull, (float(sx), float(sy)), False) >= 0:
+                    bx_s, by_s, bw_s, bh_s, _ = sst[j]
+                    cy_chk = min(H - 1, int(by_s + bh_s + max(6, int(0.15 * bh_s))))
+                    if comp_dil[cy_chk, int(sx)] > 0:
+                        enclosed += 1
+        if enclosed >= 2 and a > best_area:
+            best_area = a
+            best_id = i
+    if best_id is None:
+        return None
+    skin_comp = (lbl == best_id).astype(np.uint8)
+    if float(hsv[:, :, 1][skin_comp > 0].mean()) < 28.0:
+        return None
+    # Keep a 2px dark outline gap between skin_comp and sclera_raw so they stay separate connected components!
+    sclera_sep = cv2.erode(sclera_raw, np.ones((3, 3), np.uint8))
+    combined = (skin_comp | sclera_sep).astype(np.uint8)
+    obj = object.__new__(_Components)
+    obj.fm = combined
+    obj.n, obj.lbl, obj.st, obj.ce = cv2.connectedComponentsWithStats(combined, connectivity=4)
+    return obj
+
+
 class _Components:
     """connected components of the fill mask, computed once and shared by head / eye search."""
 
@@ -168,6 +223,13 @@ def detect_face_anatomy(
     cc = _Components(sub, fill)
     hint_l = None if hint is None else (hint[0] - x0, hint[1] - y0)
     cands = find_heads(sub, fill=fill, hint=hint_l, _cc=cc)
+    if fill is None:
+        cc_col = _try_colored_skin_components(sub)
+        if cc_col is not None:
+            cands_col = find_heads(sub, fill=None, hint=hint_l, _cc=cc_col)
+            if cands_col:
+                cc = cc_col
+                cands = cands_col
     if not cands:
         raise ValueError("No head-like fill region detected in image")
     best = cands[0]

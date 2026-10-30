@@ -24,6 +24,7 @@ API: render(...) → report · render_video_lipsync(video, out, ...) → report 
 from __future__ import annotations
 
 import json
+import math
 import os
 import time
 from typing import Any, Sequence
@@ -33,9 +34,14 @@ import numpy as np
 
 from .. import lipsync as LS
 from .anatomy import anatomy_summary, detect_face_anatomy
-from .layers import character_alpha, occlusion_line, props_alpha, split_pose_sheet
+from .layers import character_alpha, fit_panel, occlusion_line, props_alpha, split_pose_sheet
+from .face_rig import EYE_EXPRESSIONS, MOUTH_EXPRESSIONS, draw_face, face_ops, fit_rig, prepare_face
 from .media import FFmpegWriter, cover_fit, has_audio, load_image, read_audio_mono, video_info
 from .mouths import VISEMES, GridMouths, VectorMouths, erase_base_mouth, place_mouth
+from .elastic_face import (AESTHETIC_PRESETS, AESTHETIC_STYLE_PROFILES, AL_EXPRESSIONS,
+                           AestheticEyeSpec, AestheticMouthSpec, ElasticEyeSpec, ElasticMouthSpec,
+                           dynamic_speech_mouth_spec, render_canonical_face_on_pose,
+                           render_elastic_face_on_pose, track_head_pose_3d)
 from .remaster import enhance_lineart_hd
 
 INK = (12, 10, 10)
@@ -215,6 +221,80 @@ def apply_blink(frame: np.ndarray, info: dict[str, Any], c: float) -> None:
 
 
 # ------------------------------------------------------------------------------------------------ poses
+
+def apply_alive_motion(
+    char_bgr: np.ndarray,
+    char_alpha: np.ndarray,
+    info: dict[str, Any],
+    frame_idx: int,
+    fps: float,
+    speech_energy: float = 0.0,
+    boil_amp: float = 1.35,
+    breathe_px: float = 1.6,
+) -> tuple[np.ndarray, np.ndarray, tuple[float, float, float]]:
+    """
+    AL-Studio style 'Alive 2D' micro-motion:
+      1. Body/Torso (below neck): stepped (on 3s) low-frequency organic wave (1.2-1.5 px) + slow breathing chest lift
+         anchored at the bottom of the character so waist/legs stay planted.
+      2. Head (above neck): decoupled stepped (on 2s/3s) micro-bob & subtle nod (0.35°-0.65°) driven by speech energy.
+    Returns (warped_bgr, warped_alpha, (head_dx, head_dy, head_ddeg)) so mouth/eyes follow the head micro-bob!
+    """
+    H, W = char_bgr.shape[:2]
+    hx, hy, hw, hh = info["head_box"]
+    neck_y = float(hy + hh * 0.96)
+    neck_x = float(hx + hw * 0.5)
+
+    # Stepped time indices (body on 3s = ~8Hz, head on 2s = ~12Hz)
+    tb = (frame_idx // 3) * (3.0 / fps)
+    th = (frame_idx // 2) * (2.0 / fps)
+
+    # 1. Head micro-bob & nod (stronger when talking)
+    talk_boost = 1.0 + 0.85 * float(np.clip(speech_energy, 0.0, 1.0))
+    head_dx = 0.55 * math.sin(2.0 * math.pi * 0.95 * th + 0.4) * talk_boost
+    head_dy = (-0.85 * abs(math.sin(2.0 * math.pi * 1.85 * th)) * talk_boost
+               - 0.65 * math.sin(2.0 * math.pi * 0.36 * tb))
+    head_ddeg = 0.42 * math.sin(2.0 * math.pi * 1.25 * th + 1.1) * talk_boost
+
+    # Build low-res displacement grid (1/8 resolution) and upsample for ultra-fast smooth warp
+    gh, gw = max(8, H // 16), max(8, W // 16)
+    yy, xx = np.mgrid[0:gh, 0:gw].astype(np.float32)
+    y_full = yy * (H / float(gh))
+    x_full = xx * (W / float(gw))
+
+    # Smooth transition mask: 1.0 in head (y < neck_y), 0.0 in torso (y > neck_y)
+    head_w = 1.0 / (1.0 + np.exp((y_full - neck_y) / max(4.0, 0.06 * hh)))
+    torso_w = 1.0 - head_w
+    # Anchor factor for torso: 1.0 near shoulders/chest, fading to 0.0 near bottom of frame
+    torso_top = neck_y
+    torso_span = max(60.0, H - torso_top)
+    chest_env = np.clip(1.0 - (y_full - torso_top) / (0.78 * torso_span), 0.0, 1.0) * torso_w
+
+    # Subtle organic spatial wave on torso (wavelength ~ 160 px, stepped at tb)
+    phase = 2.0 * math.pi * 1.15 * tb
+    wave_x = boil_amp * np.sin(y_full / 42.0 + phase) * np.cos(x_full / 58.0 - 0.7 * phase) * chest_env
+    breathe_y = -breathe_px * (0.5 + 0.5 * math.sin(2.0 * math.pi * 0.36 * tb)) * chest_env
+    wave_y = (0.65 * boil_amp * np.cos(x_full / 48.0 + 1.3 * phase) * chest_env) + breathe_y
+
+    # Rigid + subtle boil motion for head around (neck_x, neck_y)
+    rad = math.radians(head_ddeg)
+    ca, sa = math.cos(rad), math.sin(rad)
+    rx, ry = x_full - neck_x, y_full - neck_y
+    h_dx = (ca * rx - sa * ry - rx) + head_dx + 0.35 * boil_amp * np.sin(y_full / 36.0 + 1.7 * phase)
+    h_dy = (sa * rx + ca * ry - ry) + head_dy
+
+    dx_low = (head_w * h_dx + wave_x).astype(np.float32)
+    dy_low = (head_w * h_dy + wave_y).astype(np.float32)
+    dx = cv2.resize(dx_low, (W, H), interpolation=cv2.INTER_CUBIC)
+    dy = cv2.resize(dy_low, (W, H), interpolation=cv2.INTER_CUBIC)
+
+    grid_y, grid_x = np.mgrid[0:H, 0:W].astype(np.float32)
+    map_x = grid_x - dx
+    map_y = grid_y - dy
+    wbgr = cv2.remap(char_bgr, map_x, map_y, interpolation=cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
+    walpha = cv2.remap(char_alpha, map_x, map_y, interpolation=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT)
+    return wbgr, walpha, (float(head_dx), float(head_dy), float(head_ddeg))
+
+
 def _load_poses(poses, wh, sheet, remaster: bool):
     if isinstance(poses, str) and "," in poses:
         poses = [p.strip() for p in poses.split(",") if p.strip()]
@@ -230,7 +310,7 @@ def _load_poses(poses, wh, sheet, remaster: bool):
             raw, from_sheet = [(bgr, a)], False
     imgs, alphas = [], []
     for b, a in raw:
-        b = cover_fit(b, wh)
+        b = fit_panel(b, wh) if from_sheet else cover_fit(b, wh)
         if remaster:
             b = enhance_lineart_hd(b)
         imgs.append(b)
@@ -272,6 +352,7 @@ def render(
     remaster: bool = True,
     occlusion: str | int = "auto",
     blink: bool = True,
+    alive_boil: bool = True,
     seed: int = 7,
     mouth_style: dict | None = None,
     crf: int = 18,
@@ -378,9 +459,25 @@ def render(
     with FFmpegWriter(out, wh, fps, audio=audio, crf=crf) as wr:
         for f in range(n):
             p = bt[f]
-            base, box, fr = pose_base(p)
-            frame = base.copy()
             info = infos[p]
+            if alive_boil and (W * H >= 300000):
+                # Compute speech energy on this frame for natural head micro-bob
+                g_cur = LS.shape_at(keys, f / fps) if mouth_timeline is None else {"h": 0.4 if mt[f] not in ("rest", 0) else 0.0}
+                sp_en = float(g_cur.get("h", 0.0))
+                wbgr, wa, (hdx, hdy, hddeg) = apply_alive_motion(clean[p], c_alpha[p], info, f, fps, speech_energy=sp_en)
+                a3 = wa[:, :, None]
+                comp = wbgr.astype(np.float32) * a3 + bgf * (1.0 - a3)
+                if fg_bgr is not None:
+                    char_front = wa if occlusion == "front" else (wa * (rows < occ_y) if occ_y is not None else np.zeros_like(wa))
+                    front_m = np.clip(fg_a * (1.0 - char_front), 0, 1)[:, :, None]
+                    comp = fg_bgr.astype(np.float32) * front_m + comp * (1.0 - front_m)
+                frame = np.clip(comp + 0.5, 0, 255).astype(np.uint8)
+                _, box, fr = pose_base(p)
+                mcx, mcy = info["mouth_center"]
+                info = dict(info, mouth_center=(mcx + hdx, mcy + hdy), eye_angle_deg=info["eye_angle_deg"] + hddeg)
+            else:
+                base, box, fr = pose_base(p)
+                frame = base.copy()
             if blinks[f] > 0:
                 apply_blink(frame, info, float(blinks[f]))
             if mouth_timeline is not None:

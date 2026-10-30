@@ -78,7 +78,7 @@ MOUTH_EXPRESSIONS: dict[str, dict[str, Any]] = {
 }
 
 DEFAULT_PALETTE = {
-    "sclera": (250, 251, 251), "mouth_in": (22, 28, 58), "tongue": (96, 152, 214), "teeth": (247, 248, 248),
+    "sclera": (250, 251, 251), "mouth_in": (22, 28, 58), "tongue": (150, 135, 235), "teeth": (247, 248, 248),
 }
 
 
@@ -249,8 +249,7 @@ def _mouth_ops(P: RigParams, g: dict, m: dict, talking: bool) -> list:
     w = float(g.get("w", 0.8)) * m.get("w_mult", 1.0)
     a = 0.5 * P.mw * w
     h = 0.5 * P.mw * float(g.get("h", 0.0))
-    if not talking:
-        h += 0.5 * P.mw * m.get("open_add", 0.0)
+    h += 0.5 * P.mw * m.get("open_add", 0.0) * (0.45 if talking else 1.0)
     c = -m.get("smile", 0.0) * 0.42 * a
     t = np.linspace(-1, 1, 49)
     x = P.mx + a * t
@@ -608,9 +607,9 @@ def prepare_face(img: np.ndarray, info: dict) -> tuple[np.ndarray, np.ndarray]:
     keep_band = cv2.dilate(keep, kernel(2 * stroke + 3)) > 0
     inner = cv2.erode(head, kernel(max(3, 0.6 * stroke))) > 0
     feat = ((lbl != face_id) & inner).astype(np.uint8)
-    feat = cv2.dilate(feat, kernel(3)) > 0                          # anti-aliased fringes of eyes / mouth
+    feat = cv2.dilate(feat, kernel(7)) > 0                          # anti-aliased fringes of eyes / mouth
     fc = np.asarray(info["face_color"], np.float32)
-    darker = np.abs(img.astype(np.float32) - fc[None, None, :]).max(2) > 14   # faint grey ghosts
+    darker = np.abs(img.astype(np.float32) - fc[None, None, :]).max(2) > 6   # faint grey ghosts
     erase = inner & (feat | darker) & ~keep_band
     a = cv2.GaussianBlur(erase.astype(np.float32), (0, 0), 0.8)[:, :, None]
     face = np.empty_like(img)
