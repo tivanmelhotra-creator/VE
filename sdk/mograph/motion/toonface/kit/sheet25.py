@@ -63,7 +63,7 @@ EXPRESSIONS_18: list[tuple[str, float, float, float, Face]] = [
     ("3_curious_oo",      -25.0, 2.0, -1.0, Face(lid_open=0.92, look=(0.18, -0.08), brow_up=0.55, mouth=dict(open=0.38, round=0.92, width=0.92))),
     ("4_sassy_side_eh",   25.0,  0.0, -1.5, Face(lid_open=0.64, look=(0.32, 0.0), brow_up=0.25, mouth=dict(open=0.44, width=0.96, corner=-0.12, skew=0.25, teeth_up=0.50, tongue=0.35))),
     ("5_warm_smile",      0.0,   0.0,  0.0, Face(lid_open=0.84, lower=0.12, brow_up=0.20, mouth=dict(open=0.0, width=1.02, corner=0.38, skew=0.12))),
-    ("6_playful_tongue",  25.0, -3.0,  1.5, Face(lid_open=0.90, look=(-0.12, 0.0), brow_up=0.40, mouth=dict(open=0.56, width=1.00, corner=0.30, teeth_up=0.50, tongue=0.85, tongue_up=0.95))),
+    ("6_playful_tongue",  25.0, -3.0,  1.5, Face(lid_open=0.90, look=(-0.12, 0.0), brow_up=0.40, mouth=dict(open=0.56, width=1.00, corner=0.30, teeth_up=0.50, tongue=0.55, tongue_out=0.85, tongue_side=0.35))),
     ("7_lip_bite_fv",     0.0,   2.0,  0.0, Face(lid_open=0.82, look=(0.15, 0.08), brow_worry=0.35, mouth=dict(open=0.20, width=0.98, fv=1.0, teeth_up=0.95))),
     ("8_clenched_grit",   25.0,  0.0,  0.0, Face(lid_open=0.80, lid_tilt=0.22, brow_anger=0.55, furrow=0.50, mouth=dict(open=0.32, width=1.12, teeth_up=0.85, teeth_lo=0.75))),
     ("9_smug_half_lid",   -25.0, 0.0, -2.0, Face(lid_open=0.52, lower=0.18, look=(0.30, -0.05), brow_up=0.30, mouth=dict(open=0.0, width=0.96, corner=0.32, skew=0.35))),

@@ -21,7 +21,8 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from .. import ink
-from .shapes import CAVITY, CAVITY_DEEP, GLINT, INK, PUPIL, SCLERA, TEETH, TONGUE
+from .shapes import (CAVITY, CAVITY_DEEP, GLINT, INK, PUPIL, SCLERA, TEETH, TONGUE, TONGUE_HI, TONGUE_LINE,
+                     TONGUE_SHADE)
 
 DATA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
 N_EYE, N_BROW, N_NOSE = 32, 7, 7
@@ -441,6 +442,151 @@ def mouth_geom(mv, m: dict, n: int = 49):
     return up, lo, base_lo, hw, u, nv, tp
 
 
+# ---------------------------------------------------------------------------------------------------------- tongue
+def _tongue_frame(lo, k, hw, u, nv, m):
+    """Tongue root sits on the floor of the mouth at the lowest lip point, optionally slid sideways (tongue_side)."""
+    side = float(m.get("tongue_side", 0.0))
+    return lo[k] + u * side * 0.32 * hw
+
+
+def _to_world(b0, u, nv, xs, ys):
+    return b0[None] + np.outer(xs, u) + np.outer(ys, nv)
+
+
+def tongue_inside_poly(lo, k, gap, hw, u, nv, m):
+    """
+    v31.4 tongue body (inside the cavity, drawn UNDER the teeth):
+      * wide bean resting on the floor of the mouth (fills the lower lip like a hand-drawn cel, not a floating egg);
+      * soft median dip on the top edge, two lobes;
+      * tongue_up raises a narrower tip toward the upper teeth (L / D / T / N);
+      * the bottom closes far below the lip line → after clipping to the mouth it sits flush on the lower lip.
+    Returns (polygon, top_edge, (b0, half_width, height, tip)).
+    """
+    tg = float(np.clip(m.get("tongue", 0.0), 0.0, 1.2))
+    tup = float(np.clip(m.get("tongue_up", 0.0), 0.0, 1.0))
+    tout = float(np.clip(m.get("tongue_out", 0.0), 0.0, 1.0))
+    rnd = float(m.get("round", 0.0))
+    tg = max(tg, 0.6 * tout)
+    b0 = _tongue_frame(lo, k, hw, u, nv, m)
+    half_w = hw * (0.62 + 0.20 * tg) * (1.0 - 0.32 * rnd) * (1.0 - 0.25 * tup)
+    height = gap * (0.30 + 0.34 * tg) * (1.0 - 0.15 * rnd)
+    tip = gap * 0.38 * tup
+    x = np.linspace(-1.0, 1.0, 49)
+    hump = np.clip(1.0 - x ** 2, 0.0, 1.0) ** 0.55
+    dip = 1.0 - (0.06 * (1.0 - tup)) * np.exp(-(x / 0.22) ** 2)
+    ys = -(height * hump * dip + tip * np.exp(-(x / 0.34) ** 2))
+    top = _to_world(b0, u, nv, x * half_w, ys)
+    deep = gap + 0.3 * hw
+    bot = _to_world(b0, u, nv, np.array([1.3, 1.3, -1.3, -1.3]) * half_w, np.array([0.0, deep, deep, 0.0]))
+    return np.vstack([top, bot]), top, (b0, half_w, height, tip)
+
+
+def draw_tongue_inside(ctx, up, lo, k, gap, hw, u, nv, m, sw):
+    tg = float(m.get("tongue", 0.0))
+    tout = float(m.get("tongue_out", 0.0))
+    if max(tg, tout) <= 0.02:
+        return
+    poly, top, (b0, half_w, height, tip) = tongue_inside_poly(lo, k, gap, hw, u, nv, m)
+    tup = float(np.clip(m.get("tongue_up", 0.0), 0.0, 1.0))
+    # 1) back of the tongue (throat side) = full silhouette in the shade colour
+    ink.fill(ctx, poly, TONGUE_SHADE)
+    # 2) lit front body: top edge pulled down & in → a thin cel-shade rim stays visible along the back
+    rim = float(np.clip(0.12 * (height + tip), 0.7 * sw, 2.2 * sw))
+    xx = np.linspace(-1, 1, len(top))
+    lit_top = top + nv[None] * (rim * (0.7 + 0.6 * xx ** 2))[:, None] - u[None] * (xx * 0.05 * half_w)[:, None]
+    ink.fill(ctx, np.vstack([lit_top, poly[len(top):]]), TONGUE)
+    # 3) raised tip (L / DTN): darker underside wedge so the tip reads as curled up, not as a taller blob
+    if tup > 0.15:
+        a = float(np.clip((tup - 0.15) / 0.85, 0, 1))
+        apex = b0 - nv * (height * 0.75 + tip * 0.70)
+        under = np.array([b0 - u * 0.26 * half_w - nv * 0.30 * height, apex, b0 + u * 0.26 * half_w - nv * 0.30 * height,
+                          b0 + nv * 0.1 * height])
+        ink.fill(ctx, ink.catmull(np.vstack([under, under[:1]]), 8, closed=True), TONGUE_SHADE, alpha=0.6 * a)
+    # 4) median groove — only when the tongue is big enough on screen to carry the detail
+    vis_h = height + tip
+    if vis_h > 7 * sw:
+        g0 = b0 - nv * (vis_h * 0.80 - rim)
+        g1 = b0 - nv * (vis_h * 0.38)
+        ink.tapered(ctx, np.array([g0, 0.5 * (g0 + g1), g1]), TONGUE_LINE, 0.5 * sw, kind="both", tip=0.3,
+                    alpha=0.45)
+    # 5) small wet highlight on the near (screen-left) lobe
+    hc = b0 - u * 0.45 * half_w - nv * (height * 0.60)
+    ctx.save()
+    ctx.translate(hc[0], hc[1])
+    ctx.rotate(math.atan2(u[1], u[0]) - 0.30)
+    ctx.scale(max(0.8 * sw, 0.13 * half_w), max(0.45 * sw, 0.07 * vis_h))
+    ctx.arc(0, 0, 1, 0, 2 * math.pi)
+    ctx.restore()
+    ctx.set_source_rgba(*TONGUE_HI, 0.65)
+    ctx.fill()
+
+
+def _lip_profile(lo, b0, u, nv):
+    """Lower lip in tongue-local coordinates → callable x ↦ y (y along nv, + = down)."""
+    rel = lo - b0[None]
+    lx, ly = rel @ u, rel @ nv
+    o = np.argsort(lx)
+    return lambda xs: np.interp(xs, lx[o], ly[o])
+
+
+def tongue_out_poly(lo, k, gap, hw, u, nv, m, sw):
+    """
+    Tongue stuck out over the lower lip (playful / raspberry). The root follows the lower-lip curve exactly (no notch,
+    the lip ink is covered where the tongue crosses it), rounded U tip, optional lateral lean (tongue_side).
+    """
+    tout = float(np.clip(m.get("tongue_out", 0.0), 0.0, 1.0))
+    side = float(m.get("tongue_side", 0.0))
+    b0 = _tongue_frame(lo, k, hw, u, nv, m)
+    lip = _lip_profile(lo, b0, u, nv)
+    half_w = hw * (0.34 + 0.10 * tout)
+    length = hw * (0.16 + 0.50 * tout)
+    lean = side * 0.30 * length
+    x = np.linspace(-1.0, 1.0, 49)
+    prof = np.clip(1.0 - x ** 2, 0, 1) ** 0.5            # semicircle-ish U
+    t = prof                                            # 0 at the root, 1 at the tip
+    xs = x * half_w * (1.0 + 0.08 * t) + lean * t ** 2
+    root_y = lip(x * half_w)
+    ys = root_y + length * prof
+    lobe = _to_world(b0, u, nv, xs, ys)
+    # root edge: lip curve lifted a touch so the fill hides the lip ink under it
+    xr = np.linspace(half_w, -half_w, 17)
+    root = _to_world(b0, u, nv, xr, lip(xr) - 1.3 * sw)
+    return np.vstack([lobe, root]), lobe, (b0, half_w, length, lean, lip)
+
+
+def draw_tongue_out(ctx, lo, k, gap, hw, u, nv, m, sw):
+    poly, lobe, (b0, half_w, length, lean, lip) = tongue_out_poly(lo, k, gap, hw, u, nv, m, sw)
+    ink.fill(ctx, poly, TONGUE)
+    ctx.save()
+    ink.path(ctx, poly, True)
+    ctx.clip()
+    # contact shadow just under the lip (the tongue is pressed against it)
+    xr = np.linspace(-1.4 * half_w, 1.4 * half_w, 21)
+    sh = np.vstack([_to_world(b0, u, nv, xr, lip(xr) - 2 * sw),
+                    _to_world(b0, u, nv, xr[::-1], lip(xr[::-1]) + 0.18 * length)])
+    ink.fill(ctx, sh, TONGUE_SHADE, alpha=0.45)
+    # form shade on the far (screen-right) side: the lobe offset toward the near side, inverted
+    off = lobe - u[None] * (0.28 * half_w) - nv[None] * (0.10 * length)
+    xr2 = np.linspace(-half_w, half_w, 17)
+    shade = np.vstack([off, _to_world(b0, u, nv, xr2[::-1] * 1.5, lip(xr2[::-1]) - 3 * sw)])
+    ink.path(ctx, np.vstack([lobe, _to_world(b0, u, nv, xr2[::-1] * 1.5, lip(xr2[::-1]) - 3 * sw)]), True)
+    ink.path(ctx, shade, True)
+    ctx.set_fill_rule(1)  # cairo.FILL_RULE_EVEN_ODD
+    ctx.set_source_rgba(*TONGUE_SHADE, 0.32)
+    ctx.fill()
+    ctx.set_fill_rule(0)
+    # wet highlight on the near lobe
+    hc = b0 + u * (-0.42 * half_w + 0.4 * lean) + nv * (lip(-0.42 * half_w) + 0.45 * length)
+    ink.circle(ctx, hc[0], hc[1], max(0.7 * sw, 0.10 * half_w), TONGUE_HI, alpha=0.8)
+    ctx.restore()
+    # median groove from the root toward the tip
+    g = _to_world(b0, u, nv, np.array([0.0, 0.35 * lean, 0.65 * lean]),
+                  lip(0.0) + np.array([0.12, 0.38, 0.62]) * length)
+    ink.tapered(ctx, ink.catmull(g, 6), TONGUE_LINE, 0.55 * sw, kind="both", tip=0.25, alpha=0.65)
+    # ink: sides + rounded tip only (root stays open — it disappears into the mouth)
+    ink.tapered(ctx, lobe, INK, 0.82 * sw, kind="both", tip=0.12, power=0.5)
+
+
 def draw_mouth(ctx, mv, m: dict, kit: Kit, near: float = 1.0):
     """near: 1 = 3/4 (dimple tick only on the near/screen-left corner), 0 = front (both ticks, lighter)."""
     sw = kit.sw
@@ -481,6 +627,7 @@ def draw_mouth(ctx, mv, m: dict, kit: Kit, near: float = 1.0):
     k = int(len(lo) * tp)
     mid = 0.5 * (up[k] + lo[k])
     ink.circle(ctx, mid[0] + nv[0] * 0.22 * gap, mid[1] + nv[1] * 0.22 * gap, 0.44 * gap, CAVITY_DEEP, alpha=0.55)
+    draw_tongue_inside(ctx, up, lo, k, gap, hw, u, nv, m, sw)
     s = np.linspace(0, 1, len(up))
     zz = np.sin(np.pi * s) ** 0.45
     tu = float(m.get("teeth_up", 0.0))
@@ -498,21 +645,6 @@ def draw_mouth(ctx, mv, m: dict, kit: Kit, near: float = 1.0):
         hi_edge = lo - nv[None] * (band * (0.55 + 0.45 * zz))[:, None]
         ink.fill(ctx, np.vstack([lo + nv * sw, hi_edge[::-1]]), TEETH)
         ink.stroke(ctx, hi_edge, INK, 0.42 * sw, closed=False)
-    tg = float(m.get("tongue", 0.0))
-    if tg > 0.02:
-        tup = float(m.get("tongue_up", 0.0))
-        b0 = lo[k]
-        ry = (0.26 + 0.25 * tg) * gap * (1 + 0.65 * tup)
-        rx = 0.54 * hw * (0.72 + 0.28 * tg)
-        c = b0 - nv * ry * (0.48 + 0.45 * tup)
-        ctx.save()
-        ctx.translate(c[0], c[1])
-        ctx.rotate(math.atan2(u[1], u[0]))
-        ctx.scale(rx, ry)
-        ctx.arc(0, 0, 1, 0, 2 * math.pi)
-        ctx.restore()
-        ctx.set_source_rgb(*TONGUE)
-        ctx.fill()
     ctx.restore()
     ink.stroke(ctx, poly, INK, 0.84 * sw, closed=True)
     if rnd < 0.05:
@@ -523,6 +655,8 @@ def draw_mouth(ctx, mv, m: dict, kit: Kit, near: float = 1.0):
     if o > 0.45 and rnd < 0.05:
         kk = slice(len(lo) // 3, 2 * len(lo) // 3)
         ink.tapered(ctx, lo[kk] + nv * (0.16 * hw + 0.7 * sw), INK, 0.45 * sw, alpha=0.7)
+    if float(m.get("tongue_out", 0.0)) > 0.02:
+        draw_tongue_out(ctx, lo, k, gap, hw, u, nv, m, sw)
 
 
 # ------------------------------------------------------------------------------------------------------------ face

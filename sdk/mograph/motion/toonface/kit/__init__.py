@@ -10,4 +10,4 @@ from .turn25 import Character, lock_view
 from .videotrack import TrackedHeadFrame, composite_face_on_tracked_frame, detect_moving_head_pose
 from .visemes import VISEMES, mix, mouth_at, phonemes, vis, viseme_track
 
-__version__ = "31.3"
+__version__ = "31.4"

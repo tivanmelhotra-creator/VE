@@ -21,6 +21,9 @@ GLINT = (1.0, 1.0, 1.0)
 CAVITY = (0.42, 0.075, 0.115)         # dark crimson
 CAVITY_DEEP = (0.29, 0.045, 0.075)
 TONGUE = (0.93, 0.47, 0.47)
+TONGUE_SHADE = (0.72, 0.27, 0.31)       # back of the tongue / throat side
+TONGUE_HI = (1.0, 0.70, 0.68)           # wet specular on the near lobe
+TONGUE_LINE = (0.58, 0.17, 0.22)        # median groove
 TEETH = (1.0, 0.995, 0.975)
 
 GIRL_34 = {

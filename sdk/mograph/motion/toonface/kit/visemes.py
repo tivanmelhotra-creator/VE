@@ -1,7 +1,8 @@
 """
 toonface.kit.visemes — 14 hand-tuned mouth key-shapes (one topology) + Persian G2P → timed viseme track.
 
-Params: open, upper (upper-lip lift), width, round, teeth_up, teeth_lo, tongue, tongue_up, press, fv, corner, skew
+Params: open, upper (upper-lip lift), width, round, teeth_up, teeth_lo, tongue, tongue_up, press, fv, corner, skew,
+        tongue_out (0..1 stuck out over the lower lip), tongue_side (-1..1 lateral slide)
 """
 from __future__ import annotations
 
@@ -23,9 +24,10 @@ VISEMES = {
     "KG":   dict(open=0.42, width=0.93, teeth_up=0.35, tongue=0.50),
 }
 KEYS = ["open", "upper", "width", "round", "teeth_up", "teeth_lo", "tongue", "tongue_up", "press", "fv", "corner",
-        "skew", "shift"]
+        "skew", "shift", "tongue_out", "tongue_side"]
 DEFAULT = dict(open=0.0, upper=0.0, width=1.0, round=0.0, teeth_up=0.0, teeth_lo=0.0, tongue=0.0, tongue_up=0.0,
-               press=0.0, fv=0.0, corner=0.0, skew=0.0, shift=0.0)
+               press=0.0, fv=0.0, corner=0.0, skew=0.0, shift=0.0,
+               tongue_out=0.0, tongue_side=0.0)
 
 
 def vis(name):
