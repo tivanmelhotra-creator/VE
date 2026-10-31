@@ -284,6 +284,40 @@ def _fuzzy(word: str):
     return (m[0], difflib.SequenceMatcher(None, w, m[0]).ratio()) if m else (w, 0.0)
 
 
+def ocr_caption(sheet: np.ndarray, face_bbox, search_h: float = 1.6) -> str | None:
+    """OCR only the strip directly under one face (single-line mode) → vocabulary word.  Much more reliable than a
+    whole-page pass when captions sit between rows or overlap other drawings."""
+    H, W = sheet.shape[:2]
+    x0, y0, x1, y1 = face_bbox
+    fw, fh = x1 - x0, y1 - y0
+    best = None
+    for top_k, h_k in ((0.25, 0.75), (0.45, 0.9), (0.0, 0.6)):
+        ya, yb = int(y1 + top_k * fh), int(min(H, y1 + (top_k + h_k) * fh))
+        xa, xb = int(max(0, x0 - 0.35 * fw)), int(min(W, x1 + 0.35 * fw))
+        if yb - ya < 8:
+            continue
+        crop = cv2.cvtColor(sheet[ya:yb, xa:xb], cv2.COLOR_BGR2GRAY)
+        crop = cv2.resize(crop, None, fx=3, fy=3, interpolation=cv2.INTER_CUBIC)
+        crop = cv2.threshold(crop, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)[1]
+        tmp = "/tmp/_cap_ocr.png"
+        cv2.imwrite(tmp, crop)
+        try:
+            out = subprocess.run(["tesseract", tmp, "stdout", "--psm", "6"], capture_output=True, text=True,
+                                 timeout=30).stdout
+        except Exception:
+            continue
+        for tok in re.findall(r"[A-Za-z!\-]{3,}", out):
+            t = tok.upper()
+            if t.strip("!-") in IGNORE_WORDS:
+                continue
+            name, score = _fuzzy(t)
+            if score >= 0.6 and (best is None or score > best[1]):
+                best = (name, score)
+        if best and best[1] > 0.85:
+            break
+    return best[0] if best else None
+
+
 def label_for(face_bbox, words, used: set):
     """closest caption word under the face (same column), else above; generic sheet words ignored."""
     x0, y0, x1, y1 = face_bbox
@@ -325,7 +359,8 @@ def build_library(sheets, out_dir: str, unit_px: float = 360.0, verbose: bool = 
         for k, face in enumerate(faces):
             rgba, freg, (ox, oy), line_px, feat = extract_decal(sheet, lbl, face, skin, hair)
             cx, chin, top, Wf = face_frame_metrics(freg)
-            name = label_for(face["bbox"], words, used) or f"{os.path.splitext(os.path.basename(f))[0]}_{k}"
+            name = ocr_caption(sheet, face["bbox"]) or label_for(face["bbox"], words, used) \
+                or f"{os.path.splitext(os.path.basename(f))[0]}_{k}"
             base, j = name, 2
             while name in items:
                 name = f"{base}_{j}"
