@@ -26,4 +26,6 @@ from .expressive import EMOTIONS, Beat, ExpressivePerformer, FaceFrame, au, blen
 from .facecomp import FaceRigCompositor, LevelPolicy
 from .facetrack import HeadTracker, OneEuro, PoseLimits, TrackerConfig
 
-__version__ = "32.0"
+__version__ = "33.0"
+
+from .decalrig import DecalRig, FaceShape, HeadModel, PRESETS as FACE_PRESETS, character_shape, gender_delta  # noqa: E402,F401

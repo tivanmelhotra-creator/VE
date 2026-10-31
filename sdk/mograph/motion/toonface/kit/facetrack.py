@@ -13,7 +13,7 @@ v32 tracks the HEAD AS A RIGID PLANE, like a planar tracker in Mocha / AE:
      coordinate, so every frame solves  ref → current  directly (no accumulated drift).
   3. Pyramidal Lucas-Kanade + forward/backward check, RANSAC similarity, then IRLS refinement with REGION-BALANCED
      Huber weights (every region gets the same vote, so a hand covering the crown cannot drag the face).
-  4. One-Euro filter (low jitter at rest, near-zero lag on fast moves → no spring) + PoseLimits (dead-band so the
+  4. One-Euro filter, v34: run forward+backward (zero-phase, 0-frame lag → no spring) + PoseLimits (dead-band so the
      face NEVER rotates when the skull doesn't, clamps, per-frame velocity limits).
   5. Region confidence = inlier ratio per region → occlusion-aware replenishment (never seeds points on a hand).
 
@@ -59,12 +59,18 @@ def estimate_skin_color(frame: np.ndarray, bg_bgr: np.ndarray | None = None) -> 
 
 def segment(frame: np.ndarray, skin_bgr: np.ndarray, bg_bgr: np.ndarray, tol: float = 30.0,
             ink_thr: int = 100) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """→ (skin, ink, fg) bool masks.  skin excludes the (dilated) ink so touching shapes split at their outline."""
-    f = frame.astype(np.float32)
+    """→ (skin, ink, fg) bool masks.  v33: ink = LOCAL contrast (works for dark skin / coloured line-art),
+    skin = Lab distance with lightness down-weighted (shading does not break the face)."""
+    from .facefind import ink_mask
     g = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    ink = g < ink_thr
+    ink = ink_mask(g)
     ink_d = cv2.dilate(ink.astype(np.uint8), np.ones((3, 3), np.uint8)) > 0
-    skin = (np.linalg.norm(f - skin_bgr[None, None], axis=2) < tol) & ~ink_d
+    lab = cv2.cvtColor(frame, cv2.COLOR_BGR2LAB).astype(np.float32)
+    ref = cv2.cvtColor(np.asarray(skin_bgr, np.float32).reshape(1, 1, 3).astype(np.uint8),
+                       cv2.COLOR_BGR2LAB).astype(np.float32)[0, 0]
+    d = np.sqrt(0.35 * (lab[..., 0] - ref[0]) ** 2 + (lab[..., 1] - ref[1]) ** 2 + (lab[..., 2] - ref[2]) ** 2)
+    skin = (d < tol * 0.5) & ~ink_d
+    f = frame.astype(np.float32)
     bg = np.linalg.norm(f - bg_bgr[None, None], axis=2) < 34.0
     n, lbl = cv2.connectedComponents(bg.astype(np.uint8), connectivity=4)
     border = np.unique(np.r_[lbl[0], lbl[:, 0], lbl[:, -1]])
@@ -235,6 +241,7 @@ class TrackerConfig:
     rot_beta: float = 0.25
     scale_min_cutoff: float = 0.8
     scale_beta: float = 0.5
+    zero_phase: bool = True          # v34: offline forward+backward smoothing → 0-frame lag (no "spring" face)
     limits: PoseLimits = field(default_factory=PoseLimits)
 
 
@@ -252,10 +259,29 @@ class HeadPose2D:
 
 
 class HeadTracker:
-    def __init__(self, cfg: TrackerConfig | None = None):
+    def __init__(self, cfg: TrackerConfig | None = None, hint=None):
         self.cfg = cfg or TrackerConfig()
+        self.hint = hint
         self.lk = dict(winSize=(21, 21), maxLevel=3,
                        criteria=(cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 30, 0.01))
+
+    def _hairlike(self, img, face):
+        """pixels that belong to the HEAD around the face: hair-coloured, skin-coloured (ears) or line-art.
+        Random background clutter is excluded, so static props never vote for the head pose."""
+        from .facefind import ink_mask
+        st = self.style
+        lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB).astype(np.float32)
+
+        def near(bgr, tol):
+            r = cv2.cvtColor(np.asarray(bgr, np.float32).reshape(1, 1, 3).astype(np.uint8),
+                             cv2.COLOR_BGR2LAB).astype(np.float32)[0, 0]
+            return np.linalg.norm(lab - r, axis=2) < tol
+        m = near(st.hair_bgr, 26) | near(st.skin_bgr, 20) | ink_mask(cv2.cvtColor(img, cv2.COLOR_BGR2GRAY))
+        m = cv2.morphologyEx(m.astype(np.uint8), cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8)) > 0
+        # keep only what is connected to the face outline (the head mass), not isolated look-alike props
+        n, lbl = cv2.connectedComponents((m | face).astype(np.uint8), connectivity=8)
+        ids = np.unique(lbl[cv2.dilate(face.astype(np.uint8), np.ones((5, 5), np.uint8)) > 0])
+        return np.isin(lbl, ids[ids > 0])
 
     # ----------------------------------------------------------------------------------------- reference
     def pick_reference(self, frames, skin_bgr, bg_bgr, probe: int = 24) -> int:
@@ -319,8 +345,8 @@ class HeadTracker:
             w = np.zeros(len(ref))
             for k in range(len(REGIONS)):
                 sel = reg == k
-                if sel.any():
-                    w[sel] = hub[sel] / max(hub[sel].sum(), 1e-9)
+                if sel.any():           # equal vote per region, scaled down when the region is sparse
+                    w[sel] = hub[sel] / max(hub[sel].sum(), 1e-9) * min(1.0, sel.sum() / cfg.min_pts_region)
             if w.sum() <= 0:
                 break
             M = weighted_similarity(ref.astype(np.float64), cur.astype(np.float64), w)
@@ -336,16 +362,24 @@ class HeadTracker:
     # ----------------------------------------------------------------------------------------- main
     def run(self, frames: list, ref_idx: int | None = None, skin_bgr=None, bg_bgr=None):
         cfg = self.cfg
+        from .facefind import find_face, measure_style
         bg_bgr = estimate_bg_color(frames[0]) if bg_bgr is None else bg_bgr
-        skin_bgr = estimate_skin_color(frames[0], bg_bgr) if skin_bgr is None else skin_bgr
+        if skin_bgr is None:                      # v33: structure-based (any skin colour, busy backgrounds)
+            ff0 = find_face(frames[0 if ref_idx is None else ref_idx], hint=self.hint)
+            skin_bgr = ff0.skin_bgr
         self.skin_bgr, self.bg_bgr = skin_bgr, bg_bgr
         if ref_idx is None:
             ref_idx = self.pick_reference(frames, skin_bgr, bg_bgr)
         self.ref_idx = ref_idx
         rf = frames[ref_idx]
         skin, _, fg = segment(rf, skin_bgr, bg_bgr)
-        face_f = ndi.binary_fill_holes(face_component(skin))
+        try:
+            face_f = find_face(rf, hint=self.hint).mask
+        except RuntimeError:
+            face_f = ndi.binary_fill_holes(face_component(skin))
         self.ref_face = face_f
+        self.style = measure_style(rf, face_f)
+        fg = fg & self._hairlike(rf, face_f)
         self.ref_ell = ell = fit_face_ellipse(face_f)
         self.face_w = 2 * ell.a
         rmasks = self._region_masks(ell, fg, face_f, skin & ~face_f)
@@ -419,6 +453,60 @@ class HeadTracker:
 
     # ----------------------------------------------------------------------------------------- filter + limits
     def _filter(self, raw):
+        if self.cfg.zero_phase:
+            return self._filter_zero_phase(raw)
+        return self._filter_causal(raw)
+
+    def _limited(self, raw):
+        """per-frame limits on the RAW estimate (dead-band, clamps, glitch step limit) — no smoothing, no lag."""
+        lim = self.cfg.limits
+        e = self.ref_ell
+        c0 = np.array([e.cx, e.cy])
+        out, prev = [], None
+        for (M, conf, ninl, res) in raw:
+            s, th, _, _ = sim_params(M)
+            c = apply(M, [c0])[0]
+            roll_raw = math.degrees(th)
+            roll = float(np.clip(soft_deadband(roll_raw, lim.roll_deadband_deg), -lim.roll_max_deg, lim.roll_max_deg))
+            s = float(np.clip(s, lim.scale_min, lim.scale_max))
+            if prev is not None:
+                step = lim.max_step_px * self.face_w
+                c = prev[0] + np.clip(c - prev[0], -step, step)
+                roll = prev[1] + float(np.clip(roll - prev[1], -lim.max_step_roll_deg, lim.max_step_roll_deg))
+            prev = (c, roll)
+            out.append((float(c[0]), float(c[1]), roll, math.log(s), roll_raw))
+        return np.array(out)
+
+    @staticmethod
+    def _zero_phase(x: np.ndarray, fps: float, mc: float, beta: float) -> np.ndarray:
+        """One-Euro run forward AND backward, averaged: the forward lag and the backward lead cancel exactly
+        (zero-phase), while the adaptive cutoff still keeps rest frames calm.  Offline only (needs all frames)."""
+        f, b = OneEuro(fps, mc, beta), OneEuro(fps, mc, beta)
+        fw = np.array([f(float(v)) for v in x])
+        bw = np.array([b(float(v)) for v in x[::-1]])[::-1]
+        return 0.5 * (fw + bw)
+
+    def _filter_zero_phase(self, raw):
+        cfg = self.cfg
+        e = self.ref_ell
+        c0 = np.array([e.cx, e.cy])
+        L = self._limited(raw)
+        cx = self._zero_phase(L[:, 0], cfg.fps, cfg.pos_min_cutoff, cfg.pos_beta)
+        cy = self._zero_phase(L[:, 1], cfg.fps, cfg.pos_min_cutoff, cfg.pos_beta)
+        rl = self._zero_phase(L[:, 2], cfg.fps, cfg.rot_min_cutoff, cfg.rot_beta)
+        ls = self._zero_phase(L[:, 3], cfg.fps, cfg.scale_min_cutoff, cfg.scale_beta)
+        rl = np.where(np.abs(L[:, 2]) < 1e-9, np.where(np.abs(rl) < 0.15, 0.0, rl), rl)   # keep dead-band level
+        out = []
+        for i, (M, conf, ninl, res) in enumerate(raw):
+            s_f = math.exp(ls[i])
+            Mf = sim_matrix(s_f, math.radians(rl[i]), 0.0, 0.0)
+            Mf[:, 2] = np.array([cx[i], cy[i]]) - Mf[:, :2] @ c0
+            out.append(HeadPose2D(M=Mf, M_raw=M, scale=s_f, roll_deg=float(rl[i]), roll_raw_deg=float(L[i, 4]),
+                                  center=(float(cx[i]), float(cy[i])), region_conf=conf, n_inliers=ninl,
+                                  residual_px=res))
+        return out
+
+    def _filter_causal(self, raw):
         cfg, lim = self.cfg, self.cfg.limits
         e = self.ref_ell
         c0 = np.array([e.cx, e.cy])
