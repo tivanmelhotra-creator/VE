@@ -181,17 +181,28 @@ def extract_decal(sheet, lbl, face, skin_bgr, hair_bgr, pad: int = 6):
         cy = (cst[j, cv2.CC_STAT_TOP] + cst[j, cv2.CC_STAT_HEIGHT] / 2 - yb0) / fh
         touches = (cj & band_wide).any()
         hair_frac = float(((dh < 12) | inkm)[cj].mean())
-        # forelock: hair-coloured/ink, upper part of the face, reaching the face border (it comes from the hair)
-        if touches and hair_frac > 0.75 and (top_y < 0.12 or cy < 0.30):
+        band_frac = float(band_wide[cj].mean())
+        if band_frac > 0.40:                            # face outline / jaw shading / hair fringe on the border
+            continue
+        # forelock: hair-coloured/ink, upper half, reaching the face border (it comes from the hair mass)
+        if touches and hair_frac > 0.70 and cy < 0.50:
             continue
         keep[j] = True
     feat = keep[cl]
-    # soft alpha: full on features, feathered edge; colour stays the artist's pixels
-    feat_d = cv2.dilate(feat.astype(np.uint8), np.ones((3, 3), np.uint8)) > 0
-    alpha = cv2.GaussianBlur(feat_d.astype(np.float32), (3, 3), 0) * face_reg
+    # alpha: how far a pixel is from skin (anti-aliased edges get partial alpha), only near kept features
+    near = cv2.dilate(feat.astype(np.uint8), np.ones((5, 5), np.uint8)) > 0
+    a_lo, a_hi = 0.45 * thr, 2.2 * thr
+    alpha = np.clip((dsk - a_lo) / (a_hi - a_lo), 0.0, 1.0)
+    alpha = np.where(feat, np.maximum(alpha, 0.85), alpha) * near * face_reg
+    alpha = np.where(inkm & near, 1.0, alpha)
+    # un-mix the skin out of the edge pixels: C = (I - (1 - a)·skin) / a  → decal works on ANY skin colour
+    skin_bgr_loc = cv2.cvtColor(loc.reshape(1, 1, 3).astype(np.uint8), cv2.COLOR_LAB2BGR)[0, 0].astype(np.float32)
+    a3 = np.maximum(alpha, 1e-3)[..., None]
+    col = (sheet.astype(np.float32) - (1.0 - a3) * skin_bgr_loc) / a3
+    col = np.where(alpha[..., None] > 0.02, col, sheet.astype(np.float32)).clip(0, 255).astype(np.uint8)
     x0, y0 = max(0, xs.min() - pad), max(0, ys.min() - pad)
     x1, y1 = min(W, xs.max() + pad + 1), min(H, ys.max() + pad + 1)
-    rgba = np.dstack([sheet[y0:y1, x0:x1], (alpha[y0:y1, x0:x1] * 255).astype(np.uint8)])
+    rgba = np.dstack([col[y0:y1, x0:x1], (alpha[y0:y1, x0:x1] * 255).astype(np.uint8)])
     return rgba, face_reg[y0:y1, x0:x1], (x0, y0), line_px, feat[y0:y1, x0:x1]
 
 
@@ -244,11 +255,26 @@ def read_words(sheet: np.ndarray):
     return words
 
 
+def _vocab():
+    from .expressive import EMOTIONS
+    v = set(EMOTIONS) | {"roaring", "star_eyed", "yawning", "thinking", "weeping", "eating", "disgusted", "eureka",
+                         "sulking", "whistling", "freezing", "joy", "crying", "sneaky", "excited", "scared", "angry",
+                         "shocked", "dizzy", "mischievous", "terrified", "pleading", "shy", "smug"}
+    return sorted(v)
+
+
+def _fuzzy(word: str):
+    import difflib
+    w = word.lower().replace("-", "_").replace("!", "")
+    m = difflib.get_close_matches(w, _vocab(), n=1, cutoff=0.6)
+    return (m[0], difflib.SequenceMatcher(None, w, m[0]).ratio()) if m else (w, 0.0)
+
+
 def label_for(face_bbox, words, used: set):
     """closest caption word under the face (same column), else above; generic sheet words ignored."""
     x0, y0, x1, y1 = face_bbox
     cx = 0.5 * (x0 + x1)
-    best, bd = None, 1e9
+    cands = []
     for k, (t, a, b, c, d) in enumerate(words):
         if t.strip("!-") in IGNORE_WORDS or k in used:
             continue
@@ -256,12 +282,19 @@ def label_for(face_bbox, words, used: set):
         if abs(wx - cx) > 0.75 * (x1 - x0):
             continue
         dy = b - y1 if b >= y1 else (y0 - d) * 2.5 + 400        # prefer below the face
-        if 0 <= dy < bd:
-            best, bd = k, dy
-    if best is None:
+        if dy >= 0:
+            cands.append((dy, k, t))
+    if not cands:
         return None
-    used.add(best)
-    return words[best][0].strip("-").lower().replace("!", "")
+    cands.sort()
+    best = None
+    for dy, k, t in cands[:3]:                                  # nearest captions, best vocabulary match wins
+        name, score = _fuzzy(t)
+        key = (score >= 0.6, -dy)
+        if best is None or key > best[0]:
+            best = (key, k, name)
+    used.add(best[1])
+    return best[2]
 
 
 # ================================================================================================ build
