@@ -398,3 +398,97 @@ class FaceRigCompositor:
                     roll_abs_max=float(np.abs(rolls).max()), roll_raw_abs_max=float(np.abs(rolls_raw).max()),
                     frames_level=int((np.abs(rolls) < 1e-6).sum()), n_frames=len(self.poses),
                     occluded_frames=int(sum(1 for s in self.stats if s.get("occ_frac", 0) > 0.01)))
+
+
+# ================================================================================================= demo / CLI
+def demo_script(name: str, fps: float):
+    """beat sheets for the two cafe blank-face gesture clips (acting matched to the body language)."""
+    from .expressive import Beat, ExpressivePerformer, au
+    from .visemes import viseme_track
+    if name == "boy":       # open palm explain → scratch head (puzzled) → shrug both hands (no idea)
+        beats = [Beat(0.0, "explaining"), Beat(0.55, "friendly"),
+                 Beat(1.45, "puzzled"), Beat(2.35, "unsure"),
+                 Beat(3.05, {**au(AU1=0.9, AU2=0.8, AU15=0.5, AU17=0.5, AU20=0.3), "AU12_L": 0.25}),
+                 Beat(4.30, "smug", 0.7)]
+        gaze = [(0.0, (0.25, 0.0)), (0.9, (0.1, 0.05)), (1.5, (0.35, -0.45)), (2.4, (0.2, -0.3)),
+                (3.1, (0.0, 0.0)), (4.3, (-0.15, 0.05))]
+        words = [("ببین", 0.10, 0.45), ("این", 0.50, 0.70), ("طوری", 0.72, 1.20), ("نمیدونم", 3.10, 3.75),
+                 ("واقعا", 3.85, 4.30)]
+    else:                   # open palm → three fingers (counting) → hand up → hand on forehead (facepalm)
+        beats = [Beat(0.0, "explaining"), Beat(0.60, "friendly", 0.9),
+                 Beat(1.40, "determined"), Beat(2.30, "skeptical"),
+                 Beat(3.25, "surprised", 0.6), Beat(3.75, "facepalm"), Beat(4.55, "exasperated")]
+        gaze = [(0.0, (-0.25, 0.0)), (0.9, (-0.1, 0.0)), (1.5, (-0.3, -0.1)), (2.4, (-0.15, 0.0)),
+                (3.3, (-0.1, -0.4)), (3.8, (0.0, 0.35)), (4.6, (0.0, -0.5))]
+        words = [("خب", 0.10, 0.35), ("گوش", 0.40, 0.70), ("کن", 0.72, 0.95), ("سه", 1.55, 1.95), ("بار", 2.00, 2.40),
+                 ("گفتم", 2.45, 2.95), ("وای", 3.85, 4.30)]
+    return ExpressivePerformer(fps=fps, beats=beats, gaze=gaze, visemes=viseme_track(words), seed=7)
+
+
+def read_frames(path: str):
+    cap = cv2.VideoCapture(path)
+    fps = cap.get(cv2.CAP_PROP_FPS) or 24.0
+    out = []
+    while True:
+        ok, f = cap.read()
+        if not ok:
+            break
+        out.append(f)
+    return out, fps
+
+
+class VideoWriter:
+    """streams BGR frames into ffmpeg (no frame list in RAM — the sandbox has ~1 GB)."""
+
+    def __init__(self, out: str, W: int, H: int, fps: float):
+        cmd = ["ffmpeg", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "bgr24", "-s", f"{W}x{H}", "-r", str(fps),
+               "-i", "-", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "17", "-preset", "veryfast", out]
+        self.p = subprocess.Popen(cmd, stdin=subprocess.PIPE)
+        self.out = out
+
+    def write(self, f: np.ndarray):
+        self.p.stdin.write(np.ascontiguousarray(f).tobytes())
+
+    def close(self):
+        self.p.stdin.close()
+        self.p.wait()
+        return self.out
+
+
+def main():
+    ap = argparse.ArgumentParser(description="track a blank-face cartoon video and composite the rig25 face")
+    ap.add_argument("--video", required=True)
+    ap.add_argument("--char", required=True, choices=["boy", "girl"])
+    ap.add_argument("--script", default=None, help="demo beat sheet: boy | girl (default = --char)")
+    ap.add_argument("--out", required=True)
+    ap.add_argument("--debug", action="store_true", help="also write <out>_debug.mp4 with tracker overlay")
+    ap.add_argument("--yaw", type=float, default=None)
+    ap.add_argument("--plate", default=None, choices=["front", "34", "34m"])
+    ap.add_argument("--face-scale", type=float, default=1.0)
+    ap.add_argument("--no-occlusion", action="store_true")
+    a = ap.parse_args()
+    frames, fps = read_frames(a.video)
+    comp = FaceRigCompositor(a.char, frames, yaw=a.yaw, plate=a.plate, fps=fps, occlusion=not a.no_occlusion,
+                             face_scale=a.face_scale)
+    perf = demo_script(a.script or a.char, fps)
+    H, W = frames[0].shape[:2]
+    vw = VideoWriter(a.out, W, H, fps)
+    vd = VideoWriter(os.path.splitext(a.out)[0] + "_debug.mp4", W, H, fps) if a.debug else None
+    for i in range(len(frames)):
+        img = comp.render(i, perf.frame(i))
+        vw.write(img)
+        if vd:
+            vd.write(comp.debug_overlay(img, i, comp.occlusion_mask(i)[1]))
+        if i % 20 == 0:
+            print(f"[facecomp] frame {i}/{len(frames)}", flush=True)
+    vw.close()
+    if vd:
+        vd.close()
+    q = comp.qa()
+    with open(os.path.splitext(a.out)[0] + "_qa.json", "w") as fh:
+        json.dump(dict(qa=q, frames=comp.stats), fh, indent=1, default=float)
+    print("[facecomp] QA", json.dumps(q, default=float))
+
+
+if __name__ == "__main__":
+    main()
