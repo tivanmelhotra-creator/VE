@@ -55,6 +55,8 @@ class Expression:
     line_px: float
     parts: list = field(default_factory=list)
     decal: str = ""        # file name of the RGBA png (straight alpha)
+    view: str = "front"    # front | q34 | profile (turnaround view the drawing belongs to)
+    facing: int = 0        # +1 features toward viewer's right, −1 left, 0 centred
 
     def unit_to_decal(self) -> np.ndarray:
         """2×3: face units → decal px."""

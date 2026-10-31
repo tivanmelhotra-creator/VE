@@ -83,18 +83,53 @@ class DecalFace:
         self.adjust = unit_adjust() if adjust is None else np.asarray(adjust, np.float64)
         self.ink_bgr = ink_bgr
 
-    def decal_to_frame(self, name: str, M_track=None):
+    def decal_to_frame(self, name: str, M_track=None, flip: bool = False):
         e = self.lib.items[name]
         M = compose(self.style.unit_to_frame(), self.adjust, invert(e.unit_to_decal()))
+        if flip:                                         # mirror the decal about its face-unit origin column
+            w = self.lib.decal(name).shape[1]
+            ox = e.origin_px[0]
+            M = compose(M, np.array([[-1.0, 0.0, 2.0 * ox], [0.0, 1.0, 0.0]]))
+            del w
         return M if M_track is None else compose(M_track, M)
 
-    def render(self, frame: np.ndarray, name: str, M_track=None, keep=None, face_mask=None):
+    def pick(self, expr: str, view: str = "front", facing: int = 0):
+        """name of the library entry for (expression, view) + whether it must be mirrored to match `facing`."""
+        key = f"{expr}@{view}"
+        if key not in self.lib.items:
+            key = f"{expr}@front" if f"{expr}@front" in self.lib.items else expr
+        e = self.lib.items[key]
+        flip = bool(facing and getattr(e, "facing", 0) and e.facing != facing)
+        return key, flip
+
+    def render(self, frame: np.ndarray, name: str, M_track=None, keep=None, face_mask=None, flip: bool = False):
         H, W = frame.shape[:2]
-        col, a = warp_decal(self.lib.decal(name), self.decal_to_frame(name, M_track), W, H)
+        col, a = warp_decal(self.lib.decal(name), self.decal_to_frame(name, M_track, flip), W, H)
         if face_mask is not None:                        # never draw outside the face (hair/background)
             fm = cv2.GaussianBlur(face_mask.astype(np.float32), (5, 5), 0)
             col, a = col * fm[..., None], a * fm
         return over(frame, col, a, self.ink_bgr, keep)
+
+
+def estimate_facing(img: np.ndarray, face_mask: np.ndarray, style, thr: float = 0.02) -> int:
+    """which way a turned head looks: the hair/ear mass sits on the BACK side of the face.
+    +1 = face looks toward the viewer's right, −1 = left, 0 = frontal."""
+    ys, xs = np.nonzero(face_mask)
+    if len(xs) == 0:
+        return 0
+    x0, x1, y0 = xs.min(), xs.max(), ys.min()
+    w = x1 - x0
+    lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB).astype(np.float32)
+    skin = cv2.cvtColor(np.uint8([[style.skin_bgr]]), cv2.COLOR_BGR2LAB)[0, 0].astype(np.float32)
+    H, W = face_mask.shape
+    band = np.zeros_like(face_mask, bool)
+    band[max(0, int(y0 - 0.3 * w)):int(style.chin_y), max(0, int(x0 - 0.4 * w)):min(W, int(x1 + 0.4 * w))] = True
+    hair = cv2.cvtColor(np.uint8([[style.hair_bgr]]), cv2.COLOR_BGR2LAB)[0, 0].astype(np.float32)
+    ring = band & ~face_mask & ((np.linalg.norm(lab - hair, axis=2) < 22) | (np.linalg.norm(lab - skin, axis=2) < 14))
+    if ring.sum() < 50:
+        return 0
+    off = (style.cx - np.nonzero(ring)[1].mean()) / max(1.0, style.width)
+    return 0 if abs(off) < thr else (1 if off > 0 else -1)
 
 
 def face_mask_dilated(mask: np.ndarray, px: int = 6):
