@@ -59,12 +59,18 @@ def estimate_skin_color(frame: np.ndarray, bg_bgr: np.ndarray | None = None) -> 
 
 def segment(frame: np.ndarray, skin_bgr: np.ndarray, bg_bgr: np.ndarray, tol: float = 30.0,
             ink_thr: int = 100) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """→ (skin, ink, fg) bool masks.  skin excludes the (dilated) ink so touching shapes split at their outline."""
-    f = frame.astype(np.float32)
+    """→ (skin, ink, fg) bool masks.  v33: ink = LOCAL contrast (works for dark skin / coloured line-art),
+    skin = Lab distance with lightness down-weighted (shading does not break the face)."""
+    from .facefind import ink_mask
     g = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    ink = g < ink_thr
+    ink = ink_mask(g)
     ink_d = cv2.dilate(ink.astype(np.uint8), np.ones((3, 3), np.uint8)) > 0
-    skin = (np.linalg.norm(f - skin_bgr[None, None], axis=2) < tol) & ~ink_d
+    lab = cv2.cvtColor(frame, cv2.COLOR_BGR2LAB).astype(np.float32)
+    ref = cv2.cvtColor(np.asarray(skin_bgr, np.float32).reshape(1, 1, 3).astype(np.uint8),
+                       cv2.COLOR_BGR2LAB).astype(np.float32)[0, 0]
+    d = np.sqrt(0.35 * (lab[..., 0] - ref[0]) ** 2 + (lab[..., 1] - ref[1]) ** 2 + (lab[..., 2] - ref[2]) ** 2)
+    skin = (d < tol * 0.5) & ~ink_d
+    f = frame.astype(np.float32)
     bg = np.linalg.norm(f - bg_bgr[None, None], axis=2) < 34.0
     n, lbl = cv2.connectedComponents(bg.astype(np.uint8), connectivity=4)
     border = np.unique(np.r_[lbl[0], lbl[:, 0], lbl[:, -1]])
@@ -252,10 +258,29 @@ class HeadPose2D:
 
 
 class HeadTracker:
-    def __init__(self, cfg: TrackerConfig | None = None):
+    def __init__(self, cfg: TrackerConfig | None = None, hint=None):
         self.cfg = cfg or TrackerConfig()
+        self.hint = hint
         self.lk = dict(winSize=(21, 21), maxLevel=3,
                        criteria=(cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 30, 0.01))
+
+    def _hairlike(self, img, face):
+        """pixels that belong to the HEAD around the face: hair-coloured, skin-coloured (ears) or line-art.
+        Random background clutter is excluded, so static props never vote for the head pose."""
+        from .facefind import ink_mask
+        st = self.style
+        lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB).astype(np.float32)
+
+        def near(bgr, tol):
+            r = cv2.cvtColor(np.asarray(bgr, np.float32).reshape(1, 1, 3).astype(np.uint8),
+                             cv2.COLOR_BGR2LAB).astype(np.float32)[0, 0]
+            return np.linalg.norm(lab - r, axis=2) < tol
+        m = near(st.hair_bgr, 26) | near(st.skin_bgr, 20) | ink_mask(cv2.cvtColor(img, cv2.COLOR_BGR2GRAY))
+        m = cv2.morphologyEx(m.astype(np.uint8), cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8)) > 0
+        # keep only what is connected to the face outline (the head mass), not isolated look-alike props
+        n, lbl = cv2.connectedComponents((m | face).astype(np.uint8), connectivity=8)
+        ids = np.unique(lbl[cv2.dilate(face.astype(np.uint8), np.ones((5, 5), np.uint8)) > 0])
+        return np.isin(lbl, ids[ids > 0])
 
     # ----------------------------------------------------------------------------------------- reference
     def pick_reference(self, frames, skin_bgr, bg_bgr, probe: int = 24) -> int:
@@ -319,8 +344,8 @@ class HeadTracker:
             w = np.zeros(len(ref))
             for k in range(len(REGIONS)):
                 sel = reg == k
-                if sel.any():
-                    w[sel] = hub[sel] / max(hub[sel].sum(), 1e-9)
+                if sel.any():           # equal vote per region, scaled down when the region is sparse
+                    w[sel] = hub[sel] / max(hub[sel].sum(), 1e-9) * min(1.0, sel.sum() / cfg.min_pts_region)
             if w.sum() <= 0:
                 break
             M = weighted_similarity(ref.astype(np.float64), cur.astype(np.float64), w)
@@ -336,16 +361,24 @@ class HeadTracker:
     # ----------------------------------------------------------------------------------------- main
     def run(self, frames: list, ref_idx: int | None = None, skin_bgr=None, bg_bgr=None):
         cfg = self.cfg
+        from .facefind import find_face, measure_style
         bg_bgr = estimate_bg_color(frames[0]) if bg_bgr is None else bg_bgr
-        skin_bgr = estimate_skin_color(frames[0], bg_bgr) if skin_bgr is None else skin_bgr
+        if skin_bgr is None:                      # v33: structure-based (any skin colour, busy backgrounds)
+            ff0 = find_face(frames[0 if ref_idx is None else ref_idx], hint=self.hint)
+            skin_bgr = ff0.skin_bgr
         self.skin_bgr, self.bg_bgr = skin_bgr, bg_bgr
         if ref_idx is None:
             ref_idx = self.pick_reference(frames, skin_bgr, bg_bgr)
         self.ref_idx = ref_idx
         rf = frames[ref_idx]
         skin, _, fg = segment(rf, skin_bgr, bg_bgr)
-        face_f = ndi.binary_fill_holes(face_component(skin))
+        try:
+            face_f = find_face(rf, hint=self.hint).mask
+        except RuntimeError:
+            face_f = ndi.binary_fill_holes(face_component(skin))
         self.ref_face = face_f
+        self.style = measure_style(rf, face_f)
+        fg = fg & self._hairlike(rf, face_f)
         self.ref_ell = ell = fit_face_ellipse(face_f)
         self.face_w = 2 * ell.a
         rmasks = self._region_masks(ell, fg, face_f, skin & ~face_f)
