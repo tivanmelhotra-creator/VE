@@ -261,3 +261,117 @@ def draw_eye_fx(ctx, fx, geo, pal: Palette, proj: Proj):
         pts = np.c_[c[0] + hx * r / 17, c[1] + hy * r / 17]
         ink.fill(ctx, pts, (0.92, 0.22, 0.32))
         ink.stroke(ctx, pts, pal.ink, 0.7 * sw, closed=True)
+
+
+# ================================================================================================ brows
+BROW_STYLE_MODS = {     # thickness profile power, end taper, outline, hair-strand ticks, arch multiplier
+    "soft":    dict(p=0.65, tip=0.22, bushy=0, arch=1.0, block=False),
+    "thick":   dict(p=0.35, tip=0.45, bushy=0, arch=0.8, block=False),
+    "thin":    dict(p=0.90, tip=0.10, bushy=0, arch=1.1, block=False),
+    "angular": dict(p=0.50, tip=0.15, bushy=0, arch=0.0, block=False),
+    "bushy":   dict(p=0.40, tip=0.40, bushy=7, arch=0.9, block=False),
+    "round":   dict(p=0.30, tip=0.80, bushy=0, arch=0.6, block=True),
+    "line":    dict(p=1.00, tip=0.05, bushy=0, arch=1.2, block=False),
+}
+
+
+def brow_points(geo, st: Face, prof: CharacterProfile, eye_h: float, N: int = 9):
+    """centre-line outer → inner, posed by the expression.  brow.gain multiplies EVERY brow motion (v32 brows were
+    too timid); worry lifts the inner head, anger dives it and kinks the arch, brow_up lifts with a slight arch."""
+    b = prof.brow
+    mods = BROW_STYLE_MODS[b.style]
+    s = np.linspace(0.0, 1.0, N)                                   # 0 outer → 1 inner
+    o, i = geo["outer"], geo["inner"]
+    chord = o[None] + (i - o)[None] * s[:, None]
+    L = float(np.linalg.norm(i - o))
+    arch = geo["arch"] * mods["arch"]
+    if b.style == "angular":                                       # peak at 1/3 from the outer end
+        camber = -arch * 1.6 * np.where(s < 0.35, s / 0.35, (1 - s) / 0.65) * 0.0 - geo["arch"] * np.where(
+            s < 0.35, s / 0.35, (1 - s) / 0.65)
+    else:
+        camber = -arch * np.sin(np.pi * s)
+    c = chord.copy()
+    c[:, 1] += camber
+    g = b.gain
+    up = st.brow_up * 0.42 * eye_h * g
+    c[:, 1] -= up * (0.8 + 0.3 * np.sin(np.pi * s))
+    a = float(np.clip(st.brow_anger, 0, 1.2)) * min(g, 1.6)
+    if a > 0:                                                      # inner head dives, outer tail lifts → V
+        c[:, 1] += a * eye_h * (0.42 * s ** 1.3 - 0.16 * (1 - s) ** 1.5)
+        c[:, 0] += geo["sg"] * -a * 0.05 * L * s                    # inner heads pull together
+        c[:, 1] -= a * 0.10 * eye_h * np.sin(np.pi * s ** 0.8)       # muscular kink
+    w = float(np.clip(st.brow_worry, 0, 1.1)) * min(g, 1.6)
+    if w > 0:                                                      # inner head lifts, outer drops → /\
+        c[:, 1] -= w * eye_h * 0.42 * s ** 1.4
+        c[:, 1] += w * eye_h * 0.12 * (1 - s) ** 1.3
+    return c, mods
+
+
+def draw_brow(ctx, geo, st: Face, prof: CharacterProfile, pal: Palette, proj: Proj, eye_h: float):
+    c, mods = brow_points(geo, st, prof, eye_h)
+    cc = proj(ink.catmull(c, per_seg=8))
+    t = np.linspace(0, 1, len(cc))
+    th = geo["th"] * (1.0 + 0.25 * float(np.clip(st.brow_anger, 0, 1)))     # anger thickens the inner head
+    wprof = (mods["tip"] + (1 - mods["tip"]) * np.sin(np.pi * np.clip(t * 0.9 + 0.05, 0, 1)) ** mods["p"])
+    wprof *= 1.0 + 0.30 * (t - 0.4)                                  # fuller inner head
+    w = th * wprof
+    if mods["block"]:
+        w = th * (0.75 + 0.25 * np.sin(np.pi * t))
+    gx = np.gradient(cc, axis=0)
+    gx /= np.maximum(np.hypot(gx[:, 0], gx[:, 1]), 1e-9)[:, None]
+    nrm = np.c_[-gx[:, 1], gx[:, 0]]
+    poly = np.vstack([cc + nrm * (w[:, None] * 0.5), (cc - nrm * (w[:, None] * 0.5))[::-1]])
+    if mods["block"]:
+        poly = chaikin(poly, 2)
+    ink.fill(ctx, poly, pal.brow)
+    if prof.brow.outline and prof.brow.style != "line":
+        ink.stroke(ctx, poly, pal.ink, 0.55 * pal.sw, closed=True)
+    if prof.brow.style == "line":
+        ink.tapered(ctx, cc, pal.ink, 1.0, widths=0.9 * w + 0.4 * pal.sw)
+    for k in range(mods["bushy"]):                                   # hair strands sticking out of a bushy brow
+        j = int((k + 0.5) / mods["bushy"] * (len(cc) - 1))
+        p0 = cc[j] - nrm[j] * w[j] * 0.45
+        p1 = p0 - nrm[j] * w[j] * 0.55 + gx[j] * w[j] * 0.35 * (1 if k % 2 else -1)
+        ink.tapered(ctx, np.array([p0, p1]), pal.ink, 0.45 * pal.sw, kind="end", tip=0.1)
+    return c
+
+
+def draw_furrow(ctx, inner_l, inner_r, eh, amt, pal: Palette, proj: Proj):
+    if amt < 0.05:
+        return
+    mid = 0.5 * (inner_l + inner_r)
+    gap = abs(inner_r[0] - inner_l[0])
+    for side in (-1, 1):
+        x0 = mid[0] + side * 0.14 * gap
+        p = np.array([(x0 + side * 0.05 * gap, mid[1] - 0.30 * eh), (x0, mid[1] - 0.12 * eh),
+                      (x0 - side * 0.02 * gap, mid[1] + 0.03 * eh)])
+        ink.tapered(ctx, proj(ink.catmull(p, 8)), pal.ink, 0.45 * pal.sw, alpha=min(1.0, amt))
+
+
+# ================================================================================================ nose
+def draw_nose(ctx, geo, prof: CharacterProfile, pal: Palette, proj: Proj, dy: float = 0.0):
+    c = geo["c"] + [0.0, dy]
+    s = geo["s"]
+    st = prof.nose.style
+    P = lambda p: proj(np.asarray(p, float), extra_z=proj.nose_out * D)
+    sw = pal.sw
+    if st == "none":
+        return
+    if st == "bump":                                                  # small rounded hook under the bridge
+        p = np.array([c + [-0.45 * s, -0.10 * s], c + [-0.05 * s, 0.22 * s], c + [0.45 * s, -0.08 * s]])
+        ink.tapered(ctx, P(ink.catmull(p, 10)), pal.ink, 0.95 * sw, kind="both", tip=0.12, power=0.55)
+    elif st == "hook":                                                # side hook (3/4-ish nose of the girl kit)
+        p = np.array([c + [0.05 * s, -0.75 * s], c + [-0.35 * s, 0.05 * s], c + [-0.05 * s, 0.25 * s],
+                      c + [0.25 * s, 0.10 * s]])
+        ink.tapered(ctx, P(ink.catmull(p, 10)), pal.ink, 0.95 * sw, kind="both", tip=0.12, power=0.55)
+    elif st == "button":
+        q = P(np.array([c]))[0]
+        ink.circle(ctx, q[0], q[1], 0.30 * s, mix(pal.skin, pal.blush, 0.5))
+        ink.circle(ctx, q[0] - 0.08 * s, q[1] - 0.08 * s, 0.09 * s, (1, 1, 1), alpha=0.6)
+    elif st == "dots":
+        for sx in (-1, 1):
+            q = P(np.array([c + [sx * 0.22 * s, 0.0]]))[0]
+            ink.circle(ctx, q[0], q[1], 0.09 * s, pal.ink)
+    elif st == "line":
+        p = np.array([c + [0.0, -0.70 * s], c + [-0.10 * s, 0.0], c + [0.15 * s, 0.12 * s]])
+        ink.tapered(ctx, P(ink.catmull(p, 8)), pal.ink, 0.75 * sw, kind="both", tip=0.1)
