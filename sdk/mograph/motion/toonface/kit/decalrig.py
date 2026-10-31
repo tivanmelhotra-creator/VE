@@ -245,9 +245,198 @@ class Drawing:
         return Drawing(self.expr, self.view + "~m", -self.yaw, self.unit_px, self.origin, ps)
 
 
+def _split_fused(comp: np.ndarray, line_px: float, min_core: int) -> list:
+    """one solid component → list of masks.  Touching blobs (a brow resting on the eye, a lid touching a brow) are
+    separated at their NECK by marker-controlled watershed on the distance transform; markers = cores that survive an
+    increasing erosion.  A single convex shape (one eye, one brow) is never cut."""
+    c8 = comp.astype(np.uint8)
+    for k in (1.0, 1.6, 2.3, 3.2):
+        r = max(2, int(round(k * line_px)))
+        core = cv2.erode(c8, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * r + 1, 2 * r + 1)))
+        n, cl, st, _ = cv2.connectedComponentsWithStats(core, 8)
+        big = [j for j in range(1, n) if st[j, cv2.CC_STAT_AREA] >= min_core]
+        if len(big) >= 2:
+            markers = np.zeros(comp.shape, np.int32)
+            for t, j in enumerate(big):
+                markers[cl == j] = t + 1
+            dist = cv2.distanceTransform(c8, cv2.DIST_L2, 5)
+            dn = cv2.normalize(-dist, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
+            markers[~comp] = len(big) + 1                                    # background marker
+            ws = cv2.watershed(cv2.merge([dn, dn, dn]), markers.copy())
+            out = []
+            for t in range(1, len(big) + 1):
+                m = (ws == t) & comp
+                out.append(m)
+            border = (ws == -1) & comp                                       # watershed ridge → nearest piece
+            if border.any() and out:
+                ds = np.stack([cv2.distanceTransform((~m).astype(np.uint8), cv2.DIST_L2, 3) for m in out])
+                lab = np.argmin(ds, 0)
+                for t in range(len(out)):
+                    out[t] |= border & (lab == t)
+            return [m for m in out if m.sum() > 0]
+        if not big:
+            break
+    return _split_appendage(comp, line_px)
+
+
+def _split_appendage(comp: np.ndarray, line_px: float) -> list:
+    """outlined brow (thin ring, transparent fill) resting on a solid eye: erosion can't find two cores because the
+    brow has none.  Opening keeps the solid body; a WIDE thin remainder that rises above the body is a separate part.
+    Lashes (narrow) and lid strokes (inside the body's height) stay with the eye."""
+    r = max(2, int(round(1.4 * line_px)))
+    ker = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * r + 1, 2 * r + 1))
+    c8 = comp.astype(np.uint8)
+    body = cv2.morphologyEx(c8, cv2.MORPH_OPEN, ker) > 0
+    if body.sum() < 0.3 * comp.sum():
+        return [comp]
+    nb, bl, bst, _ = cv2.connectedComponentsWithStats(body.astype(np.uint8), 8)
+    if nb < 2:
+        return [comp]
+    jb = 1 + int(np.argmax(bst[1:, cv2.CC_STAT_AREA]))
+    body = bl == jb
+    by0 = bst[jb, cv2.CC_STAT_TOP]
+    bw = bst[jb, cv2.CC_STAT_WIDTH]
+    rem = comp & ~(cv2.dilate(body.astype(np.uint8), np.ones((3, 3), np.uint8), iterations=2) > 0)
+    n, cl, st, _ = cv2.connectedComponentsWithStats(rem.astype(np.uint8), 8)
+    out, taken = [], np.zeros_like(comp)
+    for j in range(1, n):
+        x, y, w, h, ar = st[j]
+        rises = by0 - y                                   # px above the body top
+        if ar > 0.03 * comp.sum() and w > 0.45 * bw and rises > 0.5 * h:
+            m = (cv2.dilate((cl == j).astype(np.uint8), np.ones((3, 3), np.uint8), iterations=2) > 0) & comp & ~body
+            out.append(m)
+            taken |= m
+    if not out:
+        return [comp]
+    return [comp & ~taken] + out
+
+
+def _is_stray_line(m: np.ndarray, unit_px: float, line_px: float) -> bool:
+    """construction / silhouette remnants: long thin mostly-vertical strokes (face edge left on a profile decal),
+    tiny specks.  Real features are blobs (eyes, brows) or horizontal strokes (mouths, lids)."""
+    area = int(m.sum())
+    if area < 0.0009 * unit_px * unit_px:
+        return True
+    ys, xs = np.nonzero(m)
+    w, h = np.ptp(xs) + 1, np.ptp(ys) + 1
+    fill = area / float(w * h)
+    thick = area / max(1.0, float(max(w, h)))            # mean stroke thickness along the long axis
+    return h > 0.12 * unit_px and h > 1.6 * w and thick < 1.8 * line_px and fill < 0.45
+
+
+def _strip_thin_tails(m: np.ndarray, unit_px: float, line_px: float) -> np.ndarray:
+    """remove a long thin vertical stroke fused to a feature blob (profile face line touching the eye)."""
+    r = max(2, int(round(1.3 * line_px)))
+    ker = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * r + 1, 2 * r + 1))
+    body = cv2.morphologyEx(m.astype(np.uint8), cv2.MORPH_OPEN, ker) > 0
+    if body.sum() < 0.5 * m.sum():
+        return m                                          # the whole thing is a stroke (mouth line…) — keep
+    body_d = cv2.dilate(body.astype(np.uint8), np.ones((3, 3), np.uint8), iterations=2) > 0
+    thin = m & ~body_d
+    n, cl, st, _ = cv2.connectedComponentsWithStats(thin.astype(np.uint8), 8)
+    out = m.copy()
+    for j in range(1, n):
+        w, h = st[j, cv2.CC_STAT_WIDTH], st[j, cv2.CC_STAT_HEIGHT]
+        if h > 0.10 * unit_px and h > 1.5 * w:
+            piece = cv2.dilate((cl == j).astype(np.uint8), np.ones((3, 3), np.uint8)) > 0
+            out &= ~(piece & ~body)
+    return out
+
+
 def split_drawing(rgba: np.ndarray, origin, unit_px: float, line_px: float) -> list:
-    """decal → Part list (sheetlib zoning, pixel masks).  Left/right is decided relative to the midpoint between the
-    two eyes (not x=0): on a turned head the near eye crosses the face centre line and must stay one part."""
+    """decal → Part list.  v34: WHOLE shapes are assigned (an eye, a brow is never sliced by a zone line); touching
+    shapes are separated at their neck (_split_fused); stray construction lines are dropped; brows are paired with
+    the eye below them (structure, not fixed heights), so a slanted angry brow stays one piece.
+    Left/right follows the two eyes (not x=0): on a turned head the near eye crosses the face centre line."""
+    a8 = rgba[..., 3]
+    solid = a8 > 40
+    min_core = max(12, int(0.0004 * unit_px * unit_px))
+    n, cl, st, _ = cv2.connectedComponentsWithStats(solid.astype(np.uint8), 8)
+    pieces = []
+    for j in range(1, n):
+        comp = cl == j
+        if comp.sum() < 12:
+            continue
+        comp = _strip_thin_tails(comp, unit_px, line_px)
+        for m in _split_fused(comp, line_px, min_core):
+            if not _is_stray_line(m, unit_px, line_px):
+                pieces.append(m)
+    if not pieces:
+        return []
+    # soft edge pixels (alpha 1..40) → nearest piece
+    lab = np.full(a8.shape, -1, np.int32)
+    for k, m in enumerate(pieces):
+        lab[m] = k
+    soft = (a8 > 0) & (lab < 0)
+    if soft.any():
+        ds = np.stack([cv2.distanceTransform((~m).astype(np.uint8), cv2.DIST_L2, 3) for m in pieces])
+        near = np.argmin(ds, 0)
+        ok = soft & (np.min(ds, 0) <= 2.5)
+        lab[ok] = near[ok]
+    info = []
+    for k in range(len(pieces)):
+        ys, xs = np.nonzero(lab == k)
+        u = np.stack([(xs - origin[0]) / unit_px, (origin[1] - ys) / unit_px], 1)
+        info.append(dict(k=k, n=len(xs), cx=u[:, 0].mean(), cy=u[:, 1].mean(), x0=u[:, 0].min(), x1=u[:, 0].max(),
+                         y0=u[:, 1].min(), y1=u[:, 1].max()))
+    names = {}
+    for p in info:                                            # far-out marks → fx
+        if abs(p["cx"]) > 0.62 or p["cy"] < -0.05 or p["cy"] > 1.15:
+            names[p["k"]] = "fx"
+    band = [p for p in info if p["k"] not in names and p["cy"] >= 0.40]
+    eyes = []
+    if band:
+        e1 = max(band, key=lambda p: p["n"])
+        eyes.append(e1)
+        rest = [p for p in band if p is not e1 and p["n"] > 0.45 * e1["n"]
+                and min(p["x1"], e1["x1"]) - max(p["x0"], e1["x0"]) < 0.25 * (e1["x1"] - e1["x0"])
+                and abs(p["cy"] - e1["cy"]) < 0.16]
+        if rest:
+            eyes.append(max(rest, key=lambda p: p["n"]))
+    eyes.sort(key=lambda p: p["cx"])
+    if len(eyes) == 2:
+        sides = {eyes[0]["k"]: "_L", eyes[1]["k"]: "_R"}
+    elif eyes:
+        sides = {eyes[0]["k"]: "_L" if eyes[0]["cx"] < 0 else "_R"}
+    else:
+        sides = {}
+    for e in eyes:
+        names[e["k"]] = "eye" + sides[e["k"]]
+    for p in info:
+        if p["k"] in names:
+            continue
+        above = [e for e in eyes if p["cy"] > e["cy"] + 0.04 and p["y0"] > e["y0"] + 0.02]
+        if above and p["cy"] < 1.05:                          # brow → the eye it overlaps / is nearest to in x
+            e = min(above, key=lambda e: abs(p["cx"] - e["cx"]))
+            names[p["k"]] = "brow" + sides[e["k"]]
+        elif eyes and p["y0"] >= min(e["y0"] for e in eyes) - 0.02 and \
+                any(p["x0"] >= e["x0"] - 0.03 and p["x1"] <= e["x1"] + 0.03 for e in eyes):
+            e = min(eyes, key=lambda e: abs(p["cx"] - e["cx"]))   # pupil / lid / lash detached from the eye
+            names[p["k"]] = "eye" + sides[e["k"]]
+        else:
+            z = _zone(p["cx"], p["cy"], p["n"] / a8.size)
+            if z.startswith(("eye", "brow")):
+                z = z[:-2] + ("_L" if p["cx"] < (np.mean([e["cx"] for e in eyes]) if eyes else 0.0) else "_R")
+            names[p["k"]] = z
+    parts = []
+    for nm in PARTS_ORDER:
+        m = np.isin(lab, [k for k, v in names.items() if v == nm])
+        if m.sum() < 20:
+            continue
+        ys, xs = np.nonzero(m)
+        y0, y1, x0, x1 = ys.min(), ys.max() + 1, xs.min(), xs.max() + 1
+        crop = rgba[y0:y1, x0:x1].copy()
+        crop[..., 3] = np.where(m[y0:y1, x0:x1], crop[..., 3], 0)
+        w = crop[..., 3].astype(np.float64) + 1e-6
+        gy, gx = np.mgrid[y0:y1, x0:x1]
+        ax = ((gx * w).sum() / w.sum() - origin[0]) / unit_px
+        ay = (origin[1] - (gy * w).sum() / w.sum()) / unit_px
+        parts.append(Part(nm, crop, float(x0), float(y0), (float(ax), float(ay)), line_px))
+    return parts
+
+
+def split_drawing_v33(rgba: np.ndarray, origin, unit_px: float, line_px: float) -> list:
+    """v33 zone splitter (kept for comparison / regression only)."""
     a = rgba[..., 3] > 0
     n, cl, st, _ = cv2.connectedComponentsWithStats(cv2.dilate(a.astype(np.uint8), np.ones((5, 5), np.uint8)), 8)
     lab = np.full(a.shape, -1, np.int32)
@@ -474,7 +663,9 @@ class DecalRig:
             if p1 is not None and sw > 1e-3:
                 draws.append((d1, p1, sw if p0 is not None else 1.0))
             v = float(lerp(v0, v1))
-            v = float(np.clip((v - 0.4) / 0.2, 0, 1))
+            # v34: near-binary visibility.  A half-transparent far eye reads as a ghost / shapeless smear; the far
+            # part stays fully opaque (clipped by the face silhouette) and pops off within a ~3 deg band.
+            v = float(np.clip((v - 0.47) / 0.06, 0, 1))
             out[nm] = dict(anchor=tuple(lerp(a0, a1)), size=tuple(lerp(sz0, sz1)), vis=v, draws=draws)
         self._apply_shape(out)
         return out
@@ -520,12 +711,37 @@ class DecalRig:
             self._styled[key] = (rgba, dx, dy)
         return self._styled[key]
 
+    max_aniso: float = 1.18      # v34: a drawing may be squashed / stretched at most this much (no shapeless parts)
+
     def part_unit_affine(self, d: Drawing, p: Part, tgt: dict):
-        """2×3 key-face-units → target-face-units: the drawn part's anchor → target anchor, size → target size."""
+        """2×3 key-face-units → target-face-units: the drawn part's anchor → target anchor, size → target size.
+        v34: anisotropy is limited — the key drawing already carries its own foreshortening, so interpolated sizes
+        only rescale it (a far eye is hidden by visibility, never crushed into a sliver)."""
         w0, h0 = self._psize(d, p)
         w1, h1 = tgt["size"]
-        A = np.array([[w1 / max(1e-4, w0), 0.0], [0.0, h1 / max(1e-4, h0)]])
+        sx, sy = w1 / max(1e-4, w0), h1 / max(1e-4, h0)
+        g = math.sqrt(max(1e-8, sx * sy))
+        r = float(np.clip(sx / max(1e-6, sy), 1 / self.max_aniso, self.max_aniso))
+        sx, sy = g * math.sqrt(r), g / math.sqrt(r)
+        A = np.array([[sx, 0.0], [0.0, sy]])
         t = np.asarray(tgt["anchor"], float) - A @ np.asarray(p.anchor, float)
+        return np.hstack([A, t[:, None]])
+
+    def brow_unit_affine(self, d: Drawing, brow: Part, tg: dict):
+        """v34 eye-brow GROUP: the brow rides on the affine of the eye below it IN THE SAME DRAWING, so the gap /
+        contact between them is exactly as the artist drew it at every yaw (no drifting, no visible cut line).
+        The character FaceShape brow controls are applied afterwards about the brow's own anchor."""
+        side = brow.name[-2:]
+        en = "eye" + side
+        eye = next((q for q in d.parts if q.name == en), None)
+        if eye is None or en not in tg:
+            return None
+        Ae = self.part_unit_affine(d, eye, tg[en])
+        sh = self.shape
+        b = Ae[:, :2] @ np.asarray(brow.anchor, float) + Ae[:, 2]
+        L = np.diag([sh.brow_len, sh.brow_thick])
+        A = L @ Ae[:, :2]
+        t = b + np.array([0.0, sh.brow_y]) - A @ np.asarray(brow.anchor, float)
         return np.hstack([A, t[:, None]])
 
     def layer(self, W: int, H: int, expr: str, yaw: float, style, M_track=None, face_mask=None):
@@ -542,7 +758,9 @@ class DecalRig:
                 continue
             for d, p, wk in tg[nm]["draws"]:
                 Dinv = invert(d.unit_to_decal())
-                Au = self.part_unit_affine(d, p, tg[nm])
+                Au = self.brow_unit_affine(d, p, tg) if nm.startswith("brow") else None
+                if Au is None:
+                    Au = self.part_unit_affine(d, p, tg[nm])
                 vis = tg[nm]["vis"]
                 rgba, dx, dy = self._styled_part(d, p)
                 T = np.array([[1.0, 0.0, p.x0 - dx], [0.0, 1.0, p.y0 - dy]])

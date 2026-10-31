@@ -13,7 +13,7 @@ v32 tracks the HEAD AS A RIGID PLANE, like a planar tracker in Mocha / AE:
      coordinate, so every frame solves  ref → current  directly (no accumulated drift).
   3. Pyramidal Lucas-Kanade + forward/backward check, RANSAC similarity, then IRLS refinement with REGION-BALANCED
      Huber weights (every region gets the same vote, so a hand covering the crown cannot drag the face).
-  4. One-Euro filter (low jitter at rest, near-zero lag on fast moves → no spring) + PoseLimits (dead-band so the
+  4. One-Euro filter, v34: run forward+backward (zero-phase, 0-frame lag → no spring) + PoseLimits (dead-band so the
      face NEVER rotates when the skull doesn't, clamps, per-frame velocity limits).
   5. Region confidence = inlier ratio per region → occlusion-aware replenishment (never seeds points on a hand).
 
@@ -241,6 +241,7 @@ class TrackerConfig:
     rot_beta: float = 0.25
     scale_min_cutoff: float = 0.8
     scale_beta: float = 0.5
+    zero_phase: bool = True          # v34: offline forward+backward smoothing → 0-frame lag (no "spring" face)
     limits: PoseLimits = field(default_factory=PoseLimits)
 
 
@@ -452,6 +453,60 @@ class HeadTracker:
 
     # ----------------------------------------------------------------------------------------- filter + limits
     def _filter(self, raw):
+        if self.cfg.zero_phase:
+            return self._filter_zero_phase(raw)
+        return self._filter_causal(raw)
+
+    def _limited(self, raw):
+        """per-frame limits on the RAW estimate (dead-band, clamps, glitch step limit) — no smoothing, no lag."""
+        lim = self.cfg.limits
+        e = self.ref_ell
+        c0 = np.array([e.cx, e.cy])
+        out, prev = [], None
+        for (M, conf, ninl, res) in raw:
+            s, th, _, _ = sim_params(M)
+            c = apply(M, [c0])[0]
+            roll_raw = math.degrees(th)
+            roll = float(np.clip(soft_deadband(roll_raw, lim.roll_deadband_deg), -lim.roll_max_deg, lim.roll_max_deg))
+            s = float(np.clip(s, lim.scale_min, lim.scale_max))
+            if prev is not None:
+                step = lim.max_step_px * self.face_w
+                c = prev[0] + np.clip(c - prev[0], -step, step)
+                roll = prev[1] + float(np.clip(roll - prev[1], -lim.max_step_roll_deg, lim.max_step_roll_deg))
+            prev = (c, roll)
+            out.append((float(c[0]), float(c[1]), roll, math.log(s), roll_raw))
+        return np.array(out)
+
+    @staticmethod
+    def _zero_phase(x: np.ndarray, fps: float, mc: float, beta: float) -> np.ndarray:
+        """One-Euro run forward AND backward, averaged: the forward lag and the backward lead cancel exactly
+        (zero-phase), while the adaptive cutoff still keeps rest frames calm.  Offline only (needs all frames)."""
+        f, b = OneEuro(fps, mc, beta), OneEuro(fps, mc, beta)
+        fw = np.array([f(float(v)) for v in x])
+        bw = np.array([b(float(v)) for v in x[::-1]])[::-1]
+        return 0.5 * (fw + bw)
+
+    def _filter_zero_phase(self, raw):
+        cfg = self.cfg
+        e = self.ref_ell
+        c0 = np.array([e.cx, e.cy])
+        L = self._limited(raw)
+        cx = self._zero_phase(L[:, 0], cfg.fps, cfg.pos_min_cutoff, cfg.pos_beta)
+        cy = self._zero_phase(L[:, 1], cfg.fps, cfg.pos_min_cutoff, cfg.pos_beta)
+        rl = self._zero_phase(L[:, 2], cfg.fps, cfg.rot_min_cutoff, cfg.rot_beta)
+        ls = self._zero_phase(L[:, 3], cfg.fps, cfg.scale_min_cutoff, cfg.scale_beta)
+        rl = np.where(np.abs(L[:, 2]) < 1e-9, np.where(np.abs(rl) < 0.15, 0.0, rl), rl)   # keep dead-band level
+        out = []
+        for i, (M, conf, ninl, res) in enumerate(raw):
+            s_f = math.exp(ls[i])
+            Mf = sim_matrix(s_f, math.radians(rl[i]), 0.0, 0.0)
+            Mf[:, 2] = np.array([cx[i], cy[i]]) - Mf[:, :2] @ c0
+            out.append(HeadPose2D(M=Mf, M_raw=M, scale=s_f, roll_deg=float(rl[i]), roll_raw_deg=float(L[i, 4]),
+                                  center=(float(cx[i]), float(cy[i])), region_conf=conf, n_inliers=ninl,
+                                  residual_px=res))
+        return out
+
+    def _filter_causal(self, raw):
         cfg, lim = self.cfg, self.cfg.limits
         e = self.ref_ell
         c0 = np.array([e.cx, e.cy])

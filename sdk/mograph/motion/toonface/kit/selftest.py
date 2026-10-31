@@ -1,5 +1,5 @@
 """
-toonface.kit.selftest — v31.4 Automated Quality & Stability Self-Test Suite.
+toonface.kit.selftest — v34 Automated Quality & Stability Self-Test Suite.
 
 Run:
     PYTHONPATH=sdk python3 -m mograph.motion.toonface.kit.selftest
@@ -124,6 +124,94 @@ def test_sandwich_and_welded_skull():
     assert out0.shape == (H, W, 3) and out1.shape == (H, W, 3) and len(sched) == 24
 
 
+# ------------------------------------------------------------------------------------------------ v34
+def test_v34_zero_phase_tracking():
+    """offline pose filter must not lag the head (lag = the 'spring' face).  Synthetic nod + noise: the causal
+    One-Euro lags >= 1 frame, the v34 zero-phase filter lags 0 frames and stays smooth."""
+    from .facetrack import HeadTracker, OneEuro, TrackerConfig
+    cfg = TrackerConfig(fps=24.0)
+    rng = np.random.default_rng(0)
+    t = np.arange(240) / cfg.fps
+    truth = 30 * np.sin(2 * np.pi * 1.4 * t) * (t > 1.0)
+    raw = truth + rng.normal(0, 0.4, len(t))
+    zp = HeadTracker._zero_phase(raw, cfg.fps, cfg.pos_min_cutoff, cfg.pos_beta)
+    f = OneEuro(cfg.fps, cfg.pos_min_cutoff, cfg.pos_beta)
+    ca = np.array([f(float(v)) for v in raw])
+
+    def lag(a, b):
+        """sub-frame lag of b behind a: cross-correlation peak refined with a parabola."""
+        a, b = a - a.mean(), b - b.mean()
+        Ls = np.arange(-4, 5)
+        c = np.array([np.corrcoef(a[max(0, -L):len(a) - max(0, L)], b[max(0, L):len(b) - max(0, -L)])[0, 1]
+                      for L in Ls])
+        k = int(np.argmax(c))
+        if 0 < k < len(c) - 1:
+            den = c[k - 1] - 2 * c[k] + c[k + 1]
+            return float(Ls[k] + (0.5 * (c[k - 1] - c[k + 1]) / den if abs(den) > 1e-12 else 0.0))
+        return float(Ls[k])
+    lag_zp, lag_ca = lag(truth, zp), lag(truth, ca)
+    assert abs(lag_zp) < 0.1, f"zero-phase filter lags {lag_zp:.2f} frames"
+    assert lag_ca > abs(lag_zp) + 0.1, f"causal reference should lag more (ca={lag_ca:.2f}, zp={lag_zp:.2f})"
+    mv = t > 1.2
+    assert np.abs(zp - truth)[mv].mean() < np.abs(ca - truth)[mv].mean(), "zero-phase tracks the motion worse"
+    jit = float(np.abs(np.diff(zp[:20])).mean())
+    assert jit < float(np.abs(np.diff(raw[:20])).mean()), "zero-phase filter does not smooth rest jitter"
+    return lag_zp, lag_ca, jit
+
+
+def test_v34_whole_parts_and_brow_group():
+    """artist turnaround drawings: every eye / brow is ONE whole shape (never sliced by a zone line), touching
+    brow+eye are separated at their neck, stray face-edge strokes are dropped; the brow rides on its eye's affine
+    at every yaw (drawn gap kept) and no part is squashed beyond max_aniso."""
+    import glob
+    import os
+    import tempfile
+    from .decalrig import DecalRig
+    from .redesign import ingest
+    here = os.path.dirname(__file__)
+    turns = sorted(glob.glob(os.path.join(here, "..", "..", "..", "..", "tests", "fixtures", "toonface",
+                                          "turnarounds", "boy_*.png")))
+    assert turns, "turnaround fixtures missing"
+    out = tempfile.mkdtemp(prefix="v34_rig_")
+    for pth in turns:
+        ingest(pth, os.path.basename(pth)[4:-4], out)
+    rig = DecalRig(out)
+    n_checked = 0
+    for expr, ds in rig.drawings.items():
+        for d in ds:
+            names = [p.name for p in d.parts]
+            assert len(names) == len(set(names)), f"{expr}@{d.view}: duplicate parts {names}"
+            if d.view == "front":
+                for nm in ("eye_L", "eye_R", "brow_L", "brow_R"):
+                    assert nm in names, f"{expr}@front: missing {nm} ({names})"
+            for p in d.parts:
+                if p.name.startswith(("eye", "brow")):
+                    m = (p.rgba[..., 3] > 40).astype(np.uint8)
+                    n, _, st, _ = cv2.connectedComponentsWithStats(m, 8)
+                    big = [j for j in range(1, n) if st[j, cv2.CC_STAT_AREA] > 0.02 * m.sum()]
+                    assert len(big) <= 2, f"{expr}@{d.view} {p.name}: fragmented into {len(big)} pieces"
+                    n_checked += 1
+                if p.name.startswith("eye"):
+                    hh = p.rgba.shape[0] / d.unit_px
+                    assert hh < 0.62, f"{expr}@{d.view} {p.name}: brow merged into the eye (h={hh:.2f})"
+        for yaw in range(-85, 86, 5):
+            rig._swap = {}
+            tg = rig.targets(expr, float(yaw))
+            for nm, t in tg.items():
+                for d, p, _ in t["draws"]:
+                    A = rig.part_unit_affine(d, p, t)
+                    r = A[0, 0] / A[1, 1]
+                    assert 1 / rig.max_aniso - 1e-6 <= r <= rig.max_aniso + 1e-6, f"{expr} {yaw} {nm} squashed {r:.2f}"
+                    if nm.startswith("brow"):
+                        Ab = rig.brow_unit_affine(d, p, tg)
+                        en = "eye" + nm[-2:]
+                        eye = next((q for q in d.parts if q.name == en), None)
+                        if Ab is not None and eye is not None:
+                            Ae = rig.part_unit_affine(d, eye, tg[en])
+                            assert np.allclose(Ab, Ae, atol=1e-9), f"{expr} {yaw} {nm}: brow left its eye group"
+    return n_checked
+
+
 def main():
     t0 = time.time()
     test_g2p_and_visemes()
@@ -138,7 +226,11 @@ def main():
     print("  PASS  videotrack v31.4 ink-barrier + true rendered src_c clamp & 18 master expressions")
     test_sandwich_and_welded_skull()
     print("  PASS  sandwich v31.4 WeldedSkullSandwichRig + Ping-Pong gesture schedule + listener reactions")
-    print(f"toonface.kit selftest: 6/6 pass ({time.time() - t0:.1f}s)")
+    lag_z, lag_c, jit = test_v34_zero_phase_tracking()
+    print(f"  PASS  v34 zero-phase head tracking (lag {lag_z:+.2f} vs causal {lag_c:+.2f} frames, rest jitter {jit:.2f}px)")
+    n = test_v34_whole_parts_and_brow_group()
+    print(f"  PASS  v34 whole eye/brow parts ({n} checked), eye-brow group at every yaw, no squashed parts")
+    print(f"toonface.kit selftest: 8/8 pass ({time.time() - t0:.1f}s)")
 
 
 if __name__ == "__main__":

@@ -1,3 +1,10 @@
+# CONTINUE_HERE — v34 toonface field fixes (branch feat/v33-toonface-engine → PR to main)
+- spring-free tracking: zero-phase One-Euro in facetrack.py (0-frame lag)
+- decalrig: whole-shape part split (no cut brows/eyes), eye-brow group affine, max_aniso, binary far-side visibility
+- guide: sdk/V33_EXPRESSION_RIG_GUIDE.md §v34 · QA: `cd sdk && python3 -m mograph.motion.toonface.kit.selftest` (8/8)
+- deps: `pip install pycairo` (needed by redesign/sheetlib ingest)
+
+---
 # CONTINUE_HERE — v25 HUMAN LINE ART (branch feat/v25-human-lineart) on top of v22
 
 ## Restore after a sandbox reset (the sandbox resets to the GitHub v22 copy!)
