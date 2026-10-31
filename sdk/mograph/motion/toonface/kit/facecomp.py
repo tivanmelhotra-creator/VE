@@ -185,6 +185,9 @@ class FaceRigCompositor:
         self.skin_bgr, self.bg_bgr = self.trk.skin_bgr, self.trk.bg_bgr
         self.ref_face = self.trk.ref_face
         _, self.ref_ink, _ = segment(frames[self.trk.ref_idx], self.skin_bgr, self.bg_bgr)
+        # closed lids are filled with skin: use the VIDEO's skin, not the kit's (else peach discs on blinks)
+        b, g, r = (float(v) / 255.0 for v in self.skin_bgr)
+        self.kit.skin = (r, g, b)
         self._calibrate(yaw, plate)
         self.stats: list = []
 

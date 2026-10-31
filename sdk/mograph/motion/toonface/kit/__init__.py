@@ -22,3 +22,8 @@ from .videotrack import TrackedHeadFrame, composite_face_on_tracked_frame, detec
 from .visemes import VISEMES, mix, mouth_at, phonemes, vis, viseme_track
 
 __version__ = "31.4"
+from .expressive import EMOTIONS, Beat, ExpressivePerformer, FaceFrame, au, blend
+from .facecomp import FaceRigCompositor, LevelPolicy
+from .facetrack import HeadTracker, OneEuro, PoseLimits, TrackerConfig
+
+__version__ = "32.0"
