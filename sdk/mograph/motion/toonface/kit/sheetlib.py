@@ -155,24 +155,34 @@ def extract_decal(sheet, lbl, face, skin_bgr, hair_bgr, pad: int = 6):
     line_px = float(np.clip(2.0 * np.percentile(dt[ring], 85), 2.0, 12.0)) if ring.any() else 4.0
     face_reg = cv2.dilate(hm, np.ones((3, 3), np.uint8)) > 0
     lab = cv2.cvtColor(sheet, cv2.COLOR_BGR2LAB).astype(np.float32)
-    dsk = np.linalg.norm(lab - _lab(skin_bgr), axis=2)
-    nonskin = face_reg & (dsk > 6.0)
+    # skin reference = THIS face's own skin (sheets shade faces differently: freezing = blue, angry = red)
+    loc = np.median(lab[comp], axis=0)
+    dsk = np.linalg.norm(lab - loc, axis=2)
+    thr = float(np.clip(np.percentile(dsk[comp], 97) + 4.0, 12.0, 26.0))      # adaptive to JPEG noise
+    nonskin = face_reg & ((dsk > thr) | inkm)
+    nonskin = cv2.morphologyEx(nonskin.astype(np.uint8), cv2.MORPH_OPEN, np.ones((2, 2), np.uint8)) > 0
     # the outline band: ink within ~2 strokes of the hull border is the face contour, not a feature
-    inner = cv2.erode(hm, np.ones((int(2 * line_px) | 1, int(2 * line_px) | 1), np.uint8)) > 0
+    k_in = int(2 * line_px) | 1
+    inner = cv2.erode(hm, np.ones((k_in, k_in), np.uint8)) > 0
     band = face_reg & ~inner
     nonskin &= ~(band & inkm)
     n, cl, cst, _ = cv2.connectedComponentsWithStats(nonskin.astype(np.uint8), connectivity=8)
     dh = np.linalg.norm(lab - _lab(hair_bgr), axis=2)
     yb0, yb1 = ys.min(), ys.max()
+    fh = max(1, yb1 - yb0)
+    band_wide = face_reg & ~(cv2.erode(hm, np.ones((k_in + 8, k_in + 8), np.uint8)) > 0)
     keep = np.zeros(n, bool)
     for j in range(1, n):
-        if cst[j, cv2.CC_STAT_AREA] < 6:
+        area = cst[j, cv2.CC_STAT_AREA]
+        if area < 12:                                   # specks
             continue
         cj = cl == j
-        touches = (cj & band).any()
-        hairish = float(((dh < 10) | inkm)[cj].mean())
-        top = (cst[j, cv2.CC_STAT_TOP] + cst[j, cv2.CC_STAT_HEIGHT] / 2 - yb0) / max(1, yb1 - yb0) < 0.45
-        if touches and hairish > 0.8 and top:          # a forelock hanging into the face
+        top_y = (cst[j, cv2.CC_STAT_TOP] - yb0) / fh
+        cy = (cst[j, cv2.CC_STAT_TOP] + cst[j, cv2.CC_STAT_HEIGHT] / 2 - yb0) / fh
+        touches = (cj & band_wide).any()
+        hair_frac = float(((dh < 12) | inkm)[cj].mean())
+        # forelock: hair-coloured/ink, upper part of the face, reaching the face border (it comes from the hair)
+        if touches and hair_frac > 0.75 and (top_y < 0.12 or cy < 0.30):
             continue
         keep[j] = True
     feat = keep[cl]
