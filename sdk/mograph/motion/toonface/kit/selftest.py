@@ -6,17 +6,20 @@ Run:
 """
 from __future__ import annotations
 
-import math
 import time
 
 import cv2
 import numpy as np
 
-from .g2p_fa import g2p
 from .rig25 import Face, Kit, brow_line, mouth_geom, tongue_inside_poly, tongue_out_poly
+from .sandwich import (
+    WeldedSkullSandwichRig,
+    build_listener_reaction_face,
+    build_pingpong_gesture_schedule,
+)
 from .sheet25 import EXPRESSIONS_18
 from .turn25 import Character
-from .videotrack import TrackedHeadFrame, composite_face_on_tracked_frame, detect_moving_head_pose
+from .videotrack import composite_face_on_tracked_frame, detect_moving_head_pose
 from .visemes import VISEMES, vis, viseme_track
 
 
@@ -33,12 +36,10 @@ def test_g2p_and_visemes():
 def test_rig25_aesthetics():
     kit = Kit("girl")
     v34, _ = kit.view(25.0)
-    # 1. Verify open mouth arches upper lip upward relative to closed sag
     up_closed, lo_closed, *_ = mouth_geom(v34["mouth"], dict(open=0.0, corner=-0.2))
     up_open, lo_open, *_ = mouth_geom(v34["mouth"], dict(open=0.75, corner=-0.2, teeth_up=0.6))
     mid = len(up_open) // 2
     assert up_open[mid, 1] < up_closed[mid, 1] - 4.0, "Open upper lip must arch upward (D-bean shape)"
-    # 2. Verify angry brow preserves organic curve camber (not a straight stick)
     c_angry, _ = brow_line(v34["brows"]["L"], v34["eyes"]["L"], Face(brow_anger=1.0))
     chord_mid = 0.5 * (c_angry[0] + c_angry[-1])
     camber_dev = float(np.linalg.norm(c_angry[len(c_angry) // 2] - chord_mid))
@@ -56,11 +57,8 @@ def test_tongue_v314():
         gap = float(np.max(np.linalg.norm(lo - up, axis=1)))
         k = int(len(lo) * tp)
         _, top, (b0, half_w, height, tip) = tongue_inside_poly(lo, k, gap, hw, u, nv, m)
-        # root sits exactly on the lower lip at the lowest point (no floating egg)
         assert np.linalg.norm(b0 - lo[k]) < 1e-6
-        # wide enough to read as a tongue bed (≥ 55% of the mouth half-width)
         assert half_w > 0.55 * hw, f"{name}: tongue too narrow ({half_w / hw:.2f} hw)"
-        # never reaches the upper lip
         peak = float(np.max((b0 - top) @ nv))
         assert peak < 0.95 * gap, f"{name}: tongue touches upper lip ({peak / gap:.2f} gap)"
         res[name] = peak / gap
@@ -95,11 +93,35 @@ def test_turn25_subpixel_stability():
 def test_videotrack_and_18_presets():
     assert len(EXPRESSIONS_18) == 18
     kit = Kit("girl")
-    dummy = np.full((720, 720, 3), (145, 175, 210), dtype=np.uint8)
-    cv2.circle(dummy, (360, 300), 140, (175, 215, 243), -1)
-    tr = detect_moving_head_pose(dummy)
+    dummy = np.full((720, 720, 3), (102, 160, 217), dtype=np.uint8)
+    cv2.circle(dummy, (360, 300), 140, (142, 187, 240), -1)
+    cv2.circle(dummy, (360, 300), 140, (20, 20, 20), 4)
+    tr = detect_moving_head_pose(dummy, base_yaw=-15.0)
     out = composite_face_on_tracked_frame(dummy, tr, kit, EXPRESSIONS_18[0][4], acting_yaw_delta=20.0)
     assert out.shape == dummy.shape
+
+
+def test_sandwich_and_welded_skull():
+    W, H = 360, 640
+    amber = (102, 160, 217)
+    bg = np.full((H, W, 3), amber, dtype=np.uint8)
+    fg = np.full((H, W, 3), amber, dtype=np.uint8)
+    cv2.rectangle(fg, (0, 520), (W - 1, H - 1), (90, 130, 175), -1)
+
+    frames = []
+    for dx in (0, -8, 6):
+        frm = np.full((H, W, 3), amber, dtype=np.uint8)
+        cx, cy = int(W * 0.47) + dx, int(H * 0.43)
+        cv2.circle(frm, (cx, cy), 75, (140, 190, 245), -1)
+        cv2.circle(frm, (cx, cy), 75, (18, 18, 18), 4)
+        frames.append(frm)
+
+    rig = WeldedSkullSandwichRig(bg, frames, fg, "boy", base_yaw=15.0, verify_margins=False)
+    st_react = build_listener_reaction_face(0.5, "girl_disbelief_1")
+    out0 = rig.render_sandwich(0, st_react)
+    out1 = rig.render_sandwich(3, st_react)
+    sched = build_pingpong_gesture_schedule(frames, [(0.0, 2.0, 0, 2, True)], 2.0, fps=12, step_hold=1)
+    assert out0.shape == (H, W, 3) and out1.shape == (H, W, 3) and len(sched) == 24
 
 
 def main():
@@ -113,8 +135,10 @@ def main():
     max_med, max_pt = test_turn25_subpixel_stability()
     print(f"  PASS  turn25 stability across [-35..+35 deg] (max median={max_med:.3f}px, max point={max_pt:.3f}px)")
     test_videotrack_and_18_presets()
-    print("  PASS  videotrack moving-head clamp & 18 master expressions")
-    print(f"toonface.kit selftest: 5/5 pass ({time.time() - t0:.1f}s)")
+    print("  PASS  videotrack v31.4 ink-barrier + true rendered src_c clamp & 18 master expressions")
+    test_sandwich_and_welded_skull()
+    print("  PASS  sandwich v31.4 WeldedSkullSandwichRig + Ping-Pong gesture schedule + listener reactions")
+    print(f"toonface.kit selftest: 6/6 pass ({time.time() - t0:.1f}s)")
 
 
 if __name__ == "__main__":
