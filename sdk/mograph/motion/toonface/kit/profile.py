@@ -107,6 +107,7 @@ class Head3D:
 @dataclass
 class CharacterProfile:
     name: str = "character"
+    rig: str = "procedural"    # "procedural" (all sliders live) | "kit:boy" | "kit:girl" (hand-authored shapes)
     eye: EyeSpec = field(default_factory=EyeSpec)
     brow: BrowSpec = field(default_factory=BrowSpec)
     nose: NoseSpec = field(default_factory=NoseSpec)
@@ -155,6 +156,7 @@ class CharacterProfile:
         assert n.style in NOSE_STYLES, f"nose.style must be one of {NOSE_STYLES}"
         assert m.style in MOUTH_STYLES, f"mouth.style must be one of {MOUTH_STYLES}"
         assert b.layer in ("over", "under"), "brow.layer must be over | under"
+        assert self.rig == "procedural" or self.rig in ("kit:boy", "kit:girl"), "rig: procedural | kit:boy | kit:girl"
         e.width = _clip(e.width, 0.12, 0.46)
         e.height = _clip(e.height, 0.06, 0.46)
         e.spacing = _clip(e.spacing, e.width * 0.5 + 0.01, 0.36)       # eyes never overlap
@@ -177,6 +179,11 @@ class CharacterProfile:
             raise KeyError(f"unknown preset {name!r}; choose from {sorted(PRESETS)}")
         return cls.from_dict({"name": name, **PRESETS[name]})
 
+    @classmethod
+    def resolve(cls, spec: str) -> "CharacterProfile":
+        """preset name or path to a JSON file."""
+        return cls.load(spec) if spec.endswith(".json") else cls.preset(spec)
+
 
 def _clip(v, lo, hi):
     return float(min(max(v, lo), hi))
@@ -195,17 +202,17 @@ def _update(obj, d: dict):
 
 # measured on the hand-authored v31 kits (front view) + new archetypes
 PRESETS: dict[str, dict] = {
-    "boy": dict(eye=dict(style="round", y=0.565, spacing=0.262, width=0.368, height=0.346, pupil=0.12,
+    "boy": dict(rig="kit:boy", eye=dict(style="round", y=0.565, spacing=0.262, width=0.368, height=0.346, pupil=0.12,
                          lid_weight=1.0),
                 brow=dict(style="soft", y=0.81, gap=0.143, length=0.24, arch=0.05, slant=0.06, thickness=0.040),
                 nose=dict(style="bump", y=0.40, size=0.11),
-                mouth=dict(y=0.255, width=0.33, x=0.018, curve=0.035, tilt=-7.0),
+                mouth=dict(y=0.255, width=0.33, x=0.018, curve=0.035, tilt=7.0),
                 personality=dict(rest_mood="friendly")),
-    "girl": dict(eye=dict(style="almond", y=0.55, spacing=0.237, width=0.345, height=0.315, pupil=0.125,
+    "girl": dict(rig="kit:girl", eye=dict(style="almond", y=0.55, spacing=0.237, width=0.345, height=0.315, pupil=0.125,
                           lid_weight=2.4, lashes=True, lower_lashes=True, wing=True, tilt=0.06),
                  brow=dict(style="soft", y=0.815, gap=0.145, length=0.24, arch=0.06, slant=0.065, thickness=0.036),
                  nose=dict(style="hook", y=0.41, size=0.10),
-                 mouth=dict(y=0.26, width=0.285, x=0.026, curve=0.04, tilt=-10.0),
+                 mouth=dict(y=0.26, width=0.285, x=0.026, curve=0.04, tilt=10.0),
                  personality=dict(rest_mood="friendly")),
     "cute_round": dict(eye=dict(style="round", width=0.40, height=0.42, pupil=0.17, spacing=0.27, y=0.53),
                        brow=dict(style="round", length=0.12, y=0.82), nose=dict(style="button", size=0.07),
