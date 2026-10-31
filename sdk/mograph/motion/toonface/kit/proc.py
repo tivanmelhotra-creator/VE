@@ -73,6 +73,7 @@ class Palette:
     brow: tuple
     blush: tuple
     sw: float                     # line weight in D units
+    blush_line: tuple = (0.85, 0.35, 0.40)
 
 
 def make_palette(prof: CharacterProfile, style) -> Palette:
@@ -96,7 +97,7 @@ def make_palette(prof: CharacterProfile, style) -> Palette:
     blush = mix(skin, (0.96, 0.42, 0.45), 0.55) if c.blush == "auto" else hex_rgb(c.blush)
     sw = (style.line_px / max(1.0, style.width) * D) if c.line_weight == "auto" else float(c.line_weight) * D
     return Palette(ink=inkc, skin=skin, hair=hair, sclera=hex_rgb(c.sclera), pupil=hex_rgb(c.pupil), brow=brow,
-                   blush=blush, sw=float(np.clip(sw, 6.0, 40.0)))
+                   blush=blush, sw=float(np.clip(sw, 6.0, 40.0)), blush_line=mix(blush, inkc, 0.35))
 
 
 class _KitShim:
@@ -375,3 +376,93 @@ def draw_nose(ctx, geo, prof: CharacterProfile, pal: Palette, proj: Proj, dy: fl
     elif st == "line":
         p = np.array([c + [0.0, -0.70 * s], c + [-0.10 * s, 0.0], c + [0.15 * s, 0.12 * s]])
         ink.tapered(ctx, P(ink.catmull(p, 8)), pal.ink, 0.75 * sw, kind="both", tip=0.1)
+
+
+# ================================================================================================ mouth
+def mouth_view(geo) -> dict:
+    """rig25 mouth topology (left / right corners + the 'low' sag point) from the profile layout."""
+    L, R, c, u = geo["left"], geo["right"], geo["c"], geo["u"]
+    n = np.array([-u[1], u[0]])
+    if n[1] < 0:
+        n = -n
+    low = L + (R - L) * 0.42 + n * max(2.0, geo["curve"])
+    return {"left": L.copy(), "right": R.copy(), "low": low}
+
+
+class _InkSwap:
+    """rig25.draw_mouth uses the module constant INK; swap it to the character's measured ink colour."""
+
+    def __init__(self, rgb):
+        self.rgb = rgb
+
+    def __enter__(self):
+        from . import rig25
+        self.mod, self.old = rig25, rig25.INK
+        rig25.INK = self.rgb
+
+    def __exit__(self, *a):
+        self.mod.INK = self.old
+
+
+def draw_mouth_proc(ctx, geo, m: dict, prof: CharacterProfile, pal: Palette, proj: Proj, near: float = 0.0):
+    mv = {k: proj(np.array([v]))[0] for k, v in mouth_view(geo).items()}
+    mm = dict(m)
+    st = prof.mouth.style
+    if st == "wide":
+        mm["width"] = mm.get("width", 1.0) * 1.12
+    elif st == "small":
+        mm["width"] = mm.get("width", 1.0) * 0.80
+    with _InkSwap(pal.ink):
+        draw_mouth(ctx, mv, mm, _KitShim(pal), near=near)
+
+
+# ================================================================================================ face
+def anchors_for(lay, pal: Palette, proj: Proj):
+    from .fx import Anchors
+    eyes = {}
+    for s, g in lay["eyes"].items():
+        eyes[s] = dict(c=proj(np.array([g["c"]]))[0], w=g["w"] * proj.sx(g["c"][0]), h=g["h"], outer=g["outer"])
+    return Anchors(eyes=eyes, mouth_l=proj(np.array([lay["mouth"]["left"]]))[0],
+                   mouth_r=proj(np.array([lay["mouth"]["right"]]))[0], U=D, chin=np.array([0.0, 0.0]),
+                   top=np.array([0.0, -1.15 * D]), sw=pal.sw)
+
+
+def draw_face_proc(ctx, prof: CharacterProfile, pal: Palette, ff, yaw: float = 0.0,
+                   parts=("brows", "eyes", "nose", "mouth", "overlay"), phase: float = 0.0):
+    """everything in design space D; the caller sets the cairo matrix D → frame."""
+    lay = layout(prof)
+    proj = Proj(yaw_deg=yaw, depth=prof.head.depth, nose_out=prof.head.nose_out)
+    fx = getattr(ff, "fx", {}) or {}
+    eh = prof.eye.height * D
+    sides = {"L": ff.left, "R": ff.right}
+    # expressiveness gain from the personality (scales the AU-driven brow/lid deltas around rest)
+    if "brows" in parts:
+        cl = draw_brow(ctx, lay["brows"]["L"], ff.left, prof, pal, proj, eh)
+        cr = draw_brow(ctx, lay["brows"]["R"], ff.right, prof, pal, proj, eh)
+        draw_furrow(ctx, cl[-1], cr[-1], eh, max(ff.left.furrow, ff.right.furrow), pal, proj)
+    if "eyes" in parts:
+        efx = fx.get("eye_fx")
+        for s in ("L", "R"):
+            draw_eye(ctx, lay["eyes"][s], sides[s], prof, pal, proj, fx=efx)
+    if "nose" in parts:
+        draw_nose(ctx, lay["nose"], prof, pal, proj, dy=ff.nose_dy * eh)
+    a = anchors_for(lay, pal, proj)
+    if "mouth" in parts:
+        from .fx import draw_mouth_fx
+        mfx = fx.get("mouth_fx")
+        if not (mfx and draw_mouth_fx(ctx, mfx, a, float(ff.mouth.get("open", 0.0)), pal, phase)):
+            draw_mouth_proc(ctx, lay["mouth"], ff.mouth, prof, pal, proj, near=min(1.0, abs(yaw) / 25.0))
+        for side, amt in (("left", ff.cheek_line[0]), ("right", ff.cheek_line[1])):
+            if amt < 0.05:
+                continue
+            c = proj(np.array([lay["mouth"][side]]))[0]
+            sx = -1 if side == "left" else 1
+            p = np.array([c + [sx * 0.04 * D, -0.10 * D], c + [sx * 0.07 * D, -0.04 * D], c + [sx * 0.06 * D, 0.01 * D]])
+            ink.tapered(ctx, ink.catmull(p, 6), pal.ink, 0.40 * pal.sw, alpha=0.75 * amt)
+    if "overlay" in parts:
+        from .fx import draw_overlay
+        draw_overlay(ctx, fx, a, pal, phase)
+    if "outside" in parts:
+        from .fx import draw_outside
+        draw_outside(ctx, fx, a, pal, phase)
+    return a
