@@ -98,7 +98,7 @@ def _lab(bgr):
     return cv2.cvtColor(np.uint8([[bgr]]), cv2.COLOR_BGR2LAB)[0, 0].astype(np.float32)
 
 
-def detect_faces(sheet: np.ndarray, min_area: int = 3500):
+def detect_faces(sheet: np.ndarray, min_area: int = 3500, max_frac: float = 0.08):
     """→ (list of dict(label_id, bbox, mask_full), skin_bgr, hair_bgr, lbl).  Face = solid, roughly round flat
     region bounded by line-art, whose colour is NOT the hair colour (hair masses are low-solidity)."""
     g = cv2.cvtColor(sheet, cv2.COLOR_BGR2GRAY)
@@ -109,7 +109,7 @@ def detect_faces(sheet: np.ndarray, min_area: int = 3500):
     regs = []
     for i in range(1, n):
         x, y, w, h, a = st[i]
-        if i in border or a < min_area or a > 0.08 * sheet.shape[0] * sheet.shape[1]:
+        if i in border or a < min_area or a > max_frac * sheet.shape[0] * sheet.shape[1]:
             continue
         comp = lbl[y:y + h, x:x + w] == i
         filled = ndi.binary_fill_holes(comp)
@@ -204,6 +204,17 @@ def extract_decal(sheet, lbl, face, skin_bgr, hair_bgr, pad: int = 6):
             continue
         keep[j] = True
     feat = keep[cl]
+    # closed shapes (brow fills, eye whites, mouth interior) are opaque artwork even where their paint is close
+    # to the skin tone (cream brow fill on peach skin) — fill enclosed holes unless the hole IS skin
+    filled = ndi.binary_fill_holes(feat) & face_reg & ~feat
+    solid = np.zeros_like(feat)
+    if filled.any():
+        nh, hl = cv2.connectedComponents(filled.astype(np.uint8), connectivity=4)
+        for j in range(1, nh):
+            hj = hl == j
+            if float(np.median(dsk[hj])) > 0.45 * thr or not (lab[..., 0][hj] > loc[0] + 4).mean() < 0.5:
+                solid |= hj
+    feat = feat | solid
     # alpha: how far a pixel is from skin (anti-aliased edges get partial alpha), only near kept features
     near = cv2.dilate(feat.astype(np.uint8), np.ones((3, 3), np.uint8)) > 0
     darker = lab[..., 0] < loc[0] - 3.0               # anti-aliased ink is darker than skin; JPEG ringing is lighter
@@ -211,6 +222,7 @@ def extract_decal(sheet, lbl, face, skin_bgr, hair_bgr, pad: int = 6):
     alpha = np.clip((dsk - a_lo) / (a_hi - a_lo), 0.0, 1.0)
     alpha = np.where(feat, np.maximum(alpha, 0.9), np.where(darker, alpha, 0.0)) * near * face_reg
     alpha = np.where(inkm & near, 1.0, alpha)
+    alpha = np.where(solid, 1.0, alpha)
     # un-mix the skin out of the edge pixels: C = (I - (1 - a)·skin) / a  → decal works on ANY skin colour
     skin_bgr_loc = cv2.cvtColor(loc.reshape(1, 1, 3).astype(np.uint8), cv2.COLOR_LAB2BGR)[0, 0].astype(np.float32)
     a3 = np.maximum(alpha, 1e-3)[..., None]
