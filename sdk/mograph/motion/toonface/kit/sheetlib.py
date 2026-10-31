@@ -222,29 +222,64 @@ def extract_decal(sheet, lbl, face, skin_bgr, hair_bgr, pad: int = 6):
     return rgba, face_reg[y0:y1, x0:x1], (x0, y0), line_px, feat[y0:y1, x0:x1]
 
 
+def _zone(ux, uy, area_frac):
+    if abs(ux) > 0.62 or uy < -0.05 or uy > 1.15:
+        return "fx"                                     # tears, sweat, marks outside the feature zone
+    if uy > 0.70:
+        nm = "brow"
+    elif uy > 0.42:
+        nm = "eye"
+    elif uy > 0.30 and abs(ux) < 0.12 and area_frac < 0.02:
+        return "nose"
+    else:
+        return "mouth"
+    return nm + ("_L" if ux < 0 else "_R")
+
+
 def split_parts(feat: np.ndarray, to_unit) -> list:
-    """components of the feature mask → named parts by position in face units."""
+    """feature mask → grouped named parts (brow_L/R, eye_L/R, nose, mouth, fx).
+
+    small components (pupil, lid, lash, tear…) are assigned as a whole by their centre; components that
+    span several zones (brows fused to eyes, both eyes fused by a frown line) are split per pixel.
+    Returns one PartBox per name with the merged bbox and the area-weighted centre.
+    """
     n, cl, st, ce = cv2.connectedComponentsWithStats(cv2.dilate(feat.astype(np.uint8), np.ones((5, 5), np.uint8)),
                                                      connectivity=8)
-    parts = []
+    lab = np.where(feat > 0, cl, 0)
+    groups = {}
+
+    def add(nm, xs, ys):
+        if len(xs) == 0:
+            return
+        u = to_unit(np.stack([xs, ys], 1).astype(np.float64))
+        g = groups.setdefault(nm, [10 ** 9, 10 ** 9, -1, -1, 0, 0.0, 0.0])
+        g[0], g[1] = min(g[0], int(xs.min())), min(g[1], int(ys.min()))
+        g[2], g[3] = max(g[2], int(xs.max()) + 1), max(g[3], int(ys.max()) + 1)
+        g[4] += len(xs)
+        g[5] += float(u[:, 0].sum())
+        g[6] += float(u[:, 1].sum())
+
     for j in range(1, n):
         if st[j, cv2.CC_STAT_AREA] < 25:
             continue
-        x, y, w, h, a = st[j]
-        u = to_unit(np.array([ce[j]]))[0]
-        if u[1] > 0.70:
-            nm = "brow"
-        elif u[1] > 0.42:
-            nm = "eye"
-        elif u[1] > 0.30 and abs(u[0]) < 0.12 and a < 0.02 * feat.size:
-            nm = "nose"
-        else:
-            nm = "mouth"
-        if nm in ("brow", "eye") and abs(u[0]) > 0.04:
-            nm += "_L" if u[0] < 0 else "_R"
-        parts.append(PartBox(name=nm, bbox=(int(x), int(y), int(x + w), int(y + h)),
-                             center_u=(float(u[0]), float(u[1])), area=int(a)))
-    return parts
+        ys, xs = np.nonzero(lab == j)
+        if len(xs) == 0:
+            continue
+        u = to_unit(np.stack([xs, ys], 1).astype(np.float64))
+        af = len(xs) / feat.size
+        cx, cy = u[:, 0].mean(), u[:, 1].mean()
+        span_x = np.percentile(u[:, 0], 95) - np.percentile(u[:, 0], 5)
+        span_y = np.percentile(u[:, 1], 95) - np.percentile(u[:, 1], 5)
+        if (span_x < 0.34 and span_y < 0.26) or cy < 0.40:
+            add(_zone(cx, cy, af), xs, ys)              # compact part, or a mouth (kept whole)
+            continue
+        names = np.array([_zone(ux, uy, af) for ux, uy in u])
+        for nm in np.unique(names):
+            k = names == nm
+            add(str(nm), xs[k], ys[k])
+    return [PartBox(name=k, bbox=(g[0], g[1], g[2], g[3]),
+                    center_u=(g[5] / g[4], g[6] / g[4]), area=int(g[4]))
+            for k, g in sorted(groups.items())]
 
 
 # ================================================================================================ OCR
