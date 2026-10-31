@@ -193,12 +193,14 @@ def extract_decal(sheet, lbl, face, skin_bgr, hair_bgr, pad: int = 6):
         thin = area / max(1.0, np.hypot(cst[j, cv2.CC_STAT_WIDTH], cst[j, cv2.CC_STAT_HEIGHT])) < 1.6 * line_px
         if thin and float(np.median(r)) > 0.74 and float(inkm[cj].mean()) > 0.6:
             continue
-        if cy < 0.22 and hair_frac > 0.6:               # anything hair-like in the top fifth = forelock
+        if cy < 0.16 and hair_frac > 0.6:               # anything hair-like in the top sixth = forelock
             continue
         # forelock: hair-coloured/ink, upper half, starting at the face border.  Distance is measured to the hull
         # border (the outline ink itself was removed above, which would otherwise disconnect the curl from it)
         dmin = float(dist_border[cj].min())
-        if hair_frac > 0.70 and cy < 0.50 and (touches or dmin < 3.0 * line_px + 3.0):
+        hair_fill = float(((dh < 12) & ~inkm)[cj].mean())     # cream hair paint (pure ink lines = 0)
+        near_edge = touches or dmin < 3.0 * line_px + 3.0
+        if near_edge and top_y < 0.20 and hair_frac > 0.70 and (hair_fill > 0.15 or cy < 0.18):
             continue
         keep[j] = True
     feat = keep[cl]
