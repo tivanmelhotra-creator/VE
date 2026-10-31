@@ -196,7 +196,7 @@ def gender_delta() -> FaceShape:
         brow_y=(g["brow_y"] - g["eye_y"]) - (b["brow_y"] - b["eye_y"]),
         brow_len=g["brow_len"] / b["brow_len"],
         brow_thick=g["brow_th"] / b["brow_th"],
-        nose_scale=float(np.clip(g["nose"] / b["nose"], 0.7, 1.2)),
+        nose_scale=float(np.clip(g["nose"] / b["nose"], 0.7, 1.0)),   # girl nose is a different drawn shape
         mouth_w=g["mouth_w"] / b["mouth_w"],
         mouth_y=g["mouth_y"] - b["mouth_y"],
         line=g["stroke"] / b["stroke"],
@@ -238,30 +238,46 @@ class Drawing:
 
     def mirrored(self) -> "Drawing":
         ox = self.origin[0]
-        ps = [Part(p.name, p.rgba[:, ::-1].copy(), 2 * ox - (p.x0 + p.rgba.shape[1] - 1), p.y0,
-                   (-p.anchor[0], p.anchor[1]), p.line_px) for p in self.parts]
+        sw = {"_L": "_R", "_R": "_L"}
+        ps = [Part(p.name[:-2] + sw[p.name[-2:]] if p.name[-2:] in sw else p.name, p.rgba[:, ::-1].copy(),
+                   2 * ox - (p.x0 + p.rgba.shape[1] - 1), p.y0, (-p.anchor[0], p.anchor[1]), p.line_px)
+              for p in self.parts]
         return Drawing(self.expr, self.view + "~m", -self.yaw, self.unit_px, self.origin, ps)
 
 
 def split_drawing(rgba: np.ndarray, origin, unit_px: float, line_px: float) -> list:
-    """decal → Part list (same zoning rules as sheetlib.split_parts, but with pixel masks)."""
+    """decal → Part list (sheetlib zoning, pixel masks).  Left/right is decided relative to the midpoint between the
+    two eyes (not x=0): on a turned head the near eye crosses the face centre line and must stay one part."""
     a = rgba[..., 3] > 0
     n, cl, st, _ = cv2.connectedComponentsWithStats(cv2.dilate(a.astype(np.uint8), np.ones((5, 5), np.uint8)), 8)
     lab = np.full(a.shape, -1, np.int32)
     names = list(PARTS_ORDER)
+    comps = []
     for j in range(1, n):
         ys, xs = np.nonzero((cl == j) & a)
         if len(xs) < 20:
             continue
         u = np.stack([(xs - origin[0]) / unit_px, (origin[1] - ys) / unit_px], 1)
+        comps.append((ys, xs, u))
+    eye_c = sorted([(len(c[1]), c[2][:, 0].mean()) for c in comps
+                    if 0.42 < c[2][:, 1].mean() <= 0.70 and abs(c[2][:, 0].mean()) < 0.62], reverse=True)[:2]
+    bx = float(np.mean([e[1] for e in eye_c])) if len(eye_c) == 2 else 0.0
+
+    def zone(ux, uy, af):
+        z = _zone(ux, uy, af)
+        if z[-2:] in ("_L", "_R"):
+            z = z[:-2] + ("_L" if ux < bx else "_R")
+        return z
+
+    for ys, xs, u in comps:
         af = len(xs) / a.size
         sx = np.percentile(u[:, 0], 95) - np.percentile(u[:, 0], 5)
         sy = np.percentile(u[:, 1], 95) - np.percentile(u[:, 1], 5)
         cx, cy = u[:, 0].mean(), u[:, 1].mean()
         if (sx < 0.34 and sy < 0.26) or cy < 0.40:
-            lab[ys, xs] = names.index(_zone(cx, cy, af))
+            lab[ys, xs] = names.index(zone(cx, cy, af))
         else:
-            lab[ys, xs] = [names.index(_zone(x, y, af)) for x, y in u]
+            lab[ys, xs] = [names.index(zone(x, y, af)) for x, y in u]
     parts = []
     for k, nm in enumerate(names):
         m = lab == k
@@ -279,26 +295,31 @@ def split_drawing(rgba: np.ndarray, origin, unit_px: float, line_px: float) -> l
     return parts
 
 
+VIEW_YAW = {"front": 0.0, "q34": 40.0, "profile": 85.0}
+
+
 def load_drawings(lib: ExpressionLibrary, head: HeadModel) -> dict:
-    """library → {expr: [Drawing …]} with each key's yaw measured from its own eye layout (mirrors included)."""
+    """library → {expr: [Drawing …] sorted by yaw}.  Key yaw = the angle the drawing was ORDERED at (view label ×
+    facing side); mirrored copies cover the other side."""
     out = {}
     for key, e in lib.items.items():
         expr, view = key.split("@") if "@" in key else (key, "front")
         parts = split_drawing(lib.decal(key), e.origin_px, e.px_per_unit, e.line_px)
-        eyes = [p for p in parts if p.name in ("eye_L", "eye_R")]
-        if view == "front":
-            yaw = 0.0
-        elif len(eyes) == 2:
-            u_mid = float(np.mean([p.anchor[0] for p in eyes]))
-            yaw = head.yaw_from_eyes(u_mid, float(np.mean([p.anchor[1] for p in eyes])))
-            if abs(yaw) < 6:
-                yaw = math.copysign(6.0, (getattr(e, "facing", 0) or 1) * 1.0)
-        else:
-            yaw = head.profile_deg * (getattr(e, "facing", 0) or (1 if eyes and eyes[0].anchor[0] > 0 else -1))
+        facing = getattr(e, "facing", 0) or 0
+        if view != "front" and not facing:
+            facing = 1 if np.mean([p.anchor[0] for p in parts] or [0]) > 0 else -1
+        yaw = VIEW_YAW.get(view, 0.0) * (facing if view != "front" else 0)
+        if view == "profile":
+            near = "_R" if facing < 0 else "_L"
+            for p in parts:
+                if p.name[-2:] in ("_L", "_R"):
+                    p.name = p.name[:-2] + near
         d = Drawing(expr, view, float(yaw), e.px_per_unit, e.origin_px, parts)
         out.setdefault(expr, []).append(d)
         if view != "front":
             out[expr].append(d.mirrored())
+    for v in out.values():
+        v.sort(key=lambda d: d.yaw)
     return out
 
 
@@ -370,25 +391,123 @@ class DecalRig:
     """expression drawings + head model + character shape → premultiplied face layer at any yaw."""
 
     def __init__(self, lib: ExpressionLibrary | str, head: HeadModel | None = None, shape: FaceShape | None = None,
-                 dissolve_deg: float = 4.0):
+                 dissolve_deg: float = 0.0, hysteresis_deg: float = 3.0):
         self.lib = ExpressionLibrary.load(lib) if isinstance(lib, str) else lib
         self.head = head or HeadModel()
         self.shape = shape or FaceShape()
         self.dissolve = dissolve_deg
+        self.hysteresis_deg = hysteresis_deg
+        self._swap = {}
         self.drawings = load_drawings(self.lib, self.head)
         self._styled = {}
 
     def expressions(self):
         return sorted(self.drawings)
 
-    def keys(self, expr: str, yaw: float):
-        """[(Drawing, weight)] — nearest key (drawing substitution) + dissolve partner near the switch angle."""
-        ds = sorted(self.drawings[expr], key=lambda d: abs(d.yaw - yaw))
-        if len(ds) == 1:
-            return [(ds[0], 1.0)]
-        d1, d2 = abs(ds[0].yaw - yaw), abs(ds[1].yaw - yaw)
-        w = float(np.clip(0.5 + (d2 - d1) / (2 * self.dissolve), 0.5, 1.0))
-        return [(ds[0], w)] if w >= 0.999 else [(ds[0], w), (ds[1], 1 - w)]
+    # ------------------------------------------------------------------------------------------ keyed interpolation
+    @staticmethod
+    def _psize(d: Drawing, p: Part):
+        return p.rgba.shape[1] / d.unit_px, p.rgba.shape[0] / d.unit_px
+
+    def _synth(self, d_from: Drawing, p: Part, yaw_to: float):
+        """part missing in a key: carry it from the other key with the head model (anchor, size, vis=0..1)."""
+        h = self.head
+        th0, th1 = math.radians(d_from.yaw), math.radians(yaw_to)
+        s0, s1 = 2 * h.a_eff(th0), 2 * h.a_eff(th1)
+        X, Y = p.anchor[0] * s0, p.anchor[1] * s0
+        xc = h.unproject_x(X, Y, th0)
+        _, sx0, _ = h.project(xc, Y, th0)
+        Xt, sx1, zf = h.project(xc, Y, th1)
+        w, hh = self._psize(d_from, p)
+        k = s0 / s1
+        vis = float(np.clip((zf + 0.02) / 0.08, 0, 1) * np.clip((sx1 - 0.12) / 0.15, 0, 1))
+        return (Xt / s1, Y / s1), (w * k * max(0.08, sx1) / max(0.15, sx0), hh * k), vis
+
+    def bracket(self, expr: str, yaw: float):
+        """→ (d0, d1, t): neighbouring key drawings and the position between them (t in 0..1)."""
+        ds = self.drawings[expr]
+        if yaw <= ds[0].yaw:
+            return ds[0], ds[0], 0.0
+        if yaw >= ds[-1].yaw:
+            return ds[-1], ds[-1], 0.0
+        for d0, d1 in zip(ds, ds[1:]):
+            if d0.yaw <= yaw <= d1.yaw:
+                return d0, d1, (yaw - d0.yaw) / max(1e-6, d1.yaw - d0.yaw)
+        return ds[0], ds[0], 0.0
+
+    def targets(self, expr: str, yaw: float):
+        """per part: interpolated anchor (target face units), size, visibility, and the drawings to show with
+        their dissolve weights.  {name: dict(anchor, size, vis, draws=[(Drawing, Part, w)])}"""
+        d0, d1, t = self.bracket(expr, yaw)
+        span = max(1.0, abs(d1.yaw - d0.yaw))
+        if self.dissolve > 0:                                        # optional soft swap (off by default)
+            band = self.dissolve / span
+            sw = float(np.clip((t - 0.5) / max(1e-3, band) + 0.5, 0, 1))
+            sw = sw * sw * (3 - 2 * sw)
+        else:                                                        # hard swap at mid-interval + hysteresis
+            k = (expr, d0.view, d1.view)
+            hy = self.hysteresis_deg / span
+            prev = self._swap.get(k, 1.0 if t >= 0.5 else 0.0)
+            sw = 1.0 if t > 0.5 + hy else 0.0 if t < 0.5 - hy else prev
+            self._swap[k] = sw
+        out = {}
+        names = {p.name for p in d0.parts} | {p.name for p in d1.parts}
+        for nm in names:
+            p0 = next((p for p in d0.parts if p.name == nm), None)
+            p1 = next((p for p in d1.parts if p.name == nm), None)
+            if d0 is d1:                                             # outside the key range: head-model carry
+                a, sz, v = self._synth(d0, p0, yaw)
+                out[nm] = dict(anchor=a, size=sz, vis=v, draws=[(d0, p0, 1.0)])
+                continue
+            if p0 is not None:
+                a0, sz0, v0 = p0.anchor, self._psize(d0, p0), 1.0
+            else:
+                a0, sz0, v0 = self._synth(d1, p1, d0.yaw)
+            if p1 is not None:
+                a1, sz1, v1 = p1.anchor, self._psize(d1, p1), 1.0
+            else:
+                a1, sz1, v1 = self._synth(d0, p0, d1.yaw)
+            lerp = lambda x, y: (1 - t) * np.asarray(x, float) + t * np.asarray(y, float)
+            draws = []
+            if p0 is not None and 1 - sw > 1e-3:
+                draws.append((d0, p0, 1 - sw if p1 is not None else 1.0))
+            if p1 is not None and sw > 1e-3:
+                draws.append((d1, p1, sw if p0 is not None else 1.0))
+            v = float(lerp(v0, v1))
+            v = float(np.clip((v - 0.4) / 0.2, 0, 1))
+            out[nm] = dict(anchor=tuple(lerp(a0, a1)), size=tuple(lerp(sz0, sz1)), vis=v, draws=draws)
+        self._apply_shape(out)
+        return out
+
+    def _apply_shape(self, tg: dict):
+        """character FaceShape on the interpolated layout (spacing about the eye-pair midpoint, sizes about anchors)."""
+        sh = self.shape
+        eyes = [tg[n]["anchor"] for n in ("eye_L", "eye_R") if n in tg]
+        mid = np.mean(eyes, axis=0) if eyes else np.array([0.0, 0.5])
+        disp = {}
+        for side in ("L", "R"):
+            n = "eye_" + side
+            if n in tg:
+                a = np.asarray(tg[n]["anchor"], float)
+                na = np.array([mid[0] + (a[0] - mid[0]) * sh.eye_spacing, a[1] + sh.eye_y])
+                disp[side] = na - a
+                w, h = tg[n]["size"]
+                tg[n].update(anchor=tuple(na), size=(w * sh.eye_scale, h * sh.eye_scale * sh.eye_round))
+        for side in ("L", "R"):
+            n = "brow_" + side
+            if n in tg:
+                d = disp.get(side, np.array([(np.asarray(tg[n]["anchor"])[0] - mid[0]) * (sh.eye_spacing - 1),
+                                             sh.eye_y]))
+                a = np.asarray(tg[n]["anchor"], float) + d + np.array([0.0, sh.brow_y])
+                w, h = tg[n]["size"]
+                tg[n].update(anchor=tuple(a), size=(w * sh.brow_len, h * sh.brow_thick))
+        if "nose" in tg:
+            w, h = tg["nose"]["size"]
+            tg["nose"]["size"] = (w * sh.nose_scale, h * sh.nose_scale)
+        if "mouth" in tg:
+            a = tg["mouth"]["anchor"]
+            w, h = tg["mouth"]["size"]
+            tg["mouth"].update(anchor=(a[0], a[1] + sh.mouth_y), size=(w * sh.mouth_w, h))
 
     def _styled_part(self, d: Drawing, p: Part):
         sh = self.shape
@@ -401,35 +520,13 @@ class DecalRig:
             self._styled[key] = (rgba, dx, dy)
         return self._styled[key]
 
-    def part_unit_affine(self, d: Drawing, p: Part, yaw: float):
-        """2×3 key-face-units → target-face-units for one part, and its visibility (0..1)."""
-        h, sh = self.head, self.shape
-        thk, th = math.radians(d.yaw), math.radians(yaw)
-        sk, st = 2 * h.a_eff(thk), 2 * h.a_eff(th)
-        X, Y = p.anchor[0] * sk, p.anchor[1] * sk
-        xc = h.unproject_x(X, Y, thk)
-        _, sx_k, _ = h.project(xc, Y, thk)
-        gx = gy = 1.0
-        if p.name.startswith("eye"):
-            xc *= sh.eye_spacing
-            Y += sh.eye_y
-            gx, gy = sh.eye_scale, sh.eye_scale * sh.eye_round
-        elif p.name.startswith("brow"):
-            xc *= sh.eye_spacing
-            Y += sh.eye_y + sh.brow_y
-            gx, gy = sh.brow_len, sh.brow_thick
-        elif p.name == "nose":
-            gx = gy = sh.nose_scale
-        elif p.name == "mouth":
-            Y += sh.mouth_y
-            gx = sh.mouth_w
-        Xt, sx_t, zf = h.project(xc, Y, th)
-        sx = float(np.clip(sx_t / max(0.15, sx_k), 0.2, 2.5))
-        k = sk / st
-        A = np.array([[k * sx * gx, 0.0], [0.0, k * gy]])
-        t = np.array([Xt / st, Y / st]) - A @ np.array(p.anchor)
-        vis = float(np.clip((zf + 0.02) / 0.08, 0, 1) * np.clip((sx_t - 0.12) / 0.15, 0, 1))
-        return np.hstack([A, t[:, None]]), vis
+    def part_unit_affine(self, d: Drawing, p: Part, tgt: dict):
+        """2×3 key-face-units → target-face-units: the drawn part's anchor → target anchor, size → target size."""
+        w0, h0 = self._psize(d, p)
+        w1, h1 = tgt["size"]
+        A = np.array([[w1 / max(1e-4, w0), 0.0], [0.0, h1 / max(1e-4, h0)]])
+        t = np.asarray(tgt["anchor"], float) - A @ np.asarray(p.anchor, float)
+        return np.hstack([A, t[:, None]])
 
     def layer(self, W: int, H: int, expr: str, yaw: float, style, M_track=None, face_mask=None):
         """→ (premultiplied colour float32 H×W×3, alpha float32 H×W)."""
@@ -439,27 +536,28 @@ class DecalRig:
         fm = None
         if face_mask is not None:
             fm = cv2.GaussianBlur(face_mask.astype(np.float32), (5, 5), 0)
-        for d, wk in self.keys(expr, yaw):
-            Dinv = invert(d.unit_to_decal())
-            for nm in PARTS_ORDER:
-                for p in (q for q in d.parts if q.name == nm):
-                    Au, vis = self.part_unit_affine(d, p, yaw)
-                    if vis * wk < 0.01:
-                        continue
-                    rgba, dx, dy = self._styled_part(d, p)
-                    T = np.array([[1.0, 0.0, p.x0 - dx], [0.0, 1.0, p.y0 - dy]])
-                    M = compose(U, Au, Dinv, T)
-                    if M_track is not None:
-                        M = compose(M_track, M)
-                    a = rgba[..., 3:4].astype(np.float32) / 255.0
-                    pm = np.concatenate([rgba[..., :3].astype(np.float32) * a, a * 255.0], 2)
-                    w = cv2.warpAffine(pm, M, (W, H), flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT)
-                    pa = w[..., 3] / 255.0 * vis * wk
-                    pc = w[..., :3] * (vis * wk)
-                    if fm is not None and not (nm.startswith("brow") and self.shape.brow_layer == "over"):
-                        pa, pc = pa * fm, pc * fm[..., None]
-                    col = pc + col * (1 - pa[..., None])
-                    alp = pa + alp * (1 - pa)
+        tg = self.targets(expr, yaw)
+        for nm in PARTS_ORDER:
+            if nm not in tg or tg[nm]["vis"] < 0.01:
+                continue
+            for d, p, wk in tg[nm]["draws"]:
+                Dinv = invert(d.unit_to_decal())
+                Au = self.part_unit_affine(d, p, tg[nm])
+                vis = tg[nm]["vis"]
+                rgba, dx, dy = self._styled_part(d, p)
+                T = np.array([[1.0, 0.0, p.x0 - dx], [0.0, 1.0, p.y0 - dy]])
+                M = compose(U, Au, Dinv, T)
+                if M_track is not None:
+                    M = compose(M_track, M)
+                a = rgba[..., 3:4].astype(np.float32) / 255.0
+                pm = np.concatenate([rgba[..., :3].astype(np.float32) * a, a * 255.0], 2)
+                w = cv2.warpAffine(pm, M, (W, H), flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT)
+                pa = w[..., 3] / 255.0 * vis * wk
+                pc = w[..., :3] * (vis * wk)
+                if fm is not None and not (nm.startswith("brow") and self.shape.brow_layer == "over"):
+                    pa, pc = pa * fm, pc * fm[..., None]
+                col = pc + col * (1 - pa[..., None])
+                alp = pa + alp * (1 - pa)
         return col, alp
 
     def render(self, frame, expr, yaw, style, M_track=None, face_mask=None, keep=None):
@@ -480,3 +578,74 @@ def over_layers(frame, layers):
         col += c * w
         a += al * w
     return np.clip(out * (1 - a[..., None]) + col + 0.5, 0, 255).astype(np.uint8)
+
+
+# ================================================================================================ video
+def parse_script(spec: str, fps: float):
+    """'0:smug,1.5:pleading,3:sulking' → [(frame, expr)] sorted."""
+    out = []
+    for tok in spec.split(","):
+        t, e = tok.split(":")
+        out.append((int(round(float(t) * fps)), e.strip()))
+    return sorted(out)
+
+
+def render_video(video: str, lib: str, out: str, script: str, femininity: float = 0.0, preset: str = "as_drawn",
+                 shape_json: str | None = None, yaw: float | None = None, swap_frames: int = 2, debug: bool = False):
+    """track the blank face (v32 tracker + occlusion), place the expression rig, stream to mp4."""
+    from .facecomp import FaceRigCompositor, VideoWriter, chin_offset, read_frames
+    frames, fps = read_frames(video)
+    comp = FaceRigCompositor("boy", frames, fps=fps, verbose=False)        # tracking + occlusion only
+    st = comp.trk.style
+    base = FaceShape.load(shape_json) if shape_json else PRESETS[preset]
+    rig = DecalRig(lib, shape=character_shape(base, femininity))
+    if yaw is None:
+        yaw = rig.head.yaw_from_chin(chin_offset(comp.ref_face))
+    keys = parse_script(script, fps)
+    H, W = frames[0].shape[:2]
+    vw = VideoWriter(out, W, H, fps)
+    for i, f in enumerate(frames):
+        cur = [e for k, e in keys if k <= i]
+        cur = cur[-1] if cur else keys[0][1]
+        prev_k = [(k, e) for k, e in keys if k <= i]
+        prior, occ, _ = comp.occlusion_mask(i)
+        sw = max(2, int(round(st.line_px)))
+        inside = cv2.erode(prior.astype(np.uint8), np.ones((sw, sw), np.uint8)) > 0
+        keep = np.clip(1.0 - cv2.dilate(occ.astype(np.uint8), np.ones((3, 3), np.uint8)).astype(np.float32), 0, 1)
+        M = comp.poses[i].M
+        layers = []
+        if len(prev_k) >= 2 and i - prev_k[-1][0] < swap_frames:          # short dissolve between expressions
+            t = (i - prev_k[-1][0] + 1) / (swap_frames + 1)
+            for e, w in ((prev_k[-2][1], 1 - t), (cur, t)):
+                c, a = rig.layer(W, H, e, yaw, st, M, inside)
+                layers.append((c * keep[..., None], a * keep, w))
+        else:
+            c, a = rig.layer(W, H, cur, yaw, st, M, inside)
+            layers.append((c * keep[..., None], a * keep, 1.0))
+        img = over_layers(f, layers)
+        if debug:
+            cv2.putText(img, f"{i} {cur} yaw={yaw:+.0f} fem={femininity:.1f}", (10, 30), 0, 0.8, (0, 0, 255), 2)
+        vw.write(img)
+        frames[i] = None
+    vw.close()
+    return out
+
+
+def main():
+    ap = argparse.ArgumentParser(description="expression rig on a blank-face video")
+    ap.add_argument("--video", required=True)
+    ap.add_argument("--lib", required=True)
+    ap.add_argument("--out", required=True)
+    ap.add_argument("--script", default="0:smug,1.7:pleading,3.4:sulking")
+    ap.add_argument("--femininity", type=float, default=0.0)
+    ap.add_argument("--preset", default="as_drawn", choices=sorted(PRESETS))
+    ap.add_argument("--shape", default=None, help="FaceShape json (per-character art direction)")
+    ap.add_argument("--yaw", type=float, default=None)
+    ap.add_argument("--debug", action="store_true")
+    a = ap.parse_args()
+    print("[decalrig]", render_video(a.video, a.lib, a.out, a.script, a.femininity, a.preset, a.shape, a.yaw,
+                                     debug=a.debug))
+
+
+if __name__ == "__main__":
+    main()
