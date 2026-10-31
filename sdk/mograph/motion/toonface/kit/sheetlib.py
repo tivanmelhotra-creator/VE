@@ -171,6 +171,7 @@ def extract_decal(sheet, lbl, face, skin_bgr, hair_bgr, pad: int = 6):
     yb0, yb1 = ys.min(), ys.max()
     fh = max(1, yb1 - yb0)
     band_wide = face_reg & ~(cv2.erode(hm, np.ones((k_in + 8, k_in + 8), np.uint8)) > 0)
+    dist_border = cv2.distanceTransform(hm, cv2.DIST_L2, 3)           # px from the face hull border
     fcx, fcy = xs.mean(), ys.mean()
     frx, fry = 0.5 * (xs.max() - xs.min()), 0.5 * (ys.max() - ys.min())
     keep = np.zeros(n, bool)
@@ -194,8 +195,10 @@ def extract_decal(sheet, lbl, face, skin_bgr, hair_bgr, pad: int = 6):
             continue
         if cy < 0.22 and hair_frac > 0.6:               # anything hair-like in the top fifth = forelock
             continue
-        # forelock: hair-coloured/ink, upper half, reaching the face border (it comes from the hair mass)
-        if touches and hair_frac > 0.70 and cy < 0.50:
+        # forelock: hair-coloured/ink, upper half, starting at the face border.  Distance is measured to the hull
+        # border (the outline ink itself was removed above, which would otherwise disconnect the curl from it)
+        dmin = float(dist_border[cj].min())
+        if hair_frac > 0.70 and cy < 0.50 and (touches or dmin < 3.0 * line_px + 3.0):
             continue
         keep[j] = True
     feat = keep[cl]
