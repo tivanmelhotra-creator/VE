@@ -171,6 +171,8 @@ def extract_decal(sheet, lbl, face, skin_bgr, hair_bgr, pad: int = 6):
     yb0, yb1 = ys.min(), ys.max()
     fh = max(1, yb1 - yb0)
     band_wide = face_reg & ~(cv2.erode(hm, np.ones((k_in + 8, k_in + 8), np.uint8)) > 0)
+    fcx, fcy = xs.mean(), ys.mean()
+    frx, fry = 0.5 * (xs.max() - xs.min()), 0.5 * (ys.max() - ys.min())
     keep = np.zeros(n, bool)
     for j in range(1, n):
         area = cst[j, cv2.CC_STAT_AREA]
@@ -184,16 +186,25 @@ def extract_decal(sheet, lbl, face, skin_bgr, hair_bgr, pad: int = 6):
         band_frac = float(band_wide[cj].mean())
         if band_frac > 0.40:                            # face outline / jaw shading / hair fringe on the border
             continue
+        # thin arc in the outer ring of the face (cheek / jaw construction line, hair edge) → not a feature
+        yy, xx = np.nonzero(cj)
+        r = np.hypot((xx - fcx) / max(1.0, frx), (yy - fcy) / max(1.0, fry))
+        thin = area / max(1.0, np.hypot(cst[j, cv2.CC_STAT_WIDTH], cst[j, cv2.CC_STAT_HEIGHT])) < 1.6 * line_px
+        if thin and float(np.median(r)) > 0.74 and float(inkm[cj].mean()) > 0.6:
+            continue
+        if cy < 0.22 and hair_frac > 0.6:               # anything hair-like in the top fifth = forelock
+            continue
         # forelock: hair-coloured/ink, upper half, reaching the face border (it comes from the hair mass)
         if touches and hair_frac > 0.70 and cy < 0.50:
             continue
         keep[j] = True
     feat = keep[cl]
     # alpha: how far a pixel is from skin (anti-aliased edges get partial alpha), only near kept features
-    near = cv2.dilate(feat.astype(np.uint8), np.ones((5, 5), np.uint8)) > 0
-    a_lo, a_hi = 0.45 * thr, 2.2 * thr
+    near = cv2.dilate(feat.astype(np.uint8), np.ones((3, 3), np.uint8)) > 0
+    darker = lab[..., 0] < loc[0] - 3.0               # anti-aliased ink is darker than skin; JPEG ringing is lighter
+    a_lo, a_hi = 1.0 * thr, 2.6 * thr
     alpha = np.clip((dsk - a_lo) / (a_hi - a_lo), 0.0, 1.0)
-    alpha = np.where(feat, np.maximum(alpha, 0.85), alpha) * near * face_reg
+    alpha = np.where(feat, np.maximum(alpha, 0.9), np.where(darker, alpha, 0.0)) * near * face_reg
     alpha = np.where(inkm & near, 1.0, alpha)
     # un-mix the skin out of the edge pixels: C = (I - (1 - a)·skin) / a  → decal works on ANY skin colour
     skin_bgr_loc = cv2.cvtColor(loc.reshape(1, 1, 3).astype(np.uint8), cv2.COLOR_LAB2BGR)[0, 0].astype(np.float32)
