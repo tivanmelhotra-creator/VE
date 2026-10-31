@@ -70,6 +70,48 @@ EMOTIONS: dict[str, dict] = {
 }
 
 
+# expressions from the user's reference sheets (exaggerated cartoon set)
+EMOTIONS.update({
+    "roaring":     au(AU4=1.0, AU7=0.9, AU9=0.6, AU10=0.8, AU26=1.0, AU20=0.5, AU43=0.9),
+    "star_eyed":   au(AU12=0.95, AU6=0.4, AU1=0.5, AU2=0.6, AU26=0.55),
+    "terrified":   au(AU1=1.0, AU2=0.6, AU4=0.5, AU5=1.0, AU20=1.0, AU26=0.35, AU10=0.4, pupil=-0.45),
+    "pleading":    au(AU1=1.0, AU4=0.35, AU12=0.30, AU5=0.25, pupil=0.30),
+    "shy":         au(AU1=0.75, AU4=0.30, AU15=0.30, AU20=0.30, AU43=0.20, gaze_x=0.25, gaze_y=0.25),
+    "dizzy":       au(AU1=0.6, AU2=0.3, AU15=0.3, AU20=0.4, AU26=0.15),
+    "mischievous": au(AU4=0.80, AU2=0.40, AU12=1.0, AU6=0.6, AU10=0.6, AU20=0.4, AU43=0.25),
+    "yawning":     au(AU1=0.55, AU43=1.0, AU26=1.0, AU18=0.5, AU4=0.2),
+    "thinking":    au(AU2_L=0.85, AU4_R=0.45, AU43=0.25, AU12_L=0.45, gaze_x=0.45, gaze_y=-0.45),
+    "weeping":     au(AU1=1.0, AU4=0.80, AU43=0.9, AU26=0.85, AU15=0.8, AU20=0.6),
+    "eating":      au(AU6=0.8, AU12=0.6, AU43=0.9, AU24=0.5, AU17=0.5, AU1=0.3),
+    "disgusted":   au(AU4=0.9, AU9=1.0, AU10=0.8, AU7=0.7, AU15=0.5, AU43=0.5, AU20=0.3),
+    "eureka":      au(AU1=0.9, AU2=1.0, AU5=0.9, AU26=0.45, AU12=0.55),
+    "sulking":     au(AU4=0.85, AU15=0.6, AU17=0.7, AU24=0.4, AU43=0.35, gaze_x=0.4),
+    "whistling":   au(AU1=0.4, AU2=0.6, AU43=0.6, AU18=1.0, AU26=0.15, gaze_y=-0.2),
+    "freezing":    au(AU1=0.9, AU4=0.5, AU5=0.8, AU20=1.0, AU26=0.3, AU10=0.4, pupil=-0.4),
+    "joy":         au(AU12=1.0, AU6=1.0, AU1=0.5, AU2=0.6, AU26=0.85, AU43=1.0),
+    "sneaky":      au(AU4=0.6, AU2_L=0.5, AU12=0.9, AU12_L=1.0, AU10=0.5, AU43=0.45, AU20=0.3, gaze_x=0.4),
+    "excited":     au(AU12=1.0, AU6=0.7, AU1=0.6, AU2=0.7, AU20=0.6, AU10=0.6, AU26=0.25),
+    "scared":      au(AU1=1.0, AU4=0.45, AU5=0.85, AU20=0.8, AU26=0.45, AU15=0.4, pupil=-0.3),
+    "crying":      au(AU1=1.0, AU4=0.7, AU43=0.95, AU15=0.9, AU17=0.6, AU20=0.5, AU26=0.2),
+})
+
+# graphic extras per expression (not muscles): eye_fx star|spiral|x|squeeze|heart|x_spiral, mouth_fx wavy|grit|grin|
+# o|cat, blush 0..1, sweat 0..1, tears 0..1 (streams), lines: shock|anger|joy|cold, tongue_out
+EXPR_FX: dict[str, dict] = {
+    "roaring": dict(eye_fx="squeeze", lines="anger"), "star_eyed": dict(eye_fx="star"),
+    "terrified": dict(mouth_fx="grit", sweat=0.8), "pleading": dict(sparkle=1.0),
+    "shy": dict(blush=1.0, sweat=0.5, mouth_fx="wavy"), "shocked": dict(mouth_fx="grit", lines="shock"),
+    "dizzy": dict(eye_fx="spiral", mouth_fx="wavy"), "mischievous": dict(mouth_fx="grin"),
+    "weeping": dict(eye_fx="squeeze", tears=1.0), "crying": dict(tears=1.0, blush=0.6, mouth_fx="wavy"),
+    "disgusted": dict(mouth_fx="wavy"), "eureka": dict(lines="idea"), "whistling": dict(mouth_fx="o"),
+    "freezing": dict(mouth_fx="grit", sweat=0.4, cold=1.0, lines="cold"), "joy": dict(lines="joy"),
+    "sneaky": dict(mouth_fx="grin", blush=0.3), "excited": dict(eye_fx="star", blush=0.8, mouth_fx="grin"),
+    "scared": dict(sweat=0.9), "angry": dict(lines="anger", blush=0.5, mouth_fx="grit"),
+    "embarrassed": dict(blush=1.0, sweat=0.6),
+}
+EMOTIONS["embarrassed"] = au(AU1=0.7, AU12=0.35, AU4=0.2, AU43=0.2, gaze_x=-0.3, gaze_y=0.2)
+
+
 def blend(*pairs) -> dict:
     """blend(("happy", .7), ("surprised", .3), ({"AU12_L": .2}, 1.0)) → AU dict (weighted sum)."""
     out: dict = {}
@@ -144,6 +186,7 @@ class FaceFrame:
     wrinkle: float = 0.0            # nose-bridge wrinkle 0..1
     cheek_line: tuple = (0.0, 0.0)  # laugh-line ticks per side 0..1
     au: dict = field(default_factory=dict)
+    fx: dict = field(default_factory=dict)   # eye_fx, mouth_fx, blush, sweat, tears, lines, shake (graphic extras)
 
 
 def to_faces(a: dict, base_lid: float = 0.80, mouth_extra: dict | None = None) -> FaceFrame:
@@ -201,6 +244,7 @@ class Beat:
     t: float                         # seconds
     emotion: dict | str              # preset name or AU dict
     weight: float = 1.0
+    fx: dict | None = None           # override / add graphic extras for this beat
 
 
 class ExpressivePerformer:
@@ -303,4 +347,19 @@ class ExpressivePerformer:
         if self.visemes:
             from .visemes import mouth_at
             mouth = dict(mouth_at(self.visemes, i * dt))
-        return to_faces(a, base_lid=self.base_lid, mouth_extra=mouth)
+        ff = to_faces(a, base_lid=self.base_lid, mouth_extra=mouth)
+        ff.fx = self.fx_at(i * dt)
+        return ff
+
+    def fx_at(self, t: float) -> dict:
+        """graphic extras of the active beat; numeric ones fade in over 0.15 s, symbolic ones switch on the beat."""
+        cur, t0 = None, 0.0
+        for b in self.beats:
+            if t >= b.t:
+                cur, t0 = b, b.t
+        if cur is None:
+            return {}
+        src = dict(EXPR_FX.get(cur.emotion, {})) if isinstance(cur.emotion, str) else {}
+        src.update(getattr(cur, "fx", None) or {})
+        k = min(1.0, (t - t0) / 0.15)
+        return {key: (v * k if isinstance(v, (int, float)) else v) for key, v in src.items()}
