@@ -171,13 +171,15 @@ class PoseLimits:
 
 
 def soft_deadband(x: float, db: float) -> float:
-    """0 inside ±db, then a C1 quadratic knee up to 2·db, then linear (no visible step when a tilt starts)."""
+    """exactly 0 inside ±db (no rotation unless the skull really rotates), exactly x beyond ±2·db (no permanent
+    under-rotation), C1 smoothstep blend in between (no visible pop when a tilt starts)."""
     a = abs(x)
     if a <= db:
         return 0.0
-    k = 2.0 * db
-    y = (a - db) ** 2 / (2 * (k - db)) if a < k else a - 0.5 * (k + db)
-    return math.copysign(y, x)
+    if a >= 2.0 * db:
+        return x
+    t = (a - db) / db
+    return x * t * t * (3 - 2 * t)
 
 
 # ================================================================================================= geometry
