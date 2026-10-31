@@ -47,6 +47,13 @@ class FaceStyle:
         return np.array([[W, 0.0, self.cx], [0.0, -W, self.chin_y]], np.float64)
 
 
+def ink_mask(gray: np.ndarray, k: int = 11, contrast: float = 38.0) -> np.ndarray:
+    """line-art by LOCAL contrast (morphological black-hat), not absolute darkness: works for dark-skinned
+    characters (brown skin is darker than a fixed 'ink' threshold) and for coloured line-art."""
+    bh = cv2.morphologyEx(gray, cv2.MORPH_BLACKHAT, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (k, k)))
+    return (bh > contrast) | (gray < 40)
+
+
 def _flat_regions(img: np.ndarray, ink_thr: int):
     """label map of flat colour regions bounded by ink / strong edges (half-res for speed)."""
     small = cv2.resize(img, None, fx=0.5, fy=0.5, interpolation=cv2.INTER_AREA)
@@ -55,7 +62,7 @@ def _flat_regions(img: np.ndarray, ink_thr: int):
     gx = cv2.Sobel(lab[..., 0], cv2.CV_32F, 1, 0) ** 2 + cv2.Sobel(lab[..., 0], cv2.CV_32F, 0, 1) ** 2
     for c in (1, 2):
         gx += cv2.Sobel(lab[..., c], cv2.CV_32F, 1, 0) ** 2 + cv2.Sobel(lab[..., c], cv2.CV_32F, 0, 1) ** 2
-    edge = (np.sqrt(gx) > 40) | (g < ink_thr)
+    edge = (np.sqrt(gx) > 40) | ink_mask(g, k=7)
     edge = cv2.dilate(edge.astype(np.uint8), np.ones((3, 3), np.uint8)) > 0
     n, lbl, st, ce = cv2.connectedComponentsWithStats((~edge).astype(np.uint8), connectivity=4)
     return small, lab, g, lbl, st, n
@@ -68,7 +75,7 @@ def find_face(img: np.ndarray, hint=None, ink_thr: int = 100, min_frac: float = 
     small, lab, g, lbl, st, n = _flat_regions(img, ink_thr)
     h2, w2 = g.shape
     A = h2 * w2
-    dark = g < ink_thr
+    dark = ink_mask(g, k=7)
     best, bi = -1.0, -1
     for i in range(1, n):
         x, y, w, h, a = st[i]
@@ -93,18 +100,29 @@ def find_face(img: np.ndarray, hint=None, ink_thr: int = 100, min_frac: float = 
         sol = ca / max(1.0, cv2.contourArea(cv2.convexHull(c)))
         asp = w / max(1.0, h)
         # ink enclosure: fraction of the boundary ring that is dark line-art
-        pad = 4
+        pad = 14
         y0, y1, x0, x1 = max(0, y - pad), min(h2, y + h + pad), max(0, x - pad), min(w2, x + w + pad)
         sub = np.zeros((y1 - y0, x1 - x0), np.uint8)
         sub[y - y0:y - y0 + h, x - x0:x - x0 + w] = filled
-        ring = (cv2.dilate(sub, np.ones((5, 5), np.uint8)) > 0) & (sub == 0)
+        ring = (cv2.dilate(sub, np.ones((9, 9), np.uint8)) > 0) & (sub == 0)   # 4 px: past the AA edge band
         enc = float(dark[y0:y1, x0:x1][ring].mean()) if ring.any() else 0.0
         # flatness: low colour variance inside
         var = float(lab[y:y + h, x:x + w][comp].astype(np.float32).std(0).mean())
         # textured surroundings (hair / ears) just outside the region
         big = (cv2.dilate(sub, np.ones((25, 25), np.uint8)) > 0) & (sub == 0)
         tex = float(cv2.Laplacian(g[y0:y1, x0:x1], cv2.CV_32F)[big].std()) if big.any() else 0.0
-        s = (min(sol, 0.98) ** 6) * math.exp(-((math.log(asp)) / 0.35) ** 2) * (0.2 + enc) \
+        if enc < 0.30:                      # a face is drawn: it is closed by line-art
+            continue
+        # curved, not boxy: extent of an ellipse = 0.785, of a rectangle = 1.0; a polygon has few vertices
+        extent = ca / max(1.0, float(w * h))
+        nvert = len(cv2.approxPolyDP(c, 0.02 * cv2.arcLength(c, True), True))
+        curved = math.exp(-max(0.0, extent - 0.84) / 0.04) * min(1.0, nvert / 8.0)
+        # neck / jaw cue: directly below the region's bottom-centre there is a narrower body part (not open space)
+        bx = int(x + w / 2)
+        by0, by1 = min(h2 - 1, y + h + 2), min(h2, y + h + max(6, h // 4))
+        col = lbl[by0:by1, max(0, bx - w // 8):bx + w // 8 + 1]
+        neck = 1.0 if col.size and (np.mean(col != lbl[min(h2 - 1, by1 - 1), 0]) > 0.5) else 0.6
+        s = (min(sol, 0.98) ** 6) * math.exp(-((math.log(asp)) / 0.35) ** 2) * enc ** 2 * curved * neck \
             * math.exp(-var / 9.0) * (0.5 + min(tex, 40) / 40.0) * (1.0 - 0.5 * (y + h / 2) / h2) * math.sqrt(a / A)
         if s > best:
             best, bi = s, i
@@ -134,16 +152,17 @@ def measure_style(img: np.ndarray, face_mask: np.ndarray, ink_thr: int = 100) ->
     fm = face_mask.astype(np.uint8)
     skin = np.median(img[cv2.erode(fm, np.ones((9, 9), np.uint8)) > 0], axis=0).astype(np.float32)
     ring = (cv2.dilate(fm, np.ones((9, 9), np.uint8)) > 0) & (fm == 0)
-    dark = ring & (g < ink_thr)
+    inkm = ink_mask(g)
+    dark = ring & inkm
     ink = np.median(img[dark], axis=0).astype(np.float32) if dark.sum() > 30 else np.array([18, 29, 53], np.float32)
     # outline weight: 2 × distance-transform peak of the dark band around the face
-    band = (cv2.dilate(fm, np.ones((21, 21), np.uint8)) > 0) & (g < ink_thr) & (fm == 0)
+    band = (cv2.dilate(fm, np.ones((21, 21), np.uint8)) > 0) & inkm & (fm == 0)
     dt = cv2.distanceTransform(band.astype(np.uint8), cv2.DIST_L2, 3)
     line_px = float(np.clip(2.0 * np.percentile(dt[band], 85), 1.5, 14.0)) if band.any() else 4.0
     cx, chin, top, W = face_frame_metrics(face_mask)
     # hair: pixels just above the face that are neither skin nor ink nor background-like grey
     yy = np.arange(img.shape[0])[:, None]
-    above = (cv2.dilate(fm, np.ones((61, 61), np.uint8)) > 0) & (fm == 0) & (g >= ink_thr) & (yy < top + 0.35 * W)
+    above = (cv2.dilate(fm, np.ones((61, 61), np.uint8)) > 0) & (fm == 0) & ~inkm & (yy < top + 0.35 * W)
     if above.sum() > 50:
         px = img[above].astype(np.float32)
         far = np.linalg.norm(px - skin, axis=1) > 25
@@ -161,5 +180,5 @@ def skin_mask(img: np.ndarray, skin_bgr: np.ndarray, tol: float | None = None, i
     d = np.sqrt(0.35 * (lab[..., 0] - ref[0]) ** 2 + (lab[..., 1] - ref[1]) ** 2 + (lab[..., 2] - ref[2]) ** 2)
     tol = tol if tol is not None else 14.0
     g = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    ink = cv2.dilate((g < min(ink_thr, ref[0] * 255 / 255 * 0.8 + 10)).astype(np.uint8), np.ones((3, 3), np.uint8))
+    ink = cv2.dilate(ink_mask(g).astype(np.uint8), np.ones((3, 3), np.uint8))
     return (d < tol) & (ink == 0)
