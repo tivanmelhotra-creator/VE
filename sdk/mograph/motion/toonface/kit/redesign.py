@@ -66,7 +66,7 @@ DESCRIBE = {
 }
 
 PROMPT = (
-    "Rig-ready expression turnaround of the cartoon boy. Image 1 shows the EXPRESSION to copy exactly "
+    "Rig-ready expression turnaround of the {CHAR}. Image 1 shows the EXPRESSION to copy exactly "
     "({NAME}: {DESC}, small nose). Image 2 shows the character's blank head shape and drawing style (front view and "
     "3/4 view). Redraw the same head completely BALD (no hair, no ears) as a smooth head with exactly the same face "
     "outline and chin as image 2, thick clean black ink outlines, flat peach skin, same line weight. BOTH eyebrows "
@@ -76,10 +76,10 @@ PROMPT = (
 )
 
 
-def prompt_for(name: str, desc: str | None = None) -> str:
+def prompt_for(name: str, desc: str | None = None, char: str = "cartoon boy") -> str:
     base = name.split("@")[0]
     d = desc or DESCRIBE.get(base) or DESCRIBE.get(base.rstrip("_0123456789")) or base.replace("_", " ")
-    return PROMPT.format(NAME=base.replace("_", " ").upper(), DESC=d)
+    return PROMPT.format(NAME=base.replace("_", " ").upper(), DESC=d, CHAR=char)
 
 
 # ================================================================================================ prepare
